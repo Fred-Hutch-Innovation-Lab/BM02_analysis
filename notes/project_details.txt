@@ -1,0 +1,17 @@
+Data directories:
+3’ GEM-X data (downsampled)
+/fh/fast/_IRC/FHIL/grp/BM_Paper_Final_Data/B2-GEMX3P_25k
+Fluent (downsampled):
+/fh/fast/_IRC/FHIL/grp/BM_Paper_Final_Data/B2-Fluent_25k/OutPut_25K/
+Parse (downsampled):
+/fh/fast/_IRC/FHIL/grp/BM02_ParseV3/WT/COMBINED/
+
+10X BM1, subsampled for 5K mean reads per cell (for the VDJ).
+/fh/fast/_IRC/FHIL/grp/BM_Paper_Final_Data/B1-GEMX5P
+/fh/fast/_IRC/FHIL/grp/BM_Paper_Final_Data/B1-NextGEM5P
+
+BD data the rerun 
+/fh/fast/_IRC/FHIL/grp/BD02_2024/Final/F4_RanwithF2ABseq
+
+Scale 
+/fh/fast/_IRC/FHIL/grp/BM02_Scale_2024

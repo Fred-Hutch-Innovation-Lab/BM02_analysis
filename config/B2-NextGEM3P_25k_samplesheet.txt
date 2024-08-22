@@ -1,0 +1,5 @@
+Sample  File
+NextGEM_F1A NextGEM_F1A
+NextGEM_F1B NextGEM_F1B
+NextGEM_F5A NextGEM_F5A
+NextGEM_F5B NextGEM_F5B
