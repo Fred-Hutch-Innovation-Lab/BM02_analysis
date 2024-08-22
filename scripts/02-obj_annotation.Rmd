@@ -218,6 +218,6 @@ lapply(objs, function(x) {
 # Save objs
 
 ```{r}
-saveRDS(objs, here('rds/02_annotated_objs.rds'))
+saveRDS(objs, here('rds/01_annotated_objs.rds'))
 ```
 
