@@ -1,5 +1,5 @@
-Sample  File
-NextGEM_F1  NextGEM_F1
-NextGEM_F2  NextGEM_F2
-NextGEM_F4  NextGEM_F4
-NextGEM_F5  NextGEM_F5
+Sample  File  Kit Individual  Replicate
+NextGEM_F1  NextGEM_F1  NextGEM F1  A
+NextGEM_F2  NextGEM_F2  NextGEM F2  A
+NextGEM_F4  NextGEM_F4  NextGEM F4  A
+NextGEM_F5  NextGEM_F5  NextGEM F5  A
