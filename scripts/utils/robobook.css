@@ -1,0 +1,19 @@
+.book .book-body .page-inner {
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.book .book-body .page-inner section.normal hr {
+  height: 15px;
+}
+.nav-tabs .active {
+  background-color: #e0e9f0;
+}
+
+.nav-tabs {
+  background-color: #f1fafb;
+  border-bottom: 5px solid #017b8f;
+}
+details > summary {
+  display: list-item;
+}
