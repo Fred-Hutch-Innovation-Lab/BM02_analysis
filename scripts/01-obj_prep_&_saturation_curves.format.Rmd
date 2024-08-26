@@ -1,0 +1,30 @@
+---
+title: 'scRNA QC'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: 
+  rmdformats::robobook:
+    fig_width: 9
+    toc_depth: 3
+    css: "utils/robobook.css"
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+set.seed(33)
+```
+
+# Ambient RNA estimation
+
+```{r}
+figures[['rho_barchart']] 
+```
+ 
+# Saturation curves
+
+```{r}
+figure_sat_curves
+```
+
