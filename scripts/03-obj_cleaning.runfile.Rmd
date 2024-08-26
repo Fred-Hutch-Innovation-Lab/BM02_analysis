@@ -1,0 +1,603 @@
+---
+title: 'SC processing'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+
+library(tidyverse)  ## General R logic
+library(here)       ## Easier specification of file locations
+library(yaml)       ## parses config yaml
+library(Seurat)
+library(reshape2)   ## DF manipulation
+# library(clustree)   ## Resolution selection for clustering
+# library(ggraph)     ## To render clustree
+rbindlist <- data.table::rbindlist
+set.seed(33)
+```
+
+```{r}
+figures <- list()
+```
+
+# Load data
+
+```{r}
+objs <- readRDS(here('rds/02_annotated_objs.rds'))
+```
+
+```{r}
+metadata <- dir(here('config'), '_samplesheet.txt', full.names = TRUE)
+metadata <- lapply(metadata, read.table, header = TRUE)
+metadata <- rbindlist(metadata, fill=TRUE)
+metadata
+```
+
+# Genes
+
+## nFeature RNA
+
+### Vln
+
+```{r}
+plotdata <- lapply(objs, function(x){unname(x$nFeature_RNA)}) %>%
+  melt(idcol='Sample') %>%
+  merge(metadata, by.x='L1', by.y='Sample') 
+plotdata2 <- group_by(plotdata, Kit) %>% 
+  summarize(med = median(value)) 
+
+  ggplot(plotdata, aes(y=value, x=paste0(Individual, Replicate))) +
+  geom_hline(plotdata2, mapping = aes(yintercept = med), lty='solid', color='red') +
+  geom_violin(draw_quantiles = 0.5) +
+  facet_wrap(~ Kit, scales='free_x', nrow = 1) +
+    scale_y_log10() +
+  labs(x='Sample', y = 'Feature count',
+       # title='', 
+       caption = 'Kit median shown in red\nSample median shown in black') -> figures[['nFeature_vln_facet']]
+figures[['nFeature_vln_facet']]
+```
+
+### Summarized boxplot
+
+```{r}
+plotdata <- lapply(objs, function(x){unname(x$nFeature_RNA)}) %>%
+  melt(idcol='Sample') %>%
+  group_by(L1) %>% 
+  summarize(med = median(value)) %>%
+  merge(metadata, by.x='L1', by.y='Sample')
+
+  ggplot(plotdata, aes(x=Kit, y=med)) +
+  geom_boxplot() +
+    geom_point(aes(shape=Individual)) +
+  labs(x='Kit', y='Sample median feature count') -> figures[['nFeature_sum_boxplot']]
+figures[['nFeature_sum_boxplot']]
+```
+
+
+
+
+## Mitochondrial
+
+```{r}
+StatMedLine <- ggproto("StatMedLine", Stat,
+  compute_group = function(data, scales) {
+    transform(data, yintercept=median(y))
+  },
+  required_aes = c("x", "y")
+)
+
+stat_med_line <- function(mapping = NULL, data = NULL, geom = "hline",
+                       position = "identity", na.rm = FALSE, show.legend = NA, 
+                       inherit.aes = TRUE, ...) {
+  layer(
+    stat = StatMedLine, data = data, mapping = mapping, geom = geom, 
+    position = position, show.legend = show.legend, inherit.aes = inherit.aes,
+    params = list(na.rm = na.rm, ...)
+  )
+}
+
+```
+
+### Vln
+
+```{r}
+plotdata <- lapply(objs, function(x){unname(x$mtRatio)}) %>%
+  melt(idcol='Sample') %>%
+  merge(metadata, by.x='L1', by.y='Sample') 
+plotdata2 <- group_by(plotdata, Kit) %>% 
+  summarize(med = median(value)) 
+
+  ggplot(plotdata, aes(y=value, x=paste0(Individual, Replicate))) +
+  geom_hline(plotdata2, mapping = aes(yintercept = med), lty='solid', color='red') +
+  geom_violin(draw_quantiles = 0.5) +
+  facet_wrap(~ Kit, scales='free_x', nrow = 1) +
+  labs(x='Sample', y = 'Read portion',
+       title='Portion of reads from mitochondrial genes', 
+       caption = 'Kit median shown in red\nSample median shown in black') -> figures[['mt_vln_facet']]
+figures[['mt_vln_facet']]
+```
+
+### Summarized boxplot
+
+```{r}
+plotdata <- lapply(objs, function(x){unname(x$mtRatio)}) %>%
+  melt(idcol='Sample') %>%
+  group_by(L1) %>% 
+  summarize(med = median(value)) %>%
+  merge(metadata, by.x='L1', by.y='Sample')
+
+  ggplot(plotdata, aes(x=Kit, y=med)) +
+  geom_boxplot() +
+    geom_point(aes(shape=Individual)) +
+  labs(x='Kit', y='Read portion',
+       title='Median portion of reads from mitochondrial genes') -> figures[['mt_sum_boxplot']]
+figures[['mt_sum_boxplot']]
+```
+
+## Ribosomal
+
+### Vln
+
+```{r}
+plotdata <- lapply(objs, function(x){unname(x$rbRatio)}) %>%
+  melt(idcol='Sample') %>%
+  merge(metadata, by.x='L1', by.y='Sample') 
+plotdata2 <- group_by(plotdata, Kit) %>% 
+  summarize(med = median(value)) 
+
+  ggplot(plotdata, aes(y=value, x=paste0(Individual, Replicate))) +
+  geom_hline(plotdata2, mapping = aes(yintercept = med), lty='solid', color='red') +
+  geom_violin(draw_quantiles = 0.5) +
+  facet_wrap(~ Kit, scales='free_x', nrow = 1) +
+  labs(x='Sample', y = 'Read portion',
+       title='Portion of reads from ribosomal genes', 
+       caption = 'Kit median shown in red\nSample median shown in black') -> figures[['rb_vln_facet']]
+figures[['rb_vln_facet']]
+```
+
+### Summarized boxplot
+
+```{r}
+plotdata <- lapply(objs, function(x){unname(x$rbRatio)}) %>%
+  melt(idcol='Sample') %>%
+  group_by(L1) %>% 
+  summarize(med = median(value)) %>%
+  merge(metadata, by.x='L1', by.y='Sample')
+
+  ggplot(plotdata, aes(x=Kit, y=med)) +
+  geom_boxplot() +
+    geom_point(aes(shape=Individual)) +
+  labs(x='Kit', y='Read portion',
+       title='Median portion of reads from ribosomal genes') -> figures[['rb_sum_boxplot']]
+figures[['rb_sum_boxplot']]
+```
+
+
+## Remove low count genes
+
+```{r}
+filterLowGenes <- function(obj,
+                           min.cells,
+                           assay = 'RNA',
+                           calculate_only = TRUE){
+  removed_genes <- (Matrix::rowSums(obj[[assay]]@counts > 0) < min.cells)
+  message(paste0(obj@project.name, ': ', sum(removed_genes),
+                 ' genes found in fewer than ', min.cells, ' cells'))
+  if (!calculate_only){
+    message('Removing low count genes. New object:')
+    obj[[assay]] <- SeuratObject::CreateAssayObject(obj[[assay]]@counts,
+                                                    min.cells = min.cells)
+    # show(obj)
+  }
+  return(obj)
+}
+```
+
+```{r}
+lapply(objs, filterLowGenes, min.cells=10, calculate_only=TRUE)
+```
+
+```{r}
+objs <- lapply(objs, function(x){
+  x <- filterLowGenes(x, min.cells = 10, calculate_only = FALSE)
+  x@misc$dim_receipts$remove_lowcount_genes <- dim(x)
+  x
+})
+```
+
+### Barchart
+
+```{r}
+plotdata <- lapply(objs, function(x){
+  x <- data.frame(x@misc$dim_receipts$raw_data, x@misc$dim_receipts$remove_lowcount_genes)
+  colnames(x) <- c('genes', 'cells')
+  x <- x[,'genes']
+  names(x) <- c('raw_data', 'genes_with_data')
+  x
+}) %>%
+  do.call(what = rbind) %>%
+  as.data.frame() %>%
+  rownames_to_column('sample') %>%
+  mutate(no_data_genes = raw_data - genes_with_data) %>%
+  select(-raw_data) %>%
+  melt(id.vars = 'sample') %>%
+  mutate(variable = factor(variable, levels = c('no_data_genes', 'genes_with_data'))) 
+plotdata %>%
+  merge(metadata, by.x = 'sample', by.y = 'Sample', all.x) %>%
+ggplot(aes(x=paste0(Individual, Replicate), y=value, group=variable, fill=variable)) +
+  geom_col(position = 'stack') +
+  facet_wrap(~ Kit, scales='free_x', nrow=1) +
+  scale_fill_manual(values = c('goldenrod', 'darkgreen'), labels = c('Insufficient', 'Sufficient')) +
+  labs(x = 'Sample', y = 'Gene count', fill = 'Transcript count') ->
+  figures[['usable_gene_count_barchart']]
+figures[['usable_gene_count_barchart']]
+```
+
+### Boxplots
+
+```{r}
+plotdata <- lapply(objs, function(x){
+  x <- data.frame(x@misc$dim_receipts$raw_data, x@misc$dim_receipts$remove_lowcount_genes)
+  colnames(x) <- c('genes', 'cells')
+  x <- x[,'genes']
+  names(x) <- c('raw_data', 'genes_with_data')
+  x
+}) %>%
+  do.call(what = rbind) %>%
+  as.data.frame() %>%
+  rownames_to_column('sample') %>%
+  select(-raw_data) %>%
+  melt(id.vars = 'sample')
+plotdata %>%
+  merge(metadata, by.x = 'sample', by.y = 'Sample', all.x) %>%
+ggplot(aes(x=Kit, y=value)) +
+  geom_boxplot() +
+  geom_point(aes(shape = Individual)) +
+  labs(x = 'Kit', y = 'Usable gene count', fill = 'Transcript count') ->
+  figures[['usable_gene_count_boxplot']]
+figures[['usable_gene_count_boxplot']]
+```
+
+## Complexity
+
+### Vln
+
+```{r}
+plotdata <- lapply(objs, function(x){unname(x$log10GenesPerUMI)}) %>%
+  melt(idcol='Sample') %>%
+  merge(metadata, by.x='L1', by.y='Sample') 
+plotdata2 <- group_by(plotdata, Kit) %>% 
+  summarize(med = median(value)) 
+
+  ggplot(plotdata, aes(y=value, x=paste0(Individual, Replicate))) +
+  geom_hline(plotdata2, mapping = aes(yintercept = med), lty='solid', color='red') +
+  geom_violin(draw_quantiles = 0.5) +
+  facet_wrap(~ Kit, scales='free_x', nrow = 1) +
+  labs(x='Sample', y = 'Complexity ratio',
+       title='Cell complexity: log10 genes per UMI', 
+       caption = 'Kit median shown in red\nSample median shown in black') -> figures[['complexity_vln_facet']]
+figures[['complexity_vln_facet']]
+```
+
+### Summarized boxplot
+
+```{r}
+plotdata <- lapply(objs, function(x){unname(x$log10GenesPerUMI)}) %>%
+  melt(idcol='Sample') %>%
+  group_by(L1) %>% 
+  summarize(med = median(value)) %>%
+  merge(metadata, by.x='L1', by.y='Sample')
+
+  ggplot(plotdata, aes(x=Kit, y=med)) +
+  geom_boxplot() +
+    geom_point(aes(shape=Individual)) +
+  labs(x='Kit', y='Complexity ratio',
+       title='Cell complexity: log10 genes per UMI') -> figures[['complexity_sum_boxplot']]
+figures[['complexity_sum_boxplot']]
+```
+
+# UMIs
+
+## nCount RNA
+
+### Vln
+
+```{r}
+plotdata <- lapply(objs, function(x){unname(x$nCount_RNA)}) %>%
+  melt(idcol='Sample') %>%
+  merge(metadata, by.x='L1', by.y='Sample') 
+plotdata2 <- group_by(plotdata, Kit) %>% 
+  summarize(med = median(value)) 
+
+  ggplot(plotdata, aes(y=value, x=paste0(Individual, Replicate))) +
+  geom_hline(plotdata2, mapping = aes(yintercept = med), lty='solid', color='red') +
+  geom_violin(draw_quantiles = 0.5) +
+  facet_wrap(~ Kit, scales='free_x', nrow = 1) +
+    scale_y_log10() +
+  labs(x='Sample', y = 'UMI count',
+       # title='', 
+       caption = 'Kit median shown in red\nSample median shown in black') -> figures[['nCountUMI_vln_facet']]
+figures[['nCountUMI_vln_facet']]
+```
+
+### Summarized boxplot
+
+```{r}
+plotdata <- lapply(objs, function(x){unname(x$nCount_RNA)}) %>%
+  melt(idcol='Sample') %>%
+  group_by(L1) %>% 
+  summarize(med = median(value)) %>%
+  merge(metadata, by.x='L1', by.y='Sample')
+
+  ggplot(plotdata, aes(x=Kit, y=med)) +
+  geom_boxplot() +
+    geom_point(aes(shape=Individual)) +
+  labs(x='Kit', y='Sample median UMI count') -> figures[['nCountUMI_sum_boxplot']]
+figures[['nCountUMI_sum_boxplot']]
+```
+
+# Calculate outliers
+
+```{r}
+generate_capture_QC_cutoffs <- function(capture,
+                                        nmads = 4,
+                                        metrics = c('nCount_RNA',
+                                                    'nFeature_RNA',
+                                                    'rbRatio',
+                                                    'mtRatio',
+                                                    'log10GenesPerUMI')){
+  cutoffs <- list()
+  for (metric in metrics) {
+    thresholds <- .generate_outlier_thresholds(capture, metric, nmads)
+    cutoffs[[paste0(metric, '.max')]] <- thresholds[['upper']]
+    cutoffs[[paste0(metric, '.min')]] <- thresholds[['lower']]
+  }
+  return(cutoffs)
+}
+
+## Generates upper and lower threshold based on MAD calculation
+## helper function for generate_capture_QC_cutoffs
+.generate_outlier_thresholds <- function(capture,
+                                         metric,
+                                         nmads,
+                                         min.value = 0){
+  data <- capture@meta.data[[metric]]
+  data.mad <- stats::mad(data)
+  data.med <- stats::median(data)
+  upper <- data.med + nmads * data.mad
+  lower <- data.med - nmads * data.mad
+  if (lower < min.value) { lower <- min.value }
+  return(list(upper = upper, lower = lower))
+}
+
+addQCfilter <- function(obj,
+                        filterName = NULL,
+                        cutoffs = NULL) {
+  if (is.null(filterName)){
+    stop('Use the "filterName" argument to specify a name/metadata column to store filtering outcomes')
+  }
+  if (is.null(cutoffs)){
+    message('No cutoffs provided. Consider running `generate_capture_QC_cutoffs()` to tailor cutoffs to your captures, or
+            manually provide cutoffs.\nUsing arbitrary default values to filter which may not be appropriate for your dataset.')
+    cutoffs <- list(nCount_RNA.max = Inf,
+                    nCount_RNA.min = 500,
+                    nFeature.max = Inf,
+                    nFeature.min = 250,
+                    log10GenesPerUMI.max = Inf,
+                    log10GenesPerUMI.min = 0.80,
+                    mtRatio.max = 0.2,
+                    mtRatio.min = 0,
+                    rbRatio.max = 0.4,
+                    rbRatio.min = 0)
+  }
+  obj@meta.data <- obj@meta.data %>% dplyr::mutate(
+    nCount_RNA_outlier = .data$nCount_RNA <= cutoffs$nCount_RNA.min | .data$nCount_RNA >= cutoffs$nCount_RNA.max,
+    nFeature_RNA_outlier = .data$nFeature_RNA <= cutoffs$nFeature_RNA.min | .data$nFeature_RNA >= cutoffs$nFeature_RNA.max,
+    log10GenesPerUMI_outlier = .data$log10GenesPerUMI <= cutoffs$log10GenesPerUMI.min | .data$log10GenesPerUMI >= cutoffs$log10GenesPerUMI.max,
+    mtRatio_outlier = .data$mtRatio <= cutoffs$mtRatio.min | .data$mtRatio >= cutoffs$mtRatio.max,
+    rbRatio_outlier = .data$rbRatio <= cutoffs$rbRatio.min | .data$rbRatio >= cutoffs$rbRatio.max)
+  return(obj)
+}
+```
+
+```{r}
+cutoffs <- lapply(objs, generate_capture_QC_cutoffs)
+objs <- mapply(addQCfilter, objs, 'outliers', cutoffs)
+```
+
+## Outlier barchart
+
+```{r}
+outliers <- lapply(objs, function(x) {
+  x@meta.data %>%
+    mutate(outlier_count = rowSums(across(ends_with("outlier")))) %>%
+    group_by(outlier_count) %>%
+    summarise(count = n()) %>%
+    pivot_wider(names_from = outlier_count, values_from = count, values_fill = 0) %>%
+    rename_with(~ paste0(.x, "_outliers"))
+}) %>%
+  rbindlist(fill=TRUE, idcol = 'Sample') %>%
+  replace_na(list(`1_outliers` = 0, `2_outliers` = 0, `3_outliers` = 0, `4_outliers` = 0)) %>%
+  melt(idcol='Sample') %>%
+  merge(metadata, by = 'Sample') %>%
+  group_by(Sample) %>%
+  mutate(value = value / sum(value),
+         variable = factor(variable, levels = rev(levels(factor(variable)))))
+ggplot(outliers, aes(x=paste0(Individual, Replicate), y=value, fill = variable)) +
+  geom_col(position = 'stack') +
+  facet_wrap(~Kit, scales = 'free_x', nrow=1)+
+  labs(title='Cell consistency within capture', x='Sample', y='Portion of capture', fill = '# of outlier metrics') ->
+  figures[['outlier_portion_barchart']]
+figures[['outlier_portion_barchart']]
+```
+
+# Doublets
+
+## Barchart
+
+```{r}
+plotdata <- lapply(objs, function(x) {
+  x$scDblFinder.class %>% 
+    table() %>%
+    as.data.frame()
+}) %>% 
+  rbindlist(idcol = 'Sample') %>%
+  rename('class' = '.') %>%
+  group_by(Sample) %>%
+  mutate(Freq = Freq / sum(Freq),
+         class = factor(class, levels = c('doublet', 'singlet'))) %>%
+  merge(metadata, by='Sample')
+ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=Freq, fill=class)) +
+  geom_col(position='stack') +
+  facet_wrap(~Kit, scales = 'free_x', nrow=1) +
+  scale_fill_manual(values = c('goldenrod', 'darkgreen'), labels = c('Multiplet', 'Singlet')) +
+  labs(x='Sample', y='Portion of capture', fill='Classification') ->
+  figures[['doublet_portion_barchart']]
+figures[['doublet_portion_barchart']]
+```
+
+## Dotplots
+
+```{r}
+figures[['doublet_metric_dotplot']] <-
+lapply(objs, function(x) {
+  objs[[x]]@meta.data %>%
+    select(scDblFinder.class, nCount_RNA, nFeature_RNA) %>%
+    ggplot(aes(x=nCount_RNA, y=nFeature_RNA, color=scDblFinder.class)) +
+    geom_point(alpha=0.5) +
+    # geom_density_2d_filled(contour_var = "ndensity", alpha = 0.5, color=NA) +
+    # stat_density_2d(aes(fill = ..density.., alpha = ..density..), geom = "raster", contour = FALSE) +
+    # scale_alpha(range=c(0.1,1)) +
+    geom_vline(xintercept = cutoffs[[x]]$nCount_RNA.max, lty = 'dashed', color = 'darkred') +
+    geom_hline(yintercept = cutoffs[[x]]$nFeature_RNA.max, lty = 'dashed', color = 'darkred') +
+    scale_color_manual(values = c('darkgreen', 'goldenrod'), labels = c('Multiplet', 'Singlet')) +
+    # scale_fill_distiller(palette = "Reds", direction = 1) +
+    labs(x = 'UMIs', y='Genes', color='Classification', title = x) 
+})
+names(figures[['doublet_metric_dotplot']]) <- names(objs)
+figures[['doublet_metric_dotplot']]$GEMX_F1
+```
+
+## Dimplots
+
+```{r}
+figures[['doublet_dimplots']] <- 
+  lapply(names(objs), function(x) {
+    DimPlot(objs[[x]], group.by = 'scDblFinder.class') +
+      ggtitle(x)
+  })
+names(figures[['doublet_dimplots']]) <- names(objs)
+figures[['doublet_dimplots']][[1]]
+```
+
+# Object cleaning
+
+## outliers
+
+```{r}
+objs_filtered <- lapply(objs, function(x) {
+  x <- subset(x, subset = nCount_RNA_outlier |
+           nFeature_RNA_outlier |
+           log10GenesPerUMI_outlier |
+           mtRatio_outlier |
+           rbRatio_outlier,
+         invert = TRUE)
+  x@meta.data <- x@meta.data %>%
+  select(-contains('_outlier'))
+})
+```
+
+```{r}
+objs_filtered <- lapply(objs_filtered, function(x){
+  x@misc$dim_receipts$remove_outliers <- dim(x)
+  x
+})
+```
+
+## doublet
+
+```{r}
+objs_filtered <- lapply(objs_filtered, function(x) {
+  subset(x, subset = scDblFinder.class == 'singlet')
+})
+```
+
+```{r}
+objs_filtered <- lapply(objs_filtered, function(x){
+  x@misc$dim_receipts$remove_doublets <- dim(x)
+  x
+})
+```
+
+# Final cell count
+
+## Counts
+
+```{r}
+figures[['cell_quality_counts']] <-
+  lapply(objs_filtered, function(x){
+    rbindlist(x@misc)[2,]
+  }) %>%
+    rbindlist(idcol = 'Sample') %>%
+    melt() %>%
+    group_by(Sample) %>%
+    filter(variable != 'remove_lowcount_genes') %>%
+    mutate(variable = factor(variable, levels = c('raw_data', 'remove_outliers', 'remove_doublets'))) %>%
+    arrange(Sample, variable) %>%
+    mutate(value_diff = coalesce(lag(value) - value, value)) %>%
+    mutate(variable = factor(variable, levels = rev(c('raw_data', 'remove_outliers', 'remove_doublets')))) %>%
+    merge(metadata, by = 'Sample') %>%
+    ggplot(aes(x=paste0(Individual, Replicate), y=value_diff, fill=variable)) +
+    geom_col() +
+    scale_fill_manual(values = c('gold', 'orange', 'darkgreen'), labels = c('Multiplets', 'Outliers', 'Good')) +
+    facet_wrap(~Kit, scales = 'free_x', nrow=1) +
+    labs(x = 'Sample', y = 'Cell count', fill = 'Cell quality')
+figures[['cell_quality_counts']]
+```
+
+## Proportions
+
+```{r}
+figures[['cell_quality_proportions']] <-
+  lapply(objs_filtered, function(x){
+    rbindlist(x@misc)[2,]
+  }) %>%
+    rbindlist(idcol = 'Sample') %>%
+    melt() %>%
+    group_by(Sample) %>%
+    filter(variable != 'remove_lowcount_genes') %>%
+    mutate(variable = factor(variable, levels = c('raw_data', 'remove_outliers', 'remove_doublets'))) %>%
+    arrange(Sample, variable) %>%
+    mutate(value_diff = coalesce(lag(value) - value, value)) %>%
+  mutate(value_diff = value_diff / sum(value_diff)) %>%
+    mutate(variable = factor(variable, levels = rev(c('raw_data', 'remove_outliers', 'remove_doublets')))) %>%
+    merge(metadata, by = 'Sample') %>%
+    ggplot(aes(x=paste0(Individual, Replicate), y=value_diff, fill=variable)) +
+    geom_col() +
+    scale_fill_manual(values = c('gold', 'orange', 'darkgreen'), labels = c('Multiplets', 'Outliers', 'Good')) +
+    facet_wrap(~Kit, scales = 'free_x', nrow=1) +
+    labs(x = 'Sample', y = 'Portion of capture', fill = 'Cell quality')
+figures[['cell_quality_proportions']]
+```
+
+# Save processed objs
+
+```{r}
+saveRDS(objs_filtered, here('rds/03-filtered_objs.rds'))
+```
+
+# Render report
+
+```{r}
+## This only works if all the variables called in the format file 
+## are in the current environment. Check the format file to tweak
+## aesthetics 
+rmarkdown::render(here('scripts/03-obj_cleaning.format.Rmd'),
+                  output_file = '03_filtering.html',
+                  output_dir = here('reports'))
+```

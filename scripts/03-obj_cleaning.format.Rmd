@@ -1,0 +1,174 @@
+---
+title: 'SC processing'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: 
+  rmdformats::robobook:
+    fig_width: 9
+    toc_depth: 3
+    css: "utils/robobook.css"
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+```
+
+# QC Metrics
+
+## Mitochondrial {.tabset}
+
+### Vln
+
+```{r}
+figures[['mt_vln_facet']]
+```
+
+### Summarized boxplot
+
+```{r}
+figures[['mt_sum_boxplot']]
+```
+
+***
+
+## Ribosomal {.tabset}
+
+### Vln
+
+```{r}
+figures[['rb_vln_facet']]
+```
+
+### Summarized boxplot
+
+```{r}
+figures[['rb_sum_boxplot']]
+```
+
+***
+
+## Gene count {.tabset}
+
+### Vln
+
+```{r}
+figures[['nFeature_vln_facet']]
+```
+
+### Summarized boxplot
+
+```{r}
+figures[['nFeature_sum_boxplot']]
+```
+
+***
+
+## UMI count {.tabset}
+
+### Vln
+
+```{r}
+figures[['nCountUMI_vln_facet']]
+```
+
+### Summarized boxplot
+
+```{r}
+figures[['nCountUMI_sum_boxplot']]
+```
+
+***
+
+## Complexity {.tabset}
+
+$log10(nGene)/log10(nUMI)$ A proxy for diversity of expression across genes (i.e. "complexity score"). Low complexity cells (e.g. red blood cells) have expression dominated by only a few genes.
+
+### Vln
+
+```{r}
+figures[['complexity_vln_facet']]
+```
+
+### Summarized boxplot
+
+```{r}
+figures[['complexity_sum_boxplot']]
+```
+
+***
+
+# Metric outliers
+
+Rather than setting hard cutoffs for QC metrics, thresholds are set based on median absolute deviations on a per-capture basis. 
+This provides more tailored QC filtering that allows for variability between captures. Outlier sensitivity can be changed
+up or down based on study needs. For this analysis, cells greater than 4 MADs are considered outliers.
+
+```{r}
+figures[['outlier_portion_barchart']]
+```
+
+***
+
+# Multiplets
+
+As identified by [scDblFinder](https://bioconductor.org/packages/release/bioc/html/scDblFinder.html). The algorithm is ran on the full, unfiltered dataset. 
+
+## Barchart
+
+```{r}
+figures[['doublet_portion_barchart']]
+```
+
+## Dotplots {.tabset}
+
+Most doublet finding algorithms will struggle to identify homotypic multiplets, where 2 or more cells of the same biological state/type
+occupy the same GEM. These can often be identified by higher UMI recovery than the rest of the data. Dashed lines here indicate thresholds for outliers in this capture.
+
+```{r, results='asis'}
+chunk_text = "\n### {{i}}\n```{r}\nfigures[['doublet_metric_dotplot']][['{{i}}']]\n```"
+out <- NULL
+for (i in names(figures[['doublet_metric_dotplot']])) {
+  out = c(out, knitr::knit_expand(text = chunk_text))
+}
+
+cat(knitr::knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+## {-}
+
+***
+
+## Dimplots {.tabset}
+
+It can be interesting to see if doublets are clustering together. This may indicate a true cell population being called as doublets.
+
+```{r, results='asis'}
+chunk_text = "\n### {{i}}\n```{r}\nfigures[['doublet_dimplots']][['{{i}}']]\n```"
+out <- NULL
+for (i in names(figures[['doublet_dimplots']])) {
+  out = c(out, knitr::knit_expand(text = chunk_text))
+}
+
+cat(knitr::knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+## {-}
+
+***
+
+# Final GEM quantification {.tabset}
+
+## Counts
+
+```{r}
+figures[['cell_quality_counts']]
+```
+
+## Proportions
+
+```{r}
+figures[['cell_quality_proportions']]
+```
+
