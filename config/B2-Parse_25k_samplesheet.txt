@@ -1,5 +1,5 @@
 Sample  File  Kit Individual  Replicate
-PA_2_F1A  B2-PA-F1A Parse_V2  F1  A
-PA_2_F1B  B2-PA-F1B Parse_V2  F1  B
-PA_2_F5A  B2-PA-F5A Parse_V2  F5  A
-PA_2_F5B  B2-PA-F5B Parse_V2  F5  B
+PA_V3_F1A  B2-PA-F1A Parse_V3  F1  A
+PA_V3_F1B  B2-PA-F1B Parse_V3  F1  B
+PA_V3_F5A  B2-PA-F5A Parse_V3  F5  A
+PA_V3_F5B  B2-PA-F5B Parse_V3  F5  B
