@@ -16,6 +16,7 @@ library(yaml)       ## parses config yaml
 library(Seurat)
 library(reshape2)   ## DF manipulation
 # library(celldex)    ## Reference datasets for celltype annotation
+library(SingleR)
 library(SingleCellExperiment) ## Doublet detection dependency
 library(scDblFinder) ## Doublet detection
 library(clustree)   ## Resolution selection for clustering
@@ -218,6 +219,6 @@ lapply(objs, function(x) {
 # Save objs
 
 ```{r}
-saveRDS(objs, here('rds/01_annotated_objs.rds'))
+saveRDS(objs, here('rds/02-annotated_objs.rds'))
 ```
 
