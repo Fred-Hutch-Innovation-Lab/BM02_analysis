@@ -39,7 +39,7 @@ addQCMetrics <- function(obj, mt_pattern = '^MT', rb_pattern = '^RP[SL]') {
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/01_raw_objs.rds'))
+objs <- readRDS(here('rds/01_raw_objs_10x.rds'))
 ```
 
 # Processing
@@ -118,34 +118,42 @@ createClustree <- function(obj,
 }
 
 clustrees <- lapply(objs, createClustree)
+
+for ( i in names(clustrees)){
+  clustrees[[i]] <- clustrees[[i]] + ggtitle(i)
+}
 ```
 
 ```{r, fig.height=12}
-clustrees$GEMX_F5B
+clustrees
 ```
 
 ```{r}
 resolutions <- list(
-  GEMX_F1 = 1.0,
-  GEMX_F2 = 1.1,
-  GEMX_F4 = 1.2,
-  GEMX_F5 = 1.4,
-  NextGEM_F1 = 2,
-  NextGEM_F2 = 1.4,
-  NextGEM_F4 = 1.5,
-  NextGEM_F5 = 1.4,
-  PA_1_F1 = 1.5,
-  PA_1_F2 = 1.4,
-  PA_1_F4 = 0.7,
-  PA_1_F5 = 0.8,
-  FB_2_F1A = 0.9,
-  FB_2_F1B = 1.0,
-  FB_2_F5A = 1.4,
-  FB_2_F5B = 3,
-  GEMX_F1A = 0.7,
-  GEMX_F1B = 1.0,
-  GEMX_F5A = 0.9,
-  GEMX_F5B = 1.2
+ "GEMX5P_F1" = 1.1,
+ "GEMX5P_F2" = 1.0,
+ "GEMX5P_F4" = 0.8,
+ "GEMX5P_F5" = 0.8,
+ "NextGEM_F1" = 0.9,
+ "NextGEM_F2" = 1.0,
+ "NextGEM_F4" = 1.0,
+ "NextGEM_F5" = 1.3,
+ "PA_1_F1" = 1.1,
+ "PA_1_F2" = 1.1,
+ "PA_1_F4" = 1.1,
+ "PA_1_F5" = 1.2,  
+ "FB_2_F1A" = 1.3,
+ "FB_2_F1B" = 1.3,
+ "FB_2_F5A" = 1.2,
+ "FB_2_F5B" = 1.0,
+ "GEMX3P_F1A" = 1.2,
+ "GEMX3P_F1B"= 1.0,
+ "GEMX3P_F5A" = 1.0,
+ "GEMX3P_F5B" = 1.0,
+ "PA_2_F1A" = 1.2,
+ "PA_2_F1B" = 1.5,
+ "PA_2_F5A" = 1.1,
+ "PA_2_F5B" = 1.5
 )
 ```
 
