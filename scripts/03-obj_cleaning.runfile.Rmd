@@ -28,13 +28,27 @@ figures <- list()
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/02_annotated_objs.rds'))
+objs <- readRDS(here('rds/02-annotated_objs.rds'))
+tmp <- names(objs)[grepl('^PA', names(objs))]
+tmp_func <- function(x) {
+  num <- as.numeric(gsub('.+_(\\d)_.+', '\\1',x))
+  y <- paste0('_V', num + 1, '_')
+  gsub('_\\d_', y, x)
+}
+names(objs)[grepl('^PA', names(objs))] <- unlist(lapply(tmp, tmp_func))
+```
+
+
+```{r, eval=TRUE}
+## Subset to 10x only for anna talk figures
+objs <- objs[names(objs)[!grepl('5P', names(objs))]]
 ```
 
 ```{r}
 metadata <- dir(here('config'), '_samplesheet.txt', full.names = TRUE)
 metadata <- lapply(metadata, read.table, header = TRUE)
 metadata <- rbindlist(metadata, fill=TRUE)
+metadata$Kit <- factor(metadata$Kit, levels = c('NextGEM5P', 'GEMX5P', 'GEMX3P', 'NextGEM3P', 'Flex'))
 metadata
 ```
 
@@ -185,13 +199,15 @@ filterLowGenes <- function(obj,
                            min.cells,
                            assay = 'RNA',
                            calculate_only = TRUE){
-  removed_genes <- (Matrix::rowSums(obj[[assay]]@counts > 0) < min.cells)
+  removed_genes <- (Matrix::rowSums(obj[[assay]]@layers$counts > 0) < min.cells)
   message(paste0(obj@project.name, ': ', sum(removed_genes),
                  ' genes found in fewer than ', min.cells, ' cells'))
   if (!calculate_only){
     message('Removing low count genes. New object:')
-    obj[[assay]] <- SeuratObject::CreateAssayObject(obj[[assay]]@counts,
-                                                    min.cells = min.cells)
+    # obj[[assay]] <- SeuratObject::CreateAssayObject(obj[[assay]]@layers$counts,
+    #                                                 min.cells = min.cells)
+    x <- rownames(obj@assays$RNA@features@.Data)[!removed_genes]
+    obj <- subset(obj, features = x)
     # show(obj)
   }
   return(obj)
@@ -204,6 +220,7 @@ lapply(objs, filterLowGenes, min.cells=10, calculate_only=TRUE)
 
 ```{r}
 objs <- lapply(objs, function(x){
+  x@misc$dim_receipts$raw_data <- dim(x)
   x <- filterLowGenes(x, min.cells = 10, calculate_only = FALSE)
   x@misc$dim_receipts$remove_lowcount_genes <- dim(x)
   x
@@ -279,7 +296,7 @@ plotdata2 <- group_by(plotdata, Kit) %>%
   geom_violin(draw_quantiles = 0.5) +
   facet_wrap(~ Kit, scales='free_x', nrow = 1) +
   labs(x='Sample', y = 'Complexity ratio',
-       title='Cell complexity: log10 genes per UMI', 
+       title='Cell complexity: log10 genes / log10 UMI', 
        caption = 'Kit median shown in red\nSample median shown in black') -> figures[['complexity_vln_facet']]
 figures[['complexity_vln_facet']]
 ```
@@ -297,7 +314,7 @@ plotdata <- lapply(objs, function(x){unname(x$log10GenesPerUMI)}) %>%
   geom_boxplot() +
     geom_point(aes(shape=Individual)) +
   labs(x='Kit', y='Complexity ratio',
-       title='Cell complexity: log10 genes per UMI') -> figures[['complexity_sum_boxplot']]
+       title='Cell complexity: log10 genes / log10 UMI') -> figures[['complexity_sum_boxplot']]
 figures[['complexity_sum_boxplot']]
 ```
 
@@ -465,7 +482,7 @@ figures[['doublet_portion_barchart']]
 
 ```{r}
 figures[['doublet_metric_dotplot']] <-
-lapply(objs, function(x) {
+lapply(names(objs), function(x) {
   objs[[x]]@meta.data %>%
     select(scDblFinder.class, nCount_RNA, nFeature_RNA) %>%
     ggplot(aes(x=nCount_RNA, y=nFeature_RNA, color=scDblFinder.class)) +
@@ -480,7 +497,7 @@ lapply(objs, function(x) {
     labs(x = 'UMIs', y='Genes', color='Classification', title = x) 
 })
 names(figures[['doublet_metric_dotplot']]) <- names(objs)
-figures[['doublet_metric_dotplot']]$GEMX_F1
+figures[['doublet_metric_dotplot']]$GEMX5P_F1
 ```
 
 ## Dimplots
@@ -509,6 +526,7 @@ objs_filtered <- lapply(objs, function(x) {
          invert = TRUE)
   x@meta.data <- x@meta.data %>%
   select(-contains('_outlier'))
+  x
 })
 ```
 
@@ -588,16 +606,25 @@ figures[['cell_quality_proportions']]
 # Save processed objs
 
 ```{r}
-saveRDS(objs_filtered, here('rds/03-filtered_objs.rds'))
+# saveRDS(objs_filtered, here('rds/03-filtered_objs.rds'))
 ```
 
 # Render report
+
+```{r, eval=TRUE}
+## This only works if all the variables called in the format file 
+## are in the current environment. Check the format file to tweak
+## aesthetics 
+rmarkdown::render(here('scripts/03-obj_cleaning.format.Rmd'),
+                  output_file = '10x_3p+felx_QC_figs.html',
+                  output_dir = here('reports'))
+```
 
 ```{r}
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('scripts/03-obj_cleaning.format.Rmd'),
-                  output_file = '03_filtering.html',
-                  output_dir = here('reports'))
+# rmarkdown::render(here('scripts/03-obj_cleaning.format.Rmd'),
+#                   output_file = '03_filtering.html',
+#                   output_dir = here('reports'))
 ```

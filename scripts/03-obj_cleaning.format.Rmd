@@ -126,7 +126,7 @@ figures[['doublet_portion_barchart']]
 Most doublet finding algorithms will struggle to identify homotypic multiplets, where 2 or more cells of the same biological state/type
 occupy the same GEM. These can often be identified by higher UMI recovery than the rest of the data. Dashed lines here indicate thresholds for outliers in this capture.
 
-```{r, results='asis'}
+```{r, eval=FALSE, results='asis'}
 chunk_text = "\n### {{i}}\n```{r}\nfigures[['doublet_metric_dotplot']][['{{i}}']]\n```"
 out <- NULL
 for (i in names(figures[['doublet_metric_dotplot']])) {
@@ -144,7 +144,7 @@ cat(knitr::knit_child(text = out, quiet = TRUE), sep = '\n')
 
 It can be interesting to see if doublets are clustering together. This may indicate a true cell population being called as doublets.
 
-```{r, results='asis'}
+```{r, eval=FALSE, results='asis'}
 chunk_text = "\n### {{i}}\n```{r}\nfigures[['doublet_dimplots']][['{{i}}']]\n```"
 out <- NULL
 for (i in names(figures[['doublet_dimplots']])) {
