@@ -16,6 +16,7 @@ library(yaml)       ## parses config yaml
 library(Seurat)
 library(SoupX)
 library(reshape2)   ## DF manipulation
+library(data.table) ## rbindlist
 # library(FHIL.SC.utils) ## Custom functions
 set.seed(33)
 ```
@@ -55,7 +56,7 @@ data_dirs <- list(
   "B1-GEMX5P"="B1-GEMX5P",
   "B1-NextGEM5P"="B1-NextGEM5P",
   "B1-Parse"="B1-Parse/Combined_V1.1/WT/Combined/",
-  "B2-FLEX_10k"="B2-FLEX_10k",
+  "B2-FLEX_10k"="B2-FLEX_10k/full_data",
   "B2-Fluent_25k"="B2-Fluent_25k/OutPut_25K",
   "B2-GEMX3P_25k"="B2-GEMX3P_25k",
   "B2-NextGEM3P_25k"="B2-NextGEM3P_25k",
@@ -151,14 +152,26 @@ for (i in 1:nrow(samplesheets[[kit]])){
 
 ## B2-FLEX_10k
 
-```{r, eval=FALSE}
+```{r, eval=rerun_soupx}
 kit <- 'B2-FLEX_10k'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
-  file <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'DGE_filtered')
-  objs[[sample]] <- 
-    ReadParseBio(file)
+  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'count/sample_filtered_feature_bc_matrix.h5')
+  filtered_counts <- Read10X_h5(filtered_counts)
+  
+  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'count/sample_raw_feature_bc_matrix.h5')
+  unfiltered_counts <- Read10X_h5(unfiltered_counts)
+  unfiltered_counts <- unfiltered_counts[rownames(filtered_counts),]
+  
+  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], 'clusters.csv')
+  clusters <- read.csv(clusters, header=TRUE)
+  clusters <- setNames(as.list(clusters$Cluster), clusters$Barcode)
+  
+  clusters <- clusters[colnames(filtered_counts)]
+  
+  
+  objs[[sample]] <- list(tod = unfiltered_counts, toc = filtered_counts, clusters = clusters)
 }
 ```
 
@@ -195,6 +208,27 @@ for (i in 1:nrow(samplesheets[[kit]])){
 
 ```{r, eval=rerun_soupx}
 kit <- 'B2-GEMX3P_25k'
+for (i in 1:nrow(samplesheets[[kit]])){
+  sample <- samplesheets[[kit]][i,'Sample']
+  file <- samplesheets[[kit]][i,'File']
+  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file,
+                               'outs', 'per_sample_outs', file, 'count/sample_filtered_feature_bc_matrix.h5')
+  filtered_counts <- Read10X_h5(filtered_counts)
+  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file,
+                                 'outs', 'multi/count/raw_feature_bc_matrix.h5')
+  unfiltered_counts <- Read10X_h5(unfiltered_counts)
+  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'outs', 'per_sample_outs',
+                        file, 'count/analysis/clustering/gene_expression_graphclust/clusters.csv')
+  clusters <- read.csv(clusters)
+  clusters <- setNames(as.list(clusters$Cluster), clusters$Barcode)
+  objs[[sample]] <- list(tod = unfiltered_counts, toc = filtered_counts, clusters = clusters)
+}
+```
+
+## B2-NextGEM3P_25k
+
+```{r, eval=rerun_soupx}
+kit <- 'B2-NextGEM3P_25k'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
@@ -258,7 +292,7 @@ objs <- lapply(objs, function(x) {
 ## Save RDS
 
 ```{r, eval=rerun_soupx}
-saveRDS(objs, here('rds/01-soup_channels.rds'))
+saveRDS(objs, here('rds/01-soup_channels.rds'), compress=FALSE)
 ```
 
 ```{r, eval=!rerun_soupx}
@@ -350,8 +384,11 @@ figure_sat_curves
 
 ```{r, eval = FALSE}
 objs <- lapply(objs, function(x) x$adjusted_counts)
+```
 
-## objs <- lapply(objs, function(x) x$toc)
+
+```{r, eval = FALSE}
+objs <- lapply(objs, function(x) x$toc)
 ```
 
 
@@ -362,7 +399,7 @@ objs <- lapply(objs, CreateSeuratObject)
 ```
 
 ```{r}
-saveRDS(objs, here('rds/01_raw_objs.rds'))
+saveRDS(objs, here('rds/01_raw_objs_10x.rds'), compress=FALSE)
 ```
 
 # Render report
