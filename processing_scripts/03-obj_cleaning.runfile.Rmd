@@ -54,6 +54,13 @@ metadata
 
 # Genes
 
+## feature recovery
+
+```{r}
+gtf <- read.table('/fh/fast/_IRC/FHIL/pub/ref/GRCh38/refdata-gex-GRCh38-2024-A/star/geneInfo.tab', header = FALSE, skip = 1, sep='\t')
+colnames(gtf) <- c('ENS_ID', 'Symbol', 'Type')
+```
+
 ## nFeature RNA
 
 ### Vln
