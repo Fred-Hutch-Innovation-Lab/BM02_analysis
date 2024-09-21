@@ -1,0 +1,119 @@
+---
+title: 'BM02 Cell filtering'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: 
+  rmdformats::robobook:
+    fig_width: 9
+    toc_depth: 3
+    css: "utils/robobook.css"
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+```
+
+Filtering cells by either by consistent, global thresholds (defined by Azi for PBMCs) or
+by kit-level median absolute deviations.  
+
+## Global
+
+```{r}
+global_cutoffs
+```
+
+## Kit level
+
+```{r}
+kit_level_cutoffs_df
+```
+
+# nFeature
+
+:::: {class='fluid-row'}
+
+::: {class='col-md-6'}
+
+```{r, fig.height=7, fig.width=4}
+figures[['nFeature_vln_facet']]
+```
+
+:::
+
+::: {class='col-md-6'}
+
+```{r, fig.height=7, fig.width=6}
+figures[['filtering_likert_nFeature_RNA']]
+```
+
+:::
+
+::::
+
+# nCount
+
+:::: {class='fluid-row'}
+
+::: {class='col-md-6'}
+
+```{r, fig.height=7, fig.width=4}
+figures[['nCount_vln_facet']]
+```
+
+:::
+
+::: {class='col-md-6'}
+
+```{r, fig.height=7, fig.width=6}
+figures[['filtering_likert_nCount_RNA']]
+```
+
+:::
+
+::::
+
+# mito
+
+:::: {class='fluid-row'}
+
+::: {class='col-md-6'}
+
+```{r, fig.height=7, fig.width=4}
+figures[['mtRatio_vln_facet']]
+```
+
+:::
+
+::: {class='col-md-6'}
+
+```{r, fig.height=7, fig.width=6}
+figures[['filtering_likert_mtRatio']]
+```
+
+:::
+
+::::
+
+# ribo
+
+:::: {class='fluid-row'}
+
+::: {class='col-md-6'}
+
+```{r, fig.height=7, fig.width=4}
+figures[['rbRatio_vln_facet']]
+```
+
+:::
+
+::: {class='col-md-6'}
+
+```{r, fig.height=7, fig.width=6}
+figures[['filtering_likert_rbRatio']]
+```
+
+:::
+
+::::

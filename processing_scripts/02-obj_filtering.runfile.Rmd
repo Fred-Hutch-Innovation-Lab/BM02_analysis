@@ -1,0 +1,506 @@
+---
+title: 'scRNA QC'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+
+library(tidyverse)  ## General R logic
+library(here)       ## Easier specification of file locations
+library(yaml)       ## parses config yaml
+library(Seurat)
+library(reshape2)   ## DF manipulation
+# library(celldex)    ## Reference datasets for celltype annotation
+library(SingleR)
+library(SingleCellExperiment) ## Doublet detection dependency
+library(scDblFinder) ## Doublet detection
+library(clustree)   ## Resolution selection for clustering
+library(ggraph)     ## To render clustree
+library(scuttle)    ## various SC utilities
+set.seed(33)
+```
+
+# Functions
+
+```{r addQCMetrics}
+addQCMetrics <- function(obj, mt_pattern = '^MT', rb_pattern = '^RP[SL]') {
+    obj$log10GenesPerUMI <- log10(obj$nFeature_RNA)/log10(obj$nCount_RNA)
+    obj$mtRatio <- PercentageFeatureSet(obj, pattern=mt_pattern) / 100
+    obj$rbRatio <- PercentageFeatureSet(obj, pattern=rb_pattern) / 100
+    obj
+}
+```
+
+```{r generate_capture_QC_cutoffs}
+generate_capture_QC_cutoffs <- function(capture,
+                                        nmads = 4,
+                                        metrics = c('nCount_RNA',
+                                                    'nFeature_RNA',
+                                                    'rbRatio',
+                                                    'mtRatio'#,
+                                                    # 'log10GenesPerUMI'
+                                                    ),
+                                        default_cutoffs = global_cutoffs){
+  cutoffs <- list()
+  for (metric in c('rbRatio', 'mtRatio')) {
+    thresholds <- .generate_outlier_thresholds(capture, metric, nmads, logscale=FALSE)
+    cutoffs[[paste0(metric, '.max')]] <- thresholds[['upper']]
+    cutoffs[[paste0(metric, '.min')]] <- thresholds[['lower']]
+  }
+  for (metric in c('nCount_RNA', 'nFeature_RNA')) {
+    thresholds <- .generate_outlier_thresholds(capture, metric, nmads, logscale=TRUE)
+    cutoffs[[paste0(metric, '.max')]] <- thresholds[['upper']]
+    cutoffs[[paste0(metric, '.min')]] <- thresholds[['lower']]
+  }
+  return(cutoffs)
+}
+
+## Generates upper and lower threshold based on MAD calculation
+## helper function for generate_capture_QC_cutoffs
+.generate_outlier_thresholds <- function(capture,
+                                         metric,
+                                         nmads,
+                                         min.value = 0,
+                                         logscale=FALSE){
+  data <- capture@meta.data[[metric]]
+  if (logscale) { 
+    data <- log10(data)
+  }
+  data.mad <- stats::mad(data)
+  data.med <- stats::median(data)
+  upper <- data.med + nmads * data.mad
+  lower <- data.med - nmads * data.mad
+  if (lower < min.value) { lower <- min.value }
+  if (logscale) {
+    return(list(upper = 10^upper, lower = 10^lower))
+  } else {
+    return(list(upper = upper, lower = lower)) 
+  }
+}
+
+addQCfilter <- function(obj,
+                        filterName = NULL,
+                        cutoffs = NULL) {
+  if (is.null(filterName)){
+    stop('Use the "filterName" argument to specify a name/metadata column to store filtering outcomes')
+  }
+  if (is.null(cutoffs)){
+    message('No cutoffs provided. Consider running `generate_capture_QC_cutoffs()` to tailor cutoffs to your captures, or
+            manually provide cutoffs.\nUsing arbitrary default values to filter which may not be appropriate for your dataset.')
+    cutoffs <- default_cutoffs
+  }
+  obj@meta.data <- obj@meta.data %>% dplyr::mutate(
+    nCount_RNA_outlier = .data$nCount_RNA <= cutoffs$nCount_RNA.min | .data$nCount_RNA >= cutoffs$nCount_RNA.max,
+    nFeature_RNA_outlier = .data$nFeature_RNA <= cutoffs$nFeature_RNA.min | .data$nFeature_RNA >= cutoffs$nFeature_RNA.max,
+    # log10GenesPerUMI_outlier = .data$log10GenesPerUMI <= cutoffs$log10GenesPerUMI.min | .data$log10GenesPerUMI >= cutoffs$log10GenesPerUMI.max,
+    mtRatio_outlier = .data$mtRatio <= cutoffs$mtRatio.min | .data$mtRatio >= cutoffs$mtRatio.max,
+    rbRatio_outlier = .data$rbRatio <= cutoffs$rbRatio.min | .data$rbRatio >= cutoffs$rbRatio.max)
+  return(obj)
+}
+```
+
+# Load data
+
+```{r}
+objs <- readRDS(here('rds/01_raw_objs_10x.rds'))
+metadata <- read.csv(here('config/metadata.csv'))
+figures <- list()
+```
+
+# Processing
+
+## Rename cells
+
+```{r}
+## Renaming cells with the sample name to avoid conflicts with references, merging etc.
+objs <- lapply(objs, function(sample){
+  RenameCells(sample, add.cell.id = unique(sample$orig.ident))
+})
+```
+
+## Add QC metrics
+
+```{r}
+objs <- lapply(objs, addQCMetrics)
+```
+
+## Normalize
+
+```{r}
+objs <- lapply(objs, NormalizeData)
+objs <- lapply(objs, FindVariableFeatures)
+objs <- lapply(objs, ScaleData)
+```
+
+# Define QC thresholds
+
+## Global
+
+```{r}
+global_cutoffs <- list(nCount_RNA.max = 20000,
+                    nCount_RNA.min = 500,
+                    nFeature_RNA.max = 5000,
+                    nFeature_RNA.min = 100,
+                    log10GenesPerUMI.max = Inf,
+                    log10GenesPerUMI.min = 0.80,
+                    mtRatio.max = 0.15,
+                    mtRatio.min = 0,
+                    rbRatio.max = 0.5,
+                    rbRatio.min = 0)
+
+global_cutoffs_df <- as.data.frame(global_cutoffs) %>% 
+  melt()
+
+global_cutoffs_df <- global_cutoffs_df %>%
+  separate('variable', c('Metric', 'Direction'), sep = '\\.')
+```
+
+## Kit level
+
+```{r}
+kit_level_cutoffs <- lapply(setNames(unique(metadata$Kit), unique(metadata$Kit)), function(kit){
+  samples <- metadata$Sample[metadata$Kit==kit]
+  x <- merge(objs[[samples[1]]], objs[samples[2:length(samples)]])
+  if (!is.data.frame(x)) {
+    generate_capture_QC_cutoffs(x)
+  } else {
+    NA
+  }
+})
+
+kit_level_cutoffs_df <- unlist(kit_level_cutoffs) %>%
+  as.data.frame() %>%
+  rownames_to_column()
+colnames(kit_level_cutoffs_df) <- c('name', 'value')
+kit_level_cutoffs_df <- kit_level_cutoffs_df %>%
+  separate('name', c('Kit', 'Metric', 'Direction'), sep = '\\.')
+```
+
+## Visualizations
+
+```{r}
+QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', kit_level_cutoffs = kit_level_cutoffs_df, global_cutoffs = global_cutoffs_df) {
+  plotdata <- lapply(objs, function(x){unname(x@meta.data[[metric]])}) %>%
+    melt(idcol='Sample') %>%
+    merge(metadata, by.x='L1', by.y='Sample') 
+  plotdata2 <- group_by(plotdata, Kit) %>% 
+    summarize(med = median(value)) 
+
+    ggplot(plotdata, aes(y=value, x=paste0(Individual, Replicate))) +
+    # geom_hline(plotdata2, mapping = aes(yintercept = med), lty='solid', color='blue') +
+    geom_hline(filter(kit_level_cutoffs, Metric == metric), mapping = aes(yintercept = value), color = 'orange') +
+      geom_hline(filter(global_cutoffs, Metric == metric), mapping = aes(yintercept = value), color = 'yellow') +
+    geom_violin(draw_quantiles = 0.5) +
+    facet_wrap(~ Kit, scales='free_y', ncol = 1) +
+      # scale_y_log10() +
+    labs(x='Sample', y = ylab, title = metric,
+         # title='', 
+         caption = paste(#'Kit median shown in blue',
+                         #'Sample median shown in black',
+                         'Global filtering thresholds in yellow',
+                         'Kit level filtering thresholds in orange', 
+                         sep = '\n')) +
+      coord_flip()
+}
+```
+
+### nFeature
+
+```{r}
+figures[['nFeature_vln_facet']] <- QC_metric_VlnPlot(objs, 'nFeature_RNA', 'Feature Count') +
+  scale_y_log10()
+figures[['nFeature_vln_facet']]
+```
+
+### nCount
+
+```{r}
+figures[['nCount_vln_facet']] <- QC_metric_VlnPlot(objs, 'nCount_RNA', 'UMI Count') +
+  scale_y_log10()
+figures[['nCount_vln_facet']]
+```
+
+### mito
+
+```{r}
+figures[['mtRatio_vln_facet']] <- QC_metric_VlnPlot(objs, 'mtRatio', 'Mitochondrial read ratio')
+figures[['mtRatio_vln_facet']]
+```
+
+### ribo
+
+```{r}
+figures[['rbRatio_vln_facet']] <- QC_metric_VlnPlot(objs, 'rbRatio', 'Ribosomal read ratio')
+figures[['rbRatio_vln_facet']]
+```
+
+# Calculate filtered cells
+
+## Global vs kit thresholds
+
+```{r}
+filter_counts <- expand_grid(c('nFeature_RNA', 'nCount_RNA', 'mtRatio', 'rbRatio'),
+            c('min', 'max'),
+            c('both', 'kit', 'global'))
+
+filter_counts <- data.frame(matrix(nrow=length(metadata$Sample), 
+       ncol=length(apply(filter_counts, 1, paste0, collapse='_')),
+       dimnames = list(metadata$Sample, 
+                       apply(filter_counts, 1, paste0, collapse='_'))))
+filter_counts[,'original'] <- NA
+
+for (kit in unique(metadata$Kit)) {
+  for (sample in unique(filter(metadata, Kit == kit)$Sample)) {
+    if (sample %in% names(objs)) {
+      for (metric in c('nFeature_RNA', 'nCount_RNA', 'mtRatio', 'rbRatio')) {
+        values <- setNames(objs[[sample]]@meta.data[[metric]], rownames(objs[[sample]]@meta.data))
+        filter_counts[sample, 'original'] <- length(values)
+        
+        a <- names(values[values < kit_level_cutoffs[[kit]][[paste0(metric, '.min')]]])
+        b <- names(values[values < global_cutoffs[[paste0(metric, '.min')]]])
+        
+        filter_counts[sample, paste0(metric, '_min', '_both')] <- length(intersect(a, b))
+        filter_counts[sample, paste0(metric, '_min', '_kit')] <- length(setdiff(a, b))
+        filter_counts[sample, paste0(metric, '_min', '_global')] <- length(setdiff(b, a))
+        
+        a <- names(values[values > kit_level_cutoffs[[kit]][[paste0(metric, '.max')]]])
+        b <- names(values[values > global_cutoffs[[paste0(metric, '.max')]]])
+        
+        filter_counts[sample, paste0(metric, '_max', '_both')] <- length(intersect(a, b))
+        filter_counts[sample, paste0(metric, '_max', '_kit')] <- length(setdiff(a, b))
+        filter_counts[sample, paste0(metric, '_max', '_global')] <- length(setdiff(b, a))
+      }
+    }
+  }
+}
+```
+
+### Plot
+
+```{r}
+filtering_likert_plot <- function(filter_counts=filter_counts, metric, meta_data=metadata) {
+  plotdata <- filter_counts %>%
+    select(original, contains(metric)) %>%
+    mutate(good_cells = original - rowSums(across(!contains('original')))) %>%
+    select(-original) %>%
+      rownames_to_column('Sample') %>%
+    melt(id.vars = 'Sample') %>%
+    filter(!is.na(value)) %>%
+    separate_wider_delim(variable, names=c('metric', 'rank'), delim='_m', too_few='align_end') %>%
+    mutate(rank = factor(paste0('m', rank), levels = c(
+      'max_global', 'max_kit', 'max_both', 
+      'mgood_cells',
+      'min_both', 'min_kit', 'min_global'
+    ))) %>%
+    group_by(Sample) %>%
+    mutate(value = value / sum(value)) 
+  plotdata <- merge(x = plotdata, y = meta_data, by='Sample')
+  ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=value, fill=rank)) + 
+    geom_col() +
+    facet_wrap(~ Kit, scales = 'free_y', ncol=1) +
+    scale_fill_manual(values = c('max_global' = '#fce803',
+                                  'max_kit' = 'darkorange', 
+                                  'max_both' = 'darkred', 
+                                  'mgood_cells' = 'darkgreen', 
+                                  'min_both' = 'red', 
+                                  'min_kit' = 'orange', 
+                                  'min_global' = 'yellow'), 
+                      labels = c('> max global thresh',
+                                 '> max kit thresh',
+                                 '> both max thresh',
+                                 'Not filtered',
+                                 '< both min thresh',
+                                 '< min kit thresh',
+                                 '< min global thresh'
+                                 )) +
+    coord_flip() +
+    labs(y='Portion of capture', x= 'sample', fill = 'Filtered status', title = metric)
+}
+```
+
+```{r, fig.height=7, fig.width=4}
+figures[['filtering_likert_nFeature_RNA']] <- filtering_likert_plot(filter_counts, 'nFeature_RNA')
+figures[['filtering_likert_nFeature_RNA']]
+```
+
+```{r, fig.height=7, fig.width=4}
+figures[['filtering_likert_nCount_RNA']] <- filtering_likert_plot(filter_counts, 'nCount_RNA')
+figures[['filtering_likert_nCount_RNA']]
+```
+
+```{r, fig.height=7, fig.width=4}
+figures[['filtering_likert_mtRatio']] <- filtering_likert_plot(filter_counts, 'mtRatio')
+figures[['filtering_likert_mtRatio']]
+```
+
+```{r, fig.height=7, fig.width=4}
+figures[['filtering_likert_rbRatio']] <- filtering_likert_plot(filter_counts, 'rbRatio')
+figures[['filtering_likert_rbRatio']]
+```
+
+## Filtering overlap
+
+```{r}
+filter_sets <- purrr::cross(c('nFeature_RNA', 'nCount_RNA', 'mtRatio', 'rbRatio'),
+            c('min', 'max'),
+            c('both', 'kit', 'global'))
+
+filter_sets <- as_tibble(matrix(nrow=length(metadata$Sample), 
+       ncol=length(apply(filter_sets, 1, paste0, collapse='_')),
+       dimnames = list(metadata$Sample, 
+                       apply(filter_sets, 1, paste0, collapse='_'))))
+filter_sets[,'original'] <- NA
+
+for (kit in unique(metadata$Kit)) {
+  for (sample in unique(filter(metadata, Kit == kit)$Sample)) {
+    if (sample %in% names(objs)) {
+      for (metric in c('nFeature_RNA', 'nCount_RNA', 'mtRatio', 'rbRatio')) {
+        values <- setNames(objs[[sample]]@meta.data[[metric]], rownames(objs[[sample]]@meta.data))
+        filter_sets[sample, 'original'] <- names(values)
+        
+        a <- names(values[values < kit_level_cutoffs[[kit]][[paste0(metric, '.min')]]])
+        b <- names(values[values < global_cutoffs[[paste0(metric, '.min')]]])
+        
+        filter_sets[sample, paste0(metric, '_min', '_kit')] <- setdiff(a, b)
+        filter_sets[sample, paste0(metric, '_min', '_global')] <- setdiff(b, a)
+        
+        a <- names(values[values > kit_level_cutoffs[[kit]][[paste0(metric, '.max')]]])
+        b <- names(values[values > global_cutoffs[[paste0(metric, '.max')]]])
+        
+        filter_sets[sample, paste0(metric, '_max', '_kit')] <- setdiff(a, b)
+        filter_sets[sample, paste0(metric, '_max', '_global')] <- setdiff(b, a)
+      }
+    }
+  }
+}
+```
+
+### Plot
+
+```{r}
+filtering_euler_plot <- function(filter_counts=filter_counts, metric, meta_data=metadata) {
+  plotdata <- filter_counts %>%
+    select(original, contains(metric)) %>%
+    mutate(good_cells = original - rowSums(across(!contains('original')))) %>%
+    select(-original) %>%
+      rownames_to_column('Sample') %>%
+    melt(id.vars = 'Sample') %>%
+    filter(!is.na(value)) %>%
+    separate_wider_delim(variable, names=c('metric', 'rank'), delim='_m', too_few='align_end') %>%
+    mutate(rank = factor(paste0('m', rank), levels = c(
+      'max_global', 'max_kit', 'max_both', 
+      'mgood_cells',
+      'min_both', 'min_kit', 'min_global'
+    ))) %>%
+    group_by(Sample) %>%
+    mutate(value = value / sum(value)) 
+  plotdata <- merge(x = plotdata, y = meta_data, by='Sample')
+  ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=value, fill=rank)) + 
+    geom_col() +
+    facet_wrap(~ Kit, scales = 'free_y', ncol=1) +
+    scale_fill_manual(values = c('max_global' = '#fce803',
+                                  'max_kit' = 'darkorange', 
+                                  'max_both' = 'darkred', 
+                                  'mgood_cells' = 'darkgreen', 
+                                  'min_both' = 'red', 
+                                  'min_kit' = 'orange', 
+                                  'min_global' = 'yellow'), 
+                      labels = c('> max global thresh',
+                                 '> max kit thresh',
+                                 '> both max thresh',
+                                 'Not filtered',
+                                 '< both min thresh',
+                                 '< min kit thresh',
+                                 '< min global thresh'
+                                 )) +
+    coord_flip() +
+    labs(y='Portion of capture', x= 'sample', fill = 'Filtered status', title = metric)
+}
+```
+
+
+# Filter cells
+
+```{r}
+cutoffs <- lapply(kit_level_objs, generate_capture_QC_cutoffs)
+objs <- mapply(addQCfilter, objs, 'outliers', cutoffs)
+```
+
+### Outlier barchart
+
+```{r}
+outliers <- lapply(objs, function(x) {
+  x@meta.data %>%
+    mutate(outlier_count = rowSums(across(ends_with("outlier")))) %>%
+    group_by(outlier_count) %>%
+    summarise(count = n()) %>%
+    pivot_wider(names_from = outlier_count, values_from = count, values_fill = 0) %>%
+    rename_with(~ paste0(.x, "_outliers"))
+}) %>%
+  rbindlist(fill=TRUE, idcol = 'Sample') %>%
+  replace_na(list(`1_outliers` = 0, `2_outliers` = 0, `3_outliers` = 0, `4_outliers` = 0)) %>%
+  melt(idcol='Sample') %>%
+  merge(metadata, by = 'Sample') %>%
+  group_by(Sample) %>%
+  mutate(value = value / sum(value),
+         variable = factor(variable, levels = rev(levels(factor(variable)))))
+ggplot(outliers, aes(x=paste0(Individual, Replicate), y=value, fill = variable)) +
+  geom_col(position = 'stack') +
+  facet_wrap(~Kit, scales = 'free_x', nrow=1)+
+  labs(title='Cell consistency within capture', x='Sample', y='Portion of capture', fill = '# of outlier metrics') ->
+  figures[['outlier_portion_barchart']]
+figures[['outlier_portion_barchart']]
+```
+# Doublets
+
+```{r}
+run_scDblFinder <- function(obj,
+                            knownDoublets=NULL,
+                            knownUse=NULL,
+                            nfeatures = 2000,
+                            ...){
+  if (!is.null(knownDoublets)) {
+    if (is.null(knownUse)) {
+      errorCondition('Specify how you want known doublets to be used with "knownUse"')
+    }
+  }
+  obj.sce <- Seurat::as.SingleCellExperiment(obj)
+  obj.sce <- scDblFinder::scDblFinder(obj.sce,
+                                      knownDoublets = knownDoublets,
+                                      knownUse = knownUse,
+                                      nfeatures = nfeatures,
+                                      ...)
+  obj$scDblFinder.score <- obj.sce$scDblFinder.score
+  obj$scDblFinder.class <- obj.sce$scDblFinder.class
+  obj
+}
+```
+
+```{r}
+objs <- lapply(objs,
+               run_scDblFinder,
+               dbr.sd=1 ## per github, if unsure about doublet rate
+)
+```
+
+# Save objs
+
+```{r}
+saveRDS(objs, here('rds/02-annotated_objs.rds'))
+```
+
+# Render report
+
+```{r, eval=TRUE}
+## This only works if all the variables called in the format file 
+## are in the current environment. Check the format file to tweak
+## aesthetics 
+rmarkdown::render(here('processing_scripts/02-obj_filtering.format.Rmd'),
+                  output_file = '02-obj_filtering.html',
+                  output_dir = here('reports'))
+```
