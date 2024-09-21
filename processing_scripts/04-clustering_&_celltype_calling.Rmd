@@ -49,6 +49,74 @@ objs <- lapply(objs, FindNeighbors, dims=1:15)
 objs <- lapply(objs, RunUMAP, dims=1:15)
 ```
 
+# Clustering
+
+```{r}
+objs <- lapply(objs, RunPCA)
+objs <- lapply(objs, FindNeighbors, dims=1:30)
+objs <- lapply(objs, RunUMAP, dims=1:30)
+```
+
+## Resolution selection
+
+```{r}
+createClustree <- function(obj,
+                           res = c(seq(0.1,1.5, .1), 2, 3, 5), ...) {
+  for (i in res) {
+    obj <- Seurat::FindClusters(obj, res=i)
+  }
+  clustree::clustree(obj, ...)
+}
+
+clustrees <- lapply(objs, createClustree)
+
+for ( i in names(clustrees)){
+  clustrees[[i]] <- clustrees[[i]] + ggtitle(i)
+}
+```
+
+```{r, fig.height=12}
+clustrees
+```
+
+```{r}
+resolutions <- list(
+ "GEMX5P_F1" = 1.1,
+ "GEMX5P_F2" = 1.0,
+ "GEMX5P_F4" = 0.8,
+ "GEMX5P_F5" = 0.8,
+ "NextGEM_F1" = 0.9,
+ "NextGEM_F2" = 1.0,
+ "NextGEM_F4" = 1.0,
+ "NextGEM_F5" = 1.3,
+ "PA_1_F1" = 1.1,
+ "PA_1_F2" = 1.1,
+ "PA_1_F4" = 1.1,
+ "PA_1_F5" = 1.2,  
+ "FB_2_F1A" = 1.3,
+ "FB_2_F1B" = 1.3,
+ "FB_2_F5A" = 1.2,
+ "FB_2_F5B" = 1.0,
+ "GEMX3P_F1A" = 1.2,
+ "GEMX3P_F1B"= 1.0,
+ "GEMX3P_F5A" = 1.0,
+ "GEMX3P_F5B" = 1.0,
+ "PA_2_F1A" = 1.2,
+ "PA_2_F1B" = 1.5,
+ "PA_2_F5A" = 1.1,
+ "PA_2_F5B" = 1.5
+)
+```
+
+## Run findclusters
+
+```{r}
+for (sample in names(objs)){
+  objs[[sample]] <- Seurat::FindClusters(objs[[sample]], resolution = resolutions[[sample]])
+}
+```
+
+
 # Resolution selection
 
 ```{r}
@@ -114,6 +182,65 @@ for (sample in names(objs)){
 lapply(names(objs), function(x){
   DimPlot(objs[[x]]) + ggtitle(x)
 })
+```
+
+# Celltype annotations
+
+```{r run_SingleR}
+runSingleR <- function(obj.seurat,
+                       ref,
+                       labels,
+                       de.method = "classic",
+                       meta.prefix = 'singleR',
+                       num.threads = BiocParallel::bpnworkers(BiocParallel::MulticoreParam()),
+                       ...) {
+  singleR.out <- obj.seurat %>%
+    Seurat::as.SingleCellExperiment(assay = "RNA") %>%
+    scuttle::logNormCounts() %>%
+    SummarizedExperiment::assays() # %>%
+    # .$logcounts %>%
+  singleR.out <- SingleR::SingleR(test = singleR.out$logcounts,
+                     ref = ref,
+                     labels = labels,
+                     de.method = de.method,
+                     num.threads = num.threads,
+                     ...)
+
+  obj.seurat@meta.data[[paste0(meta.prefix,".labels")]] <- singleR.out$labels
+  obj.seurat@meta.data[[paste0(meta.prefix,".pruned.labels")]] <- singleR.out$pruned.labels
+  obj.seurat@meta.data[[paste0(meta.prefix,".delta.next")]] <- singleR.out$delta.next
+
+  return(obj.seurat)
+}
+```
+
+```{r}
+ref <- readRDS('/fh/fast/_IRC/FHIL/pub/ref/single_cell_references/Novershtern_celldex.rds')
+objs <- lapply(objs, function(x) {
+  runSingleR(x, 
+             ref = assays(ref)$logcounts,
+             labels = ref$label.main,
+             meta.prefix = 'Novershtern.main',
+             de.method = 'wilcox')
+  })
+```
+
+```{r}
+ref <- readRDS('/fh/fast/_IRC/FHIL/pub/ref/single_cell_references/HPCA_celldex.rds')
+objs <- lapply(objs, function(x) {
+  runSingleR(x, 
+             ref = assays(ref)$logcounts,
+             labels = ref$label.main,
+             meta.prefix = 'HPCA.main',
+             de.method = 'wilcox')
+  })
+```
+
+```{r}
+lapply(objs, function(x) {
+  DimPlot(x, group.by = 'Novershtern.main.pruned.labels')
+})
+
 ```
 
 # Celltype predictions
