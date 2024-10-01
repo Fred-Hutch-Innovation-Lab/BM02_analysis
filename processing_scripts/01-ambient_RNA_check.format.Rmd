@@ -1,5 +1,5 @@
 ---
-title: 'scRNA QC'
+title: 'BM02 Ambient RNA processing'
 author: "FHIL\nDerrikGratz"
 date: '`r Sys.Date()`'
 output: 
@@ -25,6 +25,6 @@ figures[['rho_barchart']]
 # Saturation curves
 
 ```{r}
-figure_sat_curves
+knitr::include_graphics(here('figures/saturation_curves_GeneXTranscript.png'))
 ```
 
