@@ -50,7 +50,7 @@ generate_capture_QC_cutoffs <- function(capture,
   for (metric in c('rbRatio', 'mtRatio')) {
     thresholds <- .generate_outlier_thresholds(capture, metric, nmads, logscale=FALSE)
     cutoffs[[paste0(metric, '.max')]] <- thresholds[['upper']]
-    cutoffs[[paste0(metric, '.min')]] <- thresholds[['lower']]
+    cutoffs[[paste0(metric, '.min')]] <- 0 #thresholds[['lower']]
   }
   for (metric in c('nCount_RNA', 'nFeature_RNA')) {
     thresholds <- .generate_outlier_thresholds(capture, metric, nmads, logscale=TRUE)
@@ -95,11 +95,17 @@ addQCfilter <- function(obj,
     cutoffs <- default_cutoffs
   }
   obj@meta.data <- obj@meta.data %>% dplyr::mutate(
-    nCount_RNA_outlier = .data$nCount_RNA <= cutoffs$nCount_RNA.min | .data$nCount_RNA >= cutoffs$nCount_RNA.max,
-    nFeature_RNA_outlier = .data$nFeature_RNA <= cutoffs$nFeature_RNA.min | .data$nFeature_RNA >= cutoffs$nFeature_RNA.max,
-    # log10GenesPerUMI_outlier = .data$log10GenesPerUMI <= cutoffs$log10GenesPerUMI.min | .data$log10GenesPerUMI >= cutoffs$log10GenesPerUMI.max,
-    mtRatio_outlier = .data$mtRatio <= cutoffs$mtRatio.min | .data$mtRatio >= cutoffs$mtRatio.max,
-    rbRatio_outlier = .data$rbRatio <= cutoffs$rbRatio.min | .data$rbRatio >= cutoffs$rbRatio.max)
+    !!(filterName) :=
+      .data$nCount_RNA >= cutoffs$nCount_RNA.min &
+      .data$nCount_RNA <= cutoffs$nCount_RNA.max &
+      .data$nFeature_RNA >= cutoffs$nFeature_RNA.min &
+      .data$nFeature_RNA <= cutoffs$nFeature_RNA.max &
+      # .data$log10GenesPerUMI >= cutoffs$log10GenesPerUMI.min &
+      # .data$log10GenesPerUMI <= cutoffs$log10GenesPerUMI.max &
+      .data$mtRatio >= cutoffs$mtRatio.min &
+      .data$mtRatio <= cutoffs$mtRatio.max &
+      .data$rbRatio >= cutoffs$rbRatio.min &
+      .data$rbRatio <= cutoffs$rbRatio.max)
   return(obj)
 }
 ```
@@ -112,16 +118,33 @@ metadata <- read.csv(here('config/metadata.csv'))
 figures <- list()
 ```
 
-# Processing
+Drop GEMX5P F4A F5A due to poor quality in sample prep
+
+```{r}
+objs[['NextGEM5P_F4']] <- NULL
+objs[['NextGEM5P_F5']] <- NULL
+```
+
+
+```{r}
+metadata <- metadata %>%
+  filter(!(Kit == 'Scale')) %>%
+  filter(!(Sample %in% c('NextGEM5P_F4', 'NextGEM5P_F5'))) 
+```
+
 
 ## Rename cells
 
 ```{r}
 ## Renaming cells with the sample name to avoid conflicts with references, merging etc.
-objs <- lapply(objs, function(sample){
-  RenameCells(sample, add.cell.id = unique(sample$orig.ident))
-})
+for (obj in names(objs)) {
+  Project(objs[[obj]]) <- obj
+  objs[[obj]] <- RenameCells(objs[[obj]], add.cell.id = obj)
+  objs[[obj]]$orig.ident <- obj
+}
 ```
+
+# Processing
 
 ## Add QC metrics
 
@@ -129,12 +152,19 @@ objs <- lapply(objs, function(sample){
 objs <- lapply(objs, addQCMetrics)
 ```
 
-## Normalize
+## Kit level objs
 
 ```{r}
-objs <- lapply(objs, NormalizeData)
-objs <- lapply(objs, FindVariableFeatures)
-objs <- lapply(objs, ScaleData)
+## Scale data not ready yet
+tmp <- setNames(unique(metadata$Kit), unique(metadata$Kit))
+tmp <- tmp[c('GEMX5P','NextGEM5P','Parse_V2','Flex','Fluent','GEMX3P','NextGEM3P','Parse_V3')]
+
+kit_level_objs <- lapply(tmp, function(kit){
+  samples <- metadata$Sample[metadata$Kit==kit]
+  x <- merge(objs[[samples[1]]], objs[samples[2]])
+  x[['RNA']] <- JoinLayers(x[['RNA']])
+  x
+})
 ```
 
 # Define QC thresholds
@@ -142,12 +172,12 @@ objs <- lapply(objs, ScaleData)
 ## Global
 
 ```{r}
-global_cutoffs <- list(nCount_RNA.max = 20000,
-                    nCount_RNA.min = 500,
-                    nFeature_RNA.max = 5000,
-                    nFeature_RNA.min = 100,
-                    log10GenesPerUMI.max = Inf,
-                    log10GenesPerUMI.min = 0.80,
+global_cutoffs <- list(nCount_RNA.max = 30000,
+                    nCount_RNA.min = 1000,
+                    nFeature_RNA.max = 10000,
+                    nFeature_RNA.min = 200,
+                    # log10GenesPerUMI.max = Inf,
+                    # log10GenesPerUMI.min = 0.80,
                     mtRatio.max = 0.15,
                     mtRatio.min = 0,
                     rbRatio.max = 0.5,
@@ -163,15 +193,7 @@ global_cutoffs_df <- global_cutoffs_df %>%
 ## Kit level
 
 ```{r}
-kit_level_cutoffs <- lapply(setNames(unique(metadata$Kit), unique(metadata$Kit)), function(kit){
-  samples <- metadata$Sample[metadata$Kit==kit]
-  x <- merge(objs[[samples[1]]], objs[samples[2:length(samples)]])
-  if (!is.data.frame(x)) {
-    generate_capture_QC_cutoffs(x)
-  } else {
-    NA
-  }
-})
+kit_level_cutoffs <- lapply(kit_level_objs, generate_capture_QC_cutoffs)
 
 kit_level_cutoffs_df <- unlist(kit_level_cutoffs) %>%
   as.data.frame() %>%
@@ -179,22 +201,26 @@ kit_level_cutoffs_df <- unlist(kit_level_cutoffs) %>%
 colnames(kit_level_cutoffs_df) <- c('name', 'value')
 kit_level_cutoffs_df <- kit_level_cutoffs_df %>%
   separate('name', c('Kit', 'Metric', 'Direction'), sep = '\\.')
+kit_level_cutoffs_df
 ```
 
-## Visualizations
+# Metric Visualizations
 
 ```{r}
 QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', kit_level_cutoffs = kit_level_cutoffs_df, global_cutoffs = global_cutoffs_df) {
   plotdata <- lapply(objs, function(x){unname(x@meta.data[[metric]])}) %>%
     melt(idcol='Sample') %>%
-    merge(metadata, by.x='L1', by.y='Sample') 
+    merge(metadata, by.x='L1', by.y='Sample', all.x=TRUE, all.y=FALSE) 
   plotdata2 <- group_by(plotdata, Kit) %>% 
     summarize(med = median(value)) 
+  
+  kit_level_cutoffs_df <- kit_level_cutoffs_df %>%
+    filter(Kit %in% plotdata2$Kit)
 
     ggplot(plotdata, aes(y=value, x=paste0(Individual, Replicate))) +
     # geom_hline(plotdata2, mapping = aes(yintercept = med), lty='solid', color='blue') +
-    geom_hline(filter(kit_level_cutoffs, Metric == metric), mapping = aes(yintercept = value), color = 'orange') +
-      geom_hline(filter(global_cutoffs, Metric == metric), mapping = aes(yintercept = value), color = 'yellow') +
+    geom_hline(filter(kit_level_cutoffs, Metric == metric), mapping = aes(yintercept = value), color = 'orange', lty='twodash') +
+      geom_hline(filter(global_cutoffs, Metric == metric), mapping = aes(yintercept = value), color = 'yellow', lty='dashed') +
     geom_violin(draw_quantiles = 0.5) +
     facet_wrap(~ Kit, scales='free_y', ncol = 1) +
       # scale_y_log10() +
@@ -211,33 +237,140 @@ QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', kit_level_cut
 
 ### nFeature
 
-```{r}
-figures[['nFeature_vln_facet']] <- QC_metric_VlnPlot(objs, 'nFeature_RNA', 'Feature Count') +
+```{r, fig.height=5, fig.width=6}
+figures[['nFeature_vln_facet_bm01']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM01']], 'nFeature_RNA', 'Feature Count') +
   scale_y_log10()
-figures[['nFeature_vln_facet']]
+figures[['nFeature_vln_facet_bm01']]
+```
+
+```{r, fig.height=11, fig.width=6}
+figures[['nFeature_vln_facet_bm02']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM02']], 'nFeature_RNA', 'Feature Count') +
+  scale_y_log10()
+figures[['nFeature_vln_facet_bm02']]
 ```
 
 ### nCount
 
-```{r}
-figures[['nCount_vln_facet']] <- QC_metric_VlnPlot(objs, 'nCount_RNA', 'UMI Count') +
+```{r, fig.height=5}
+figures[['nCount_vln_facet_bm01']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM01']], 'nCount_RNA', 'UMI Count') +
   scale_y_log10()
-figures[['nCount_vln_facet']]
+figures[['nCount_vln_facet_bm01']]
+```
+
+```{r, fig.height=12}
+figures[['nCount_vln_facet_bm02']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM02']], 'nCount_RNA', 'UMI Count') +
+  scale_y_log10()
+figures[['nCount_vln_facet_bm02']]
 ```
 
 ### mito
 
-```{r}
-figures[['mtRatio_vln_facet']] <- QC_metric_VlnPlot(objs, 'mtRatio', 'Mitochondrial read ratio')
-figures[['mtRatio_vln_facet']]
+```{r, fig.height=5}
+figures[['mtRatio_vln_facet_bm01']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM01']], 'mtRatio', 'Mitochondrial read ratio')
+figures[['mtRatio_vln_facet_bm01']]
+```
+
+```{r, fig.height=12}
+figures[['mtRatio_vln_facet_bm02']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM02']], 'mtRatio', 'Mitochondrial read ratio') 
+figures[['mtRatio_vln_facet_bm02']]
 ```
 
 ### ribo
 
 ```{r}
-figures[['rbRatio_vln_facet']] <- QC_metric_VlnPlot(objs, 'rbRatio', 'Ribosomal read ratio')
-figures[['rbRatio_vln_facet']]
+figures[['rbRatio_vln_facet_bm01']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM01']], 'rbRatio', 'Ribosomal read ratio')
+figures[['rbRatio_vln_facet_bm01']]
 ```
+
+```{r}
+figures[['rbRatio_vln_facet_bm02']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM02']], 'rbRatio', 'Ribosomal read ratio')
+figures[['rbRatio_vln_facet_bm02']]
+```
+
+# Doublets
+
+```{r}
+run_scDblFinder <- function(obj,
+                            knownDoublets=NULL,
+                            knownUse=NULL,
+                            nfeatures = 2000,
+                            ...){
+  if (!is.null(knownDoublets)) {
+    if (is.null(knownUse)) {
+      errorCondition('Specify how you want known doublets to be used with "knownUse"')
+    }
+  }
+  obj.sce <- Seurat::as.SingleCellExperiment(obj)
+  obj.sce <- scDblFinder::scDblFinder(obj.sce,
+                                      knownDoublets = knownDoublets,
+                                      knownUse = knownUse,
+                                      nfeatures = nfeatures,
+                                      ...)
+  obj$scDblFinder.score <- obj.sce$scDblFinder.score
+  obj$scDblFinder.class <- obj.sce$scDblFinder.class
+  obj
+}
+objs <- lapply(objs,
+               run_scDblFinder,
+               dbr.sd=1 ## per github, if unsure about doublet rate
+)
+```
+
+```{r}
+plotdata <- lapply(objs, function(x) {
+  x$scDblFinder.class %>% 
+    table() %>%
+    as.data.frame()
+}) %>% 
+  data.table::rbindlist(idcol = 'Sample') %>%
+  dplyr::rename('class' = '.') %>%
+  group_by(Sample) %>%
+  mutate(Freq = Freq / sum(Freq),
+         class = factor(class, levels = c('doublet', 'singlet'))) %>%
+  merge(metadata, by='Sample') 
+ggplot(filter(plotdata, BM_project=='BM01'), aes(x=paste0(Individual, Replicate), y=Freq, fill=class)) +
+  geom_col(position='stack') +
+  facet_wrap(~Kit, scales = 'free_x', nrow=1) +
+  scale_fill_manual(values = c('goldenrod', 'darkgreen'), labels = c('Multiplet', 'Singlet')) +
+  labs(x='Sample', y='Portion of capture', fill='Classification') ->
+  figures[['doublet_portion_barchart_bm01']]
+ggplot(filter(plotdata, BM_project=='BM02'), aes(x=paste0(Individual, Replicate), y=Freq, fill=class)) +
+  geom_col(position='stack') +
+  facet_wrap(~Kit, scales = 'free_x', nrow=1) +
+  scale_fill_manual(values = c('goldenrod', 'darkgreen'), labels = c('Multiplet', 'Singlet')) +
+  labs(x='Sample', y='Portion of capture', fill='Classification') ->
+  figures[['doublet_portion_barchart_bm02']]
+figures[['doublet_portion_barchart_bm01']]
+figures[['doublet_portion_barchart_bm02']]
+```
+
+```{r}
+plotdata <- lapply(objs, function(x) {
+  x$scDblFinder.class %>% 
+    table() %>%
+    as.data.frame()
+}) %>% 
+  data.table::rbindlist(idcol = 'Sample') %>%
+  dplyr::rename('class' = '.') %>%
+  group_by(Sample) %>%
+  mutate(Freq = Freq / sum(Freq),
+         class = factor(class, levels = c('doublet', 'singlet'))) %>%
+  filter(class == 'doublet') %>%
+  merge(metadata, by='Sample')
+ggplot(filter(plotdata, BM_project == 'BM01'), aes(x=Kit, y=Freq)) +
+  geom_boxplot() +
+  geom_point(aes(shape=paste0(Individual, Replicate))) +
+  labs(x='Sample', y='Portion of capture', shape='Sample', title='Doublet rate') ->
+  figures[['doublet_portion_boxchart_bm01']]
+ggplot(filter(plotdata, BM_project == 'BM02'), aes(x=Kit, y=Freq)) +
+  geom_boxplot() +
+  geom_point(aes(shape=paste0(Individual, Replicate))) +
+  labs(x='Sample', y='Portion of capture', shape='Sample', title='Doublet rate') ->
+  figures[['doublet_portion_boxchart_bm02']]
+figures[['doublet_portion_boxchart_bm01']]
+figures[['doublet_portion_boxchart_bm02']]
+```
+
 
 # Calculate filtered cells
 
@@ -283,7 +416,7 @@ for (kit in unique(metadata$Kit)) {
 ### Plot
 
 ```{r}
-filtering_likert_plot <- function(filter_counts=filter_counts, metric, meta_data=metadata) {
+filtering_likert_plot <- function(filter_counts=filter_counts, metric, meta_data=metadata, bm_project=c('BM01', 'BM02')) {
   plotdata <- filter_counts %>%
     select(original, contains(metric)) %>%
     mutate(good_cells = original - rowSums(across(!contains('original')))) %>%
@@ -299,17 +432,18 @@ filtering_likert_plot <- function(filter_counts=filter_counts, metric, meta_data
     ))) %>%
     group_by(Sample) %>%
     mutate(value = value / sum(value)) 
-  plotdata <- merge(x = plotdata, y = meta_data, by='Sample')
+  plotdata <- merge(x = plotdata, y = meta_data, by='Sample') %>%
+    filter(BM_project %in% bm_project)
   ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=value, fill=rank)) + 
     geom_col() +
     facet_wrap(~ Kit, scales = 'free_y', ncol=1) +
     scale_fill_manual(values = c('max_global' = '#fce803',
-                                  'max_kit' = 'darkorange', 
+                                  'max_kit' = '#f58c02', 
                                   'max_both' = 'darkred', 
                                   'mgood_cells' = 'darkgreen', 
-                                  'min_both' = 'red', 
-                                  'min_kit' = 'orange', 
-                                  'min_global' = 'yellow'), 
+                                  'min_both' = '#d402f5', 
+                                  'min_kit' = '#5b02f5', 
+                                  'min_global' = '#0278f5'), 
                       labels = c('> max global thresh',
                                  '> max kit thresh',
                                  '> both max thresh',
@@ -324,174 +458,346 @@ filtering_likert_plot <- function(filter_counts=filter_counts, metric, meta_data
 ```
 
 ```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_nFeature_RNA']] <- filtering_likert_plot(filter_counts, 'nFeature_RNA')
-figures[['filtering_likert_nFeature_RNA']]
+figures[['filtering_likert_nFeature_RNA_bm01']] <- filtering_likert_plot(filter_counts, 'nFeature_RNA', bm_project = 'BM01')
+figures[['filtering_likert_nFeature_RNA_bm01']]
 ```
 
 ```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_nCount_RNA']] <- filtering_likert_plot(filter_counts, 'nCount_RNA')
-figures[['filtering_likert_nCount_RNA']]
+figures[['filtering_likert_nFeature_RNA_bm02']] <- filtering_likert_plot(filter_counts, 'nFeature_RNA', bm_project = 'BM02')
+figures[['filtering_likert_nFeature_RNA_bm02']]
 ```
 
 ```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_mtRatio']] <- filtering_likert_plot(filter_counts, 'mtRatio')
-figures[['filtering_likert_mtRatio']]
+figures[['filtering_likert_nCount_RNA_bm01']] <- filtering_likert_plot(filter_counts, 'nCount_RNA', bm_project = 'BM01')
+figures[['filtering_likert_nCount_RNA_bm01']]
 ```
 
 ```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_rbRatio']] <- filtering_likert_plot(filter_counts, 'rbRatio')
-figures[['filtering_likert_rbRatio']]
+figures[['filtering_likert_nCount_RNA_bm02']] <- filtering_likert_plot(filter_counts, 'nCount_RNA', bm_project = 'BM02')
+figures[['filtering_likert_nCount_RNA_bm02']]
+```
+
+```{r, fig.height=7, fig.width=4}
+figures[['filtering_likert_mtRatio_bm01']] <- filtering_likert_plot(filter_counts, 'mtRatio', bm_project = 'BM01')
+figures[['filtering_likert_mtRatio_bm01']]
+```
+
+```{r, fig.height=7, fig.width=4}
+figures[['filtering_likert_mtRatio_bm02']] <- filtering_likert_plot(filter_counts, 'mtRatio', bm_project = 'BM02')
+figures[['filtering_likert_mtRatio_bm02']]
+```
+
+```{r, fig.height=7, fig.width=4}
+figures[['filtering_likert_rbRatio_bm01']] <- filtering_likert_plot(filter_counts, 'rbRatio', bm_project = 'BM01')
+figures[['filtering_likert_rbRatio_bm01']]
+```
+
+```{r, fig.height=7, fig.width=4}
+figures[['filtering_likert_rbRatio_bm02']] <- filtering_likert_plot(filter_counts, 'rbRatio', bm_project = 'BM02')
+figures[['filtering_likert_rbRatio_bm02']]
 ```
 
 ## Filtering overlap
 
 ```{r}
-filter_sets <- purrr::cross(c('nFeature_RNA', 'nCount_RNA', 'mtRatio', 'rbRatio'),
-            c('min', 'max'),
-            c('both', 'kit', 'global'))
-
-filter_sets <- as_tibble(matrix(nrow=length(metadata$Sample), 
-       ncol=length(apply(filter_sets, 1, paste0, collapse='_')),
-       dimnames = list(metadata$Sample, 
-                       apply(filter_sets, 1, paste0, collapse='_'))))
-filter_sets[,'original'] <- NA
+filter_sets <- list()
+euler_plots_kit <- list()
+metrics <- c('nFeature_RNA', 'nCount_RNA', 'mtRatio', 'rbRatio')
 
 for (kit in unique(metadata$Kit)) {
   for (sample in unique(filter(metadata, Kit == kit)$Sample)) {
     if (sample %in% names(objs)) {
-      for (metric in c('nFeature_RNA', 'nCount_RNA', 'mtRatio', 'rbRatio')) {
+      filter_sets[[sample]] <- list()
+      filter_sets[[sample]][['original']] <- rownames(objs[[sample]]@meta.data)
+      for (metric in metrics) {
         values <- setNames(objs[[sample]]@meta.data[[metric]], rownames(objs[[sample]]@meta.data))
-        filter_sets[sample, 'original'] <- names(values)
-        
-        a <- names(values[values < kit_level_cutoffs[[kit]][[paste0(metric, '.min')]]])
-        b <- names(values[values < global_cutoffs[[paste0(metric, '.min')]]])
-        
-        filter_sets[sample, paste0(metric, '_min', '_kit')] <- setdiff(a, b)
-        filter_sets[sample, paste0(metric, '_min', '_global')] <- setdiff(b, a)
-        
-        a <- names(values[values > kit_level_cutoffs[[kit]][[paste0(metric, '.max')]]])
-        b <- names(values[values > global_cutoffs[[paste0(metric, '.max')]]])
-        
-        filter_sets[sample, paste0(metric, '_max', '_kit')] <- setdiff(a, b)
-        filter_sets[sample, paste0(metric, '_max', '_global')] <- setdiff(b, a)
+        filter_sets[[sample]][[metric]] <- 
+          names(values[values < kit_level_cutoffs[[kit]][[paste0(metric, '.min')]] | 
+                        values > kit_level_cutoffs[[kit]][[paste0(metric, '.max')]]])
       }
+      values <- setNames(objs[[sample]]@meta.data[['scDblFinder.class']], rownames(objs[[sample]]@meta.data))
+      filter_sets[[sample]][['doublets']] <- names(values[values == 'doublet']) 
+      euler_plots_kit[[sample]] <- plot(eulerr::euler(filter_sets[[sample]], shape='ellipse'), main=sample)
     }
   }
 }
 ```
 
-### Plot
-
 ```{r}
-filtering_euler_plot <- function(filter_counts=filter_counts, metric, meta_data=metadata) {
-  plotdata <- filter_counts %>%
-    select(original, contains(metric)) %>%
-    mutate(good_cells = original - rowSums(across(!contains('original')))) %>%
-    select(-original) %>%
-      rownames_to_column('Sample') %>%
-    melt(id.vars = 'Sample') %>%
-    filter(!is.na(value)) %>%
-    separate_wider_delim(variable, names=c('metric', 'rank'), delim='_m', too_few='align_end') %>%
-    mutate(rank = factor(paste0('m', rank), levels = c(
-      'max_global', 'max_kit', 'max_both', 
-      'mgood_cells',
-      'min_both', 'min_kit', 'min_global'
-    ))) %>%
-    group_by(Sample) %>%
-    mutate(value = value / sum(value)) 
-  plotdata <- merge(x = plotdata, y = meta_data, by='Sample')
-  ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=value, fill=rank)) + 
-    geom_col() +
-    facet_wrap(~ Kit, scales = 'free_y', ncol=1) +
-    scale_fill_manual(values = c('max_global' = '#fce803',
-                                  'max_kit' = 'darkorange', 
-                                  'max_both' = 'darkred', 
-                                  'mgood_cells' = 'darkgreen', 
-                                  'min_both' = 'red', 
-                                  'min_kit' = 'orange', 
-                                  'min_global' = 'yellow'), 
-                      labels = c('> max global thresh',
-                                 '> max kit thresh',
-                                 '> both max thresh',
-                                 'Not filtered',
-                                 '< both min thresh',
-                                 '< min kit thresh',
-                                 '< min global thresh'
-                                 )) +
-    coord_flip() +
-    labs(y='Portion of capture', x= 'sample', fill = 'Filtered status', title = metric)
+filter_sets <- list()
+euler_plots_global <- list()
+metrics <- c('nFeature_RNA', 'nCount_RNA', 'mtRatio', 'rbRatio')
+
+for (kit in unique(metadata$Kit)) {
+  for (sample in unique(filter(metadata, Kit == kit)$Sample)) {
+    if (sample %in% names(objs)) {
+      filter_sets[[sample]] <- list()
+      filter_sets[[sample]][['original']] <- rownames(objs[[sample]]@meta.data)
+      for (metric in metrics) {
+        values <- setNames(objs[[sample]]@meta.data[[metric]], rownames(objs[[sample]]@meta.data))
+        filter_sets[[sample]][[metric]] <- 
+          names(values[values < global_cutoffs[[paste0(metric, '.min')]] | 
+                        values > global_cutoffs[[paste0(metric, '.max')]]])
+      }
+      values <- setNames(objs[[sample]]@meta.data[['scDblFinder.class']], rownames(objs[[sample]]@meta.data))
+      filter_sets[[sample]][['doublets']] <- names(values[values == 'doublet']) 
+      euler_plots_global[[sample]] <- plot(eulerr::euler(filter_sets[[sample]], shape='ellipse'), main=sample)
+    }
+  }
 }
 ```
 
-
-# Filter cells
+# Gene filtering
 
 ```{r}
-cutoffs <- lapply(kit_level_objs, generate_capture_QC_cutoffs)
-objs <- mapply(addQCfilter, objs, 'outliers', cutoffs)
+## Looking for genes with non-zero expression in at least 10 cells
+## maybe this should be a percentage rather than a hard number
+detected_genes_sample_level <- lapply(objs, function(obj) {
+  genes <- obj@assays$RNA@features@.Data 
+  genes <- genes %>% 
+    as.data.frame() %>%
+    filter(counts == TRUE) %>% 
+    rownames()
+  detected_genes <- rowSums(obj@assays$RNA@layers$counts > 0) > 10 
+  detected_genes <- genes[detected_genes]
+  detected_genes
+})
+detected_genes_kit_level <- lapply(unique(metadata$Kit), function(kit) {
+  samples <- metadata$Sample[metadata$Kit == kit]
+  sets <- list()
+  for (sample in samples) {
+    sets <- list(sets, detected_genes_sample_level[[sample]])
+  }
+  result <- table(unlist(sets))
+  names(result[result >= 2])
+})
+names(detected_genes_kit_level) <- unique(metadata$Kit)
 ```
 
-### Outlier barchart
+## Gene count
+
+```{r, fig.width=9}
+figures[['usable_genes']] <-
+lapply(detected_genes_sample_level, length) %>%
+  stack() %>%
+  merge(metadata, by.x='ind', by.y='Sample') %>%
+  ggplot(aes(x=Kit, y=values)) +
+  geom_boxplot() +
+  geom_point(aes(shape=paste0(Individual, Replicate))) +
+  # facet_wrap(~ Kit, scales='free_x') + 
+  labs(x = 'Kit', y='Genes detected', shape='Sample', caption = 'Genes detected in at least 10 cells')
+figures[['usable_genes']]
+```
+ 
+```{r, fig.width=9}
+figures[['usable_genes_kit']] <-
+lapply(detected_genes_kit_level, length) %>%
+  stack() %>%
+  ggplot(aes(x=ind, y=values)) +
+  geom_col() +
+  # geom_point(aes(shape=paste0(Individual, Replicate))) +
+  # facet_wrap(~ Kit, scales='free_x') + 
+  labs(x = 'Kit', y='Genes detected', caption = 'Genes detected in at least 10 cells in 2+ samples')
+figures[['usable_genes_kit']]
+```
+
+<!-- ## Genes with sufficient data -->
+
+<!-- ```{r} -->
+<!-- gtf <- read.table('/fh/fast/_IRC/FHIL/pub/ref/GRCh38/refdata-gex-GRCh38-2024-A/star/geneInfo.tab', header = FALSE, skip = 1, sep='\t') -->
+<!-- colnames(gtf) <- c('ENS_ID', 'Symbol', 'Type') -->
+<!-- ``` -->
+
+## Shared genes
 
 ```{r}
-outliers <- lapply(objs, function(x) {
-  x@meta.data %>%
-    mutate(outlier_count = rowSums(across(ends_with("outlier")))) %>%
-    group_by(outlier_count) %>%
-    summarise(count = n()) %>%
-    pivot_wider(names_from = outlier_count, values_from = count, values_fill = 0) %>%
-    rename_with(~ paste0(.x, "_outliers"))
-}) %>%
-  rbindlist(fill=TRUE, idcol = 'Sample') %>%
-  replace_na(list(`1_outliers` = 0, `2_outliers` = 0, `3_outliers` = 0, `4_outliers` = 0)) %>%
-  melt(idcol='Sample') %>%
-  merge(metadata, by = 'Sample') %>%
+figures[['gene_overlap']] <-
+plot(eulerr::euler(detected_genes_kit_level))
+figures[['gene_overlap']]
+```
+
+## Unique genes
+
+```{r}
+calculate_unique_gene_expression <- function(obj) {
+  genes <- obj@assays$RNA@features@.Data
+  genes <- genes %>%
+    as.data.frame() %>%
+    filter(counts == TRUE) %>%
+    rownames()
+  counts <- obj@assays$RNA@layers$counts
+  
+  # portion of cells that have non-zero expression
+  portion_expressed <- rowSums(counts > 0) / ncol(counts)
+  names(portion_expressed) <- genes
+  
+  median_nonzero_expression <- apply(counts, 1, function(x) {
+    non_zero_values <- x[x != 0]
+    if (length(non_zero_values) > 0) {
+      return(median(non_zero_values))
+    } else {
+      return(NA)
+    }
+  })
+  names(median_nonzero_expression) <- genes
+  cbind(median_nonzero_expression, portion_expressed) %>%
+    as.data.frame() %>%
+    rownames_to_column('gene')
+}
+
+```
+
+### Fluent
+
+```{r}
+unique_genes <- setdiff(
+  detected_genes_kit_level$Fluent,
+        unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P,
+              detected_genes_kit_level$Flex, 
+              detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2, 
+              detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P,
+              detected_genes_kit_level$Scale)))
+
+kit <- 'Fluent'
+plotdata <- subset(kit_level_objs[[kit]], features = unique_genes)
+plotdata <- calculate_unique_gene_expression(plotdata)
+
+ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression,
+                label=ifelse(median_nonzero_expression>1 | portion_expressed > .5, gene, NA))) +
+  geom_point(alpha=0.3) +
+  ggrepel::geom_text_repel() +
+  labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) ->
+  figures[['Unique_expression_Fluent']]
+figures[['Unique_expression_Fluent']]
+```
+
+### Parse
+
+```{r}
+unique_genes <- setdiff(
+  union(detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2),
+        unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P,
+              detected_genes_kit_level$Flex, 
+              detected_genes_kit_level$Fluent,
+              detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P,
+              detected_genes_kit_level$Scale)))
+
+kit <- 'Parse_V2'
+plotdata <- subset(kit_level_objs[[kit]], features = unique_genes)
+plotdata <- calculate_unique_gene_expression(plotdata)
+
+ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression,
+                label=ifelse(median_nonzero_expression>1 | portion_expressed > .5, gene, NA))) +
+  geom_point(alpha=0.3) +
+  ggrepel::geom_text_repel() +
+  labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) ->
+  figures[['Unique_expression_ParseV2']]
+figures[['Unique_expression_ParseV2']]
+```
+
+```{r}
+unique_genes <- setdiff(
+  union(detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2),
+        unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P,
+              detected_genes_kit_level$Flex, 
+              detected_genes_kit_level$Fluent,
+              detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P,
+              detected_genes_kit_level$Scale)))
+
+kit <- 'Parse_V3'
+plotdata <- subset(kit_level_objs[[kit]], features = unique_genes)
+plotdata <- calculate_unique_gene_expression(plotdata)
+
+ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression,
+                label=ifelse(median_nonzero_expression>1 | portion_expressed > .5, gene, NA))) +
+  geom_point(alpha=0.3) +
+  ggrepel::geom_text_repel() +
+  labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) ->
+  figures[['Unique_expression_ParseV3']]
+figures[['Unique_expression_ParseV3']]
+```
+
+# Filter 
+
+## Cells
+
+```{r}
+# cutoffs <- lapply(kit_level_objs, generate_capture_QC_cutoffs)
+for (obj in names(objs)) {
+  kit <- metadata$Kit[metadata$Sample==obj]
+  objs[[obj]] <- addQCfilter(objs[[obj]], filterName = 'kit_level_filter', cutoffs = kit_level_cutoffs[[kit]])
+  objs[[obj]] <- addQCfilter(objs[[obj]], filterName = 'global_filter', cutoffs = global_cutoffs)
+}
+# objs <- mapply(addQCfilter, objs, 'outliers', cutoffs)
+```
+
+```{r}
+plotdata <- lapply(objs, function(x) {
+  x <- x@meta.data %>% 
+    as.data.frame() %>%
+    mutate(class = case_when(
+      (global_filter == FALSE & kit_level_filter == FALSE) ~ 'filtered_both',
+      scDblFinder.class == 'doublet' ~ 'multiplet',
+      # (global_filter == FALSE & scDblFinder.class == 'doublet') ~ 'doublet_global_filt',
+      # (kit_level_filter == FALSE & scDblFinder.class == 'doublet') ~ 'doublet_kit_filt',
+      global_filter == FALSE ~ 'filtered_global',
+      kit_level_filter == FALSE ~ 'filtered_kit',
+      .default = 'good'
+    ))
+  table(x$class) %>%
+    as.data.frame()
+}) %>% 
+  data.table::rbindlist(idcol = 'Sample') %>%
   group_by(Sample) %>%
-  mutate(value = value / sum(value),
-         variable = factor(variable, levels = rev(levels(factor(variable)))))
-ggplot(outliers, aes(x=paste0(Individual, Replicate), y=value, fill = variable)) +
-  geom_col(position = 'stack') +
-  facet_wrap(~Kit, scales = 'free_x', nrow=1)+
-  labs(title='Cell consistency within capture', x='Sample', y='Portion of capture', fill = '# of outlier metrics') ->
-  figures[['outlier_portion_barchart']]
-figures[['outlier_portion_barchart']]
-```
-# Doublets
-
-```{r}
-run_scDblFinder <- function(obj,
-                            knownDoublets=NULL,
-                            knownUse=NULL,
-                            nfeatures = 2000,
-                            ...){
-  if (!is.null(knownDoublets)) {
-    if (is.null(knownUse)) {
-      errorCondition('Specify how you want known doublets to be used with "knownUse"')
-    }
-  }
-  obj.sce <- Seurat::as.SingleCellExperiment(obj)
-  obj.sce <- scDblFinder::scDblFinder(obj.sce,
-                                      knownDoublets = knownDoublets,
-                                      knownUse = knownUse,
-                                      nfeatures = nfeatures,
-                                      ...)
-  obj$scDblFinder.score <- obj.sce$scDblFinder.score
-  obj$scDblFinder.class <- obj.sce$scDblFinder.class
-  obj
-}
+  mutate(Freq = Freq / sum(Freq),
+         Var1 = factor(Var1, levels = c('filtered_global', 'filtered_kit', 'multiplet', 'filtered_both', 'good'))) %>%
+  merge(metadata, by='Sample')
+ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=Freq, fill=Var1)) +
+  geom_col(position='stack') +
+  facet_wrap(~Kit, scales = 'free_x', nrow=1) +
+  # scale_fill_manual(values = c('goldenrod', 'darkgreen'), labels = c('Multiplet', 'Singlet')) +
+  labs(x='Sample', y='Portion of capture', fill='Classification') ->
+  figures[['cell_recovery_barchart']]
+figures[['cell_recovery_barchart']]
 ```
 
 ```{r}
-objs <- lapply(objs,
-               run_scDblFinder,
-               dbr.sd=1 ## per github, if unsure about doublet rate
-)
+objs_filt <- lapply(objs, function(x) {
+  x@misc$filtering_receipts <- list()
+  x@misc$filtering_receipts$original_capture <- dim(x)
+  x
+})
+objs_filt <- lapply(objs_filt, subset, subset = global_filter == TRUE) #'global_filter'
+```
+
+## Genes
+
+```{r}
+objs_filt <- lapply(objs_filt, function(x) {
+  kit <- metadata[metadata$Sample==x@project.name, 'Kit']
+  genes <- detected_genes_kit_level[[kit]]
+  subset(x, features = genes)
+})
+```
+
+
+## record dims
+
+```{r}
+objs_filt <- lapply(objs_filt, function(x) {
+  x@misc$filtering_receipts$after_qc_filtering <- dim(x)
+  x
+})
+```
+
+```{r}
+lapply(objs_filt, function(x) {x@misc$filtering_receipts})
 ```
 
 # Save objs
 
 ```{r}
-saveRDS(objs, here('rds/02-annotated_objs.rds'))
+saveRDS(objs_filt, here('rds/02-filtered_objs.rds'))
 ```
 
 # Render report

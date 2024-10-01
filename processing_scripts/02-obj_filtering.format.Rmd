@@ -1,5 +1,5 @@
 ---
-title: 'BM02 Cell filtering'
+title: 'BM02 Data filtering'
 author: "FHIL\nDerrikGratz"
 date: '`r Sys.Date()`'
 output: 
@@ -10,33 +10,45 @@ output:
 ---
 
 ```{r, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE,
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE,
                       fig.width = 8, fig.height = 6,
                       cache=FALSE, cache.lazy = FALSE) 
 ```
 
-Filtering cells by either by consistent, global thresholds (defined by Azi for PBMCs) or
-by kit-level median absolute deviations.  
+# Filtering thresholds
+
+Filtering cells by either by consistent global thresholds or by kit-level thresholds.
+Global thresholds were defined by Azi as standard cutoffs for PBMCs. 
+Kit-level thresholds are calculated at 4 median absolute deviations from kit median values (values for UMIs and gene counts were log transformed).   
 
 ## Global
 
 ```{r}
-global_cutoffs
+stack(global_cutoffs) %>%
+  separate(ind, c('metric', 'direction'), '\\.') %>%
+  dcast(metric~direction, value.var = 'values') %>%
+  knitr::kable(digits=2)
 ```
 
 ## Kit level
 
 ```{r}
-kit_level_cutoffs_df
+knitr::kable(reshape2::dcast(kit_level_cutoffs_df, formula = Kit + Metric ~ Direction) %>% arrange(Metric), digits = 2)
 ```
 
-# nFeature
+# Filtering Metrics
+
+Looking at individual metrics and how many cells would be removed if filtering by
+either global or kit-level thresholds. 
+
+## nFeature
 
 :::: {class='fluid-row'}
 
 ::: {class='col-md-6'}
 
-```{r, fig.height=7, fig.width=4}
+```{r, fig.height=9, fig.width=4}
 figures[['nFeature_vln_facet']]
 ```
 
@@ -44,7 +56,7 @@ figures[['nFeature_vln_facet']]
 
 ::: {class='col-md-6'}
 
-```{r, fig.height=7, fig.width=6}
+```{r, fig.height=9, fig.width=6}
 figures[['filtering_likert_nFeature_RNA']]
 ```
 
@@ -52,13 +64,13 @@ figures[['filtering_likert_nFeature_RNA']]
 
 ::::
 
-# nCount
+## nCount
 
 :::: {class='fluid-row'}
 
 ::: {class='col-md-6'}
 
-```{r, fig.height=7, fig.width=4}
+```{r, fig.height=9, fig.width=4}
 figures[['nCount_vln_facet']]
 ```
 
@@ -66,7 +78,7 @@ figures[['nCount_vln_facet']]
 
 ::: {class='col-md-6'}
 
-```{r, fig.height=7, fig.width=6}
+```{r, fig.height=9, fig.width=6}
 figures[['filtering_likert_nCount_RNA']]
 ```
 
@@ -74,13 +86,13 @@ figures[['filtering_likert_nCount_RNA']]
 
 ::::
 
-# mito
+## mito
 
 :::: {class='fluid-row'}
 
 ::: {class='col-md-6'}
 
-```{r, fig.height=7, fig.width=4}
+```{r, fig.height=9, fig.width=4}
 figures[['mtRatio_vln_facet']]
 ```
 
@@ -88,7 +100,7 @@ figures[['mtRatio_vln_facet']]
 
 ::: {class='col-md-6'}
 
-```{r, fig.height=7, fig.width=6}
+```{r, fig.height=9, fig.width=6}
 figures[['filtering_likert_mtRatio']]
 ```
 
@@ -96,13 +108,13 @@ figures[['filtering_likert_mtRatio']]
 
 ::::
 
-# ribo
+## ribo
 
 :::: {class='fluid-row'}
 
 ::: {class='col-md-6'}
 
-```{r, fig.height=7, fig.width=4}
+```{r, fig.height=9, fig.width=4}
 figures[['rbRatio_vln_facet']]
 ```
 
@@ -110,10 +122,102 @@ figures[['rbRatio_vln_facet']]
 
 ::: {class='col-md-6'}
 
-```{r, fig.height=7, fig.width=6}
+```{r, fig.height=9, fig.width=6}
 figures[['filtering_likert_rbRatio']]
 ```
 
 :::
 
 ::::
+
+# Doublets
+
+Doublets called by the `scDblFinder` algorithm.
+
+```{r}
+figures[['doublet_portion_boxchart']]
+```
+
+# Filtering overlap {.tabset}
+
+Of the possible filtering metrics, is there some redundancy? 
+Are some thresholds dominating the filtering?
+And are doublets sufficiently removed by threshold filtering? 
+It looks like `scDblFinder` is labeling many additional cells beyond those with 
+high UMI/gene counts, likely due to heterotypic expression profiles. 
+The doublet finding algorithm could also be viewed as too conservative or lacking accuracy & eliminating real data. 
+
+```{r}
+chunk_text <- '
+\n## {{kit}} {.tabset}
+\n### Kit level filtering {.unlisted}\n\n```{r, fig.width=14, fig.height=4.5}
+samples <- metadata$Sample[metadata$Kit == "{{kit}}"]
+gridExtra::grid.arrange(grobs = euler_plots_kit[samples], nrow = 1)\n```
+\n### Global filtering {.unlisted}\n\n```{r, fig.width=14, fig.height=4.5}
+samples <- metadata$Sample[metadata$Kit == "{{kit}}"]
+gridExtra::grid.arrange(grobs = euler_plots_global[samples], nrow = 1)\n```\n'
+```
+
+
+```{r, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  out = c(out, knit_expand(text = chunk_text))
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+# Cell recovery
+
+What portion of the capture is removed by QC filtering, identified as doublets, etc.
+
+```{r, fig.width=12}
+figures[['cell_recovery_barchart']]
+```
+
+# Gene filtering
+
+While we have genes detected per sample from the QC reports, this is a more functional count of reliable genes recovery: 
+genes detected in at least 10 cells.
+
+```{r}
+figures[['usable_genes']]
+```
+
+Genes detected in at least 10 cells in 3+ samples for each kit.
+
+```{r}
+figures[['usable_genes_kit']]
+```
+
+Are there genes unique to a certain kit? This plots the population overlap of genes reliably (>10 cells, >=3 samples) 
+detected by each kit. There are probably better ways to highlight specific differences, but this high-level look shows that
+Fluent and Parse have some unique gene recovery.
+
+```{r}
+figures[['gene_overlap']]
+```
+
+With the unique gene recovery, how much expression is being detected? While most genes look low, this is what most genes look like when quantified this way, so it's not necessarily indicating that these kits are only 'barely' picking up extra genes. I was more interested in seeing if there were any largely abundant genes detected by either as a quick check of the gene's potential relevance. It would probably be more fruitful to look at the gene's
+function or class, but this is less trivial.
+
+## Unique expression Fluent
+
+```{r}
+figures[['Unique_expression_Fluent']]
+```
+
+## Unique expression Parse
+
+### Parse V2
+
+```{r}
+figures[['Unique_expression_ParseV2']]
+```
+
+### Parse V3
+
+```{r}
+figures[['Unique_expression_ParseV3']]
+```
