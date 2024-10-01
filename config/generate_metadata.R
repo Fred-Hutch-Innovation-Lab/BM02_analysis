@@ -20,5 +20,15 @@ samplesheets <- lapply(names(data_dirs), function(x) {
 })
 names(samplesheets) <- names(data_dirs)
 metadata <- data.table::rbindlist(samplesheets, fill=TRUE)
+
+metadata$BM_project <- plyr::mapvalues(
+  metadata$Kit, 
+  from = c(
+    "GEMX5P", "NextGEM5P", "Parse_V2", 
+    "Flex", "Fluent", "GEMX3P", "NextGEM3P", "Parse_V3", "Scale" 
+  ), 
+  to = c(rep('BM01', 3), rep('BM02', 6))
+)
+
 write.table(metadata, here('config/metadata.csv'), quote=FALSE, row.names = FALSE, sep = ',')
             

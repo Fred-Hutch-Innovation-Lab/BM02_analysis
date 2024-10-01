@@ -1,1 +1,5 @@
-Sample  File
+Sample  File  Kit Individual  Replicate
+Scale_F1A F1A.bothruns  Scale F1  A
+Scale_F1B F1B.bothruns  Scale F1  B
+Scale_F5A F5A.bothruns  Scale F5  A
+Scale_F5B F5B.bothruns  Scale F5  B
