@@ -362,7 +362,7 @@ saveRDS(objs, here('rds/01_raw_objs_10x.rds'), compress=FALSE)
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
 rmarkdown::render(here('processing_scripts/01-ambient_RNA_check.format.Rmd'),
-                  output_file = '01_soupx&saturation.html',
+                  output_file = '01_soupx.html',
                   output_dir = here('reports'))
 ```
 
