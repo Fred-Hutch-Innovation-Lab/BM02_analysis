@@ -5,9 +5,6 @@ rbindlist <- data.table::rbindlist
 
 config <- read_yaml(here('config/config.yaml'))
 data_dirs <- list(
-  "B1-GEMX5P"="B1-GEMX5P",
-  "B1-NextGEM5P"="B1-NextGEM5P",
-  "B1-Parse"="B1-Parse/Combined_V1.1/WT/Combined/",
   "B2-FLEX_10k"="B2-FLEX_10k/full_data",
   "B2-Fluent_25k"="B2-Fluent_25k/OutPut_25K",
   "B2-GEMX3P_25k"="B2-GEMX3P_25k",
@@ -20,15 +17,6 @@ samplesheets <- lapply(names(data_dirs), function(x) {
 })
 names(samplesheets) <- names(data_dirs)
 metadata <- data.table::rbindlist(samplesheets, fill=TRUE)
-
-metadata$BM_project <- plyr::mapvalues(
-  metadata$Kit, 
-  from = c(
-    "GEMX5P", "NextGEM5P", "Parse_V2", 
-    "Flex", "Fluent", "GEMX3P", "NextGEM3P", "Parse_V3", "Scale" 
-  ), 
-  to = c(rep('BM01', 3), rep('BM02', 6))
-)
 
 write.table(metadata, here('config/metadata.csv'), quote=FALSE, row.names = FALSE, sep = ',')
             

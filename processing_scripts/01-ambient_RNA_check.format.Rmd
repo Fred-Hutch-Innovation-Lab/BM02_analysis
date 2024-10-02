@@ -22,9 +22,3 @@ set.seed(33)
 figures[['rho_barchart']] 
 ```
  
-# Saturation curves
-
-```{r}
-knitr::include_graphics(here('figures/saturation_curves_GeneXTranscript.png'))
-```
-

@@ -157,7 +157,7 @@ objs <- lapply(objs, addQCMetrics)
 ```{r}
 ## Scale data not ready yet
 tmp <- setNames(unique(metadata$Kit), unique(metadata$Kit))
-tmp <- tmp[c('GEMX5P','NextGEM5P','Parse_V2','Flex','Fluent','GEMX3P','NextGEM3P','Parse_V3')]
+tmp <- tmp[c('Flex','Fluent','GEMX3P','NextGEM3P','Parse_V3')]
 
 kit_level_objs <- lapply(tmp, function(kit){
   samples <- metadata$Sample[metadata$Kit==kit]
@@ -237,54 +237,32 @@ QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', kit_level_cut
 
 ### nFeature
 
-```{r, fig.height=5, fig.width=6}
-figures[['nFeature_vln_facet_bm01']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM01']], 'nFeature_RNA', 'Feature Count') +
-  scale_y_log10()
-figures[['nFeature_vln_facet_bm01']]
-```
-
 ```{r, fig.height=11, fig.width=6}
-figures[['nFeature_vln_facet_bm02']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM02']], 'nFeature_RNA', 'Feature Count') +
+figures[['nFeature_vln_facet']] <- QC_metric_VlnPlot(objs, 'nFeature_RNA', 'Feature Count') +
   scale_y_log10()
-figures[['nFeature_vln_facet_bm02']]
+figures[['nFeature_vln_facet']]
 ```
 
 ### nCount
 
-```{r, fig.height=5}
-figures[['nCount_vln_facet_bm01']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM01']], 'nCount_RNA', 'UMI Count') +
-  scale_y_log10()
-figures[['nCount_vln_facet_bm01']]
-```
-
 ```{r, fig.height=12}
-figures[['nCount_vln_facet_bm02']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM02']], 'nCount_RNA', 'UMI Count') +
+figures[['nCount_vln_facet']] <- QC_metric_VlnPlot(objs, 'nCount_RNA', 'UMI Count') +
   scale_y_log10()
-figures[['nCount_vln_facet_bm02']]
+figures[['nCount_vln_facet']]
 ```
 
 ### mito
 
-```{r, fig.height=5}
-figures[['mtRatio_vln_facet_bm01']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM01']], 'mtRatio', 'Mitochondrial read ratio')
-figures[['mtRatio_vln_facet_bm01']]
-```
-
 ```{r, fig.height=12}
-figures[['mtRatio_vln_facet_bm02']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM02']], 'mtRatio', 'Mitochondrial read ratio') 
-figures[['mtRatio_vln_facet_bm02']]
+figures[['mtRatio_vln_facet']] <- QC_metric_VlnPlot(objs, 'mtRatio', 'Mitochondrial read ratio') 
+figures[['mtRatio_vln_facet']]
 ```
 
 ### ribo
 
 ```{r}
-figures[['rbRatio_vln_facet_bm01']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM01']], 'rbRatio', 'Ribosomal read ratio')
-figures[['rbRatio_vln_facet_bm01']]
-```
-
-```{r}
-figures[['rbRatio_vln_facet_bm02']] <- QC_metric_VlnPlot(objs[metadata$Sample[metadata$BM_project=='BM02']], 'rbRatio', 'Ribosomal read ratio')
-figures[['rbRatio_vln_facet_bm02']]
+figures[['rbRatio_vln_facet']] <- QC_metric_VlnPlot(objs, 'rbRatio', 'Ribosomal read ratio')
+figures[['rbRatio_vln_facet']]
 ```
 
 # Doublets
@@ -328,20 +306,13 @@ plotdata <- lapply(objs, function(x) {
   mutate(Freq = Freq / sum(Freq),
          class = factor(class, levels = c('doublet', 'singlet'))) %>%
   merge(metadata, by='Sample') 
-ggplot(filter(plotdata, BM_project=='BM01'), aes(x=paste0(Individual, Replicate), y=Freq, fill=class)) +
+ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=Freq, fill=class)) +
   geom_col(position='stack') +
   facet_wrap(~Kit, scales = 'free_x', nrow=1) +
   scale_fill_manual(values = c('goldenrod', 'darkgreen'), labels = c('Multiplet', 'Singlet')) +
   labs(x='Sample', y='Portion of capture', fill='Classification') ->
-  figures[['doublet_portion_barchart_bm01']]
-ggplot(filter(plotdata, BM_project=='BM02'), aes(x=paste0(Individual, Replicate), y=Freq, fill=class)) +
-  geom_col(position='stack') +
-  facet_wrap(~Kit, scales = 'free_x', nrow=1) +
-  scale_fill_manual(values = c('goldenrod', 'darkgreen'), labels = c('Multiplet', 'Singlet')) +
-  labs(x='Sample', y='Portion of capture', fill='Classification') ->
-  figures[['doublet_portion_barchart_bm02']]
-figures[['doublet_portion_barchart_bm01']]
-figures[['doublet_portion_barchart_bm02']]
+  figures[['doublet_portion_barchart']]
+figures[['doublet_portion_barchart']]
 ```
 
 ```{r}
@@ -362,13 +333,12 @@ ggplot(filter(plotdata, BM_project == 'BM01'), aes(x=Kit, y=Freq)) +
   geom_point(aes(shape=paste0(Individual, Replicate))) +
   labs(x='Sample', y='Portion of capture', shape='Sample', title='Doublet rate') ->
   figures[['doublet_portion_boxchart_bm01']]
-ggplot(filter(plotdata, BM_project == 'BM02'), aes(x=Kit, y=Freq)) +
+ggplot(plotdata, aes(x=Kit, y=Freq)) +
   geom_boxplot() +
   geom_point(aes(shape=paste0(Individual, Replicate))) +
   labs(x='Sample', y='Portion of capture', shape='Sample', title='Doublet rate') ->
-  figures[['doublet_portion_boxchart_bm02']]
-figures[['doublet_portion_boxchart_bm01']]
-figures[['doublet_portion_boxchart_bm02']]
+  figures[['doublet_portion_boxchart']]
+figures[['doublet_portion_boxchart']]
 ```
 
 
@@ -416,7 +386,7 @@ for (kit in unique(metadata$Kit)) {
 ### Plot
 
 ```{r}
-filtering_likert_plot <- function(filter_counts=filter_counts, metric, meta_data=metadata, bm_project=c('BM01', 'BM02')) {
+filtering_likert_plot <- function(filter_counts=filter_counts, metric, meta_data=metadata) {
   plotdata <- filter_counts %>%
     select(original, contains(metric)) %>%
     mutate(good_cells = original - rowSums(across(!contains('original')))) %>%
@@ -432,8 +402,7 @@ filtering_likert_plot <- function(filter_counts=filter_counts, metric, meta_data
     ))) %>%
     group_by(Sample) %>%
     mutate(value = value / sum(value)) 
-  plotdata <- merge(x = plotdata, y = meta_data, by='Sample') %>%
-    filter(BM_project %in% bm_project)
+  plotdata <- merge(x = plotdata, y = meta_data, by='Sample')
   ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=value, fill=rank)) + 
     geom_col() +
     facet_wrap(~ Kit, scales = 'free_y', ncol=1) +
@@ -458,43 +427,23 @@ filtering_likert_plot <- function(filter_counts=filter_counts, metric, meta_data
 ```
 
 ```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_nFeature_RNA_bm01']] <- filtering_likert_plot(filter_counts, 'nFeature_RNA', bm_project = 'BM01')
-figures[['filtering_likert_nFeature_RNA_bm01']]
+figures[['filtering_likert_nFeature_RNA']] <- filtering_likert_plot(filter_counts, 'nFeature_RNA')
+figures[['filtering_likert_nFeature_RNA']]
 ```
 
 ```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_nFeature_RNA_bm02']] <- filtering_likert_plot(filter_counts, 'nFeature_RNA', bm_project = 'BM02')
-figures[['filtering_likert_nFeature_RNA_bm02']]
+figures[['filtering_likert_nCount_RNA']] <- filtering_likert_plot(filter_counts, 'nCount_RNA')
+figures[['filtering_likert_nCount_RNA']]
 ```
 
 ```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_nCount_RNA_bm01']] <- filtering_likert_plot(filter_counts, 'nCount_RNA', bm_project = 'BM01')
-figures[['filtering_likert_nCount_RNA_bm01']]
+figures[['filtering_likert_mtRatio']] <- filtering_likert_plot(filter_counts, 'mtRatio')
+figures[['filtering_likert_mtRatio']]
 ```
 
 ```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_nCount_RNA_bm02']] <- filtering_likert_plot(filter_counts, 'nCount_RNA', bm_project = 'BM02')
-figures[['filtering_likert_nCount_RNA_bm02']]
-```
-
-```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_mtRatio_bm01']] <- filtering_likert_plot(filter_counts, 'mtRatio', bm_project = 'BM01')
-figures[['filtering_likert_mtRatio_bm01']]
-```
-
-```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_mtRatio_bm02']] <- filtering_likert_plot(filter_counts, 'mtRatio', bm_project = 'BM02')
-figures[['filtering_likert_mtRatio_bm02']]
-```
-
-```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_rbRatio_bm01']] <- filtering_likert_plot(filter_counts, 'rbRatio', bm_project = 'BM01')
-figures[['filtering_likert_rbRatio_bm01']]
-```
-
-```{r, fig.height=7, fig.width=4}
-figures[['filtering_likert_rbRatio_bm02']] <- filtering_likert_plot(filter_counts, 'rbRatio', bm_project = 'BM02')
-figures[['filtering_likert_rbRatio_bm02']]
+figures[['filtering_likert_rbRatio']] <- filtering_likert_plot(filter_counts, 'rbRatio')
+figures[['filtering_likert_rbRatio']]
 ```
 
 ## Filtering overlap
@@ -738,8 +687,8 @@ plotdata <- lapply(objs, function(x) {
     mutate(class = case_when(
       (global_filter == FALSE & kit_level_filter == FALSE) ~ 'filtered_both',
       scDblFinder.class == 'doublet' ~ 'multiplet',
-      # (global_filter == FALSE & scDblFinder.class == 'doublet') ~ 'doublet_global_filt',
-      # (kit_level_filter == FALSE & scDblFinder.class == 'doublet') ~ 'doublet_kit_filt',
+      (global_filter == FALSE & scDblFinder.class == 'doublet') ~ 'doublet_global_filt',
+      (kit_level_filter == FALSE & scDblFinder.class == 'doublet') ~ 'doublet_kit_filt',
       global_filter == FALSE ~ 'filtered_global',
       kit_level_filter == FALSE ~ 'filtered_kit',
       .default = 'good'

@@ -22,10 +22,6 @@ set.seed(33)
 ```
 
 ```{r}
-rerun_soupx <- FALSE
-```
-
-```{r}
 figures <- list()
 ```
 
@@ -53,9 +49,6 @@ runSoupX <- function(tod,
 ```{r}
 config <- read_yaml(here('config/config.yaml'))
 data_dirs <- list(
-  "B1-GEMX5P"="B1-GEMX5P",
-  "B1-NextGEM5P"="B1-NextGEM5P",
-  "B1-Parse"="B1-Parse/Combined_V1.1/WT/Combined/",
   "B2-FLEX_10k"="B2-FLEX_10k/full_data",
   "B2-Fluent_25k"="B2-Fluent_25k/OutPut_25K",
   "B2-GEMX3P_25k"="B2-GEMX3P_25k",
@@ -78,74 +71,6 @@ metadata
 
 ```{r}
 objs <- list()
-```
-
-## B1-GEMX5P
-
-```{r, eval = rerun_soupx}
-kit <- 'B1-GEMX5P'
-for (i in 1:nrow(samplesheets[[kit]])){
-  sample <- samplesheets[[kit]][i,'Sample']
-  file <- samplesheets[[kit]][i,'File']
-  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file,
-                               'outs', 'per_sample_outs', file, 'count/sample_filtered_feature_bc_matrix.h5')
-  filtered_counts <- Read10X_h5(filtered_counts)
-  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file,
-                                 'outs', 'multi/count/raw_feature_bc_matrix.h5')
-  unfiltered_counts <- Read10X_h5(unfiltered_counts)
-  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'outs', 'per_sample_outs',
-                        file, 'count/analysis/clustering/gene_expression_graphclust/clusters.csv')
-  clusters <- read.csv(clusters)
-  clusters <- setNames(as.list(clusters$Cluster), clusters$Barcode)
-  objs[[sample]] <- list(tod = unfiltered_counts, toc = filtered_counts, clusters = clusters)
-}
-```
-
-## B1-NextGEM5P
-
-```{r, eval=rerun_soupx}
-kit <- 'B1-NextGEM5P'
-for (i in 1:nrow(samplesheets[[kit]])){
-    sample <- samplesheets[[kit]][i,'Sample']
-  file <- samplesheets[[kit]][i,'File']
-  
-  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 
-                               'outs', 'per_sample_outs', file, 'count/sample_filtered_feature_bc_matrix.h5')
-  filtered_counts <- Read10X_h5(filtered_counts)
-  
-  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file,
-                                 'outs', 'multi/count/raw_feature_bc_matrix.h5')
-  unfiltered_counts <- Read10X_h5(unfiltered_counts)
-  
-  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'outs', 'per_sample_outs',
-                        file, 'count/analysis/clustering/gene_expression_graphclust/clusters.csv')
-  clusters <- read.csv(clusters)
-  clusters <- setNames(as.list(clusters$Cluster), clusters$Barcode)
-  
-  objs[[sample]] <- list(tod = unfiltered_counts, toc = filtered_counts, clusters = clusters)
-}
-```
-
-## B1-Parse
-
-```{r, eval=rerun_soupx}
-kit <- 'B1-Parse'
-for (i in 1:nrow(samplesheets[[kit]])){
-  sample <- samplesheets[[kit]][i,'Sample']
-  file <- samplesheets[[kit]][i,'File']
-  
-  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'DGE_filtered')
-  filtered_counts <- ReadParseBio(filtered_counts)
-  
-  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'DGE_unfiltered')
-  unfiltered_counts <- ReadParseBio(unfiltered_counts)
-  
-  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'report/cluster_assignment.csv')
-  clusters <- read.csv(clusters)
-  clusters <- setNames(as.list(clusters$cluster), clusters$bc_wells)
-  
-  objs[[sample]] <- list(tod = unfiltered_counts, toc = filtered_counts, clusters = clusters)
-}
 ```
 
 ## B2-FLEX_10k
@@ -352,7 +277,7 @@ for (obj in names(objs)){
 ```
 
 ```{r}
-saveRDS(objs, here('rds/01_raw_objs_10x.rds'), compress=FALSE)
+saveRDS(objs, here('rds/01_raw_objs_10x.rds'), compress=TRUE)
 ```
 
 # Render report
@@ -365,100 +290,4 @@ rmarkdown::render(here('processing_scripts/01-ambient_RNA_check.format.Rmd'),
                   output_file = '01_soupx.html',
                   output_dir = here('reports'))
 ```
-
-
-
-<!-- # Pipeline calculated sequencing saturation -->
-
-<!-- ## Gene count -->
-
-<!-- ```{r} -->
-<!-- genecounts <- lapply(files, function(x){ -->
-<!--   # Seurat::Read10X(file.path(config$base_dir, x)) -->
-<!--   read.csv(file.path(config$base_dir, x, 'report/gene_counts_subsampled.csv')) #%>% -->
-<!--     # summarise(across(contains('Sublib'), median)) -->
-<!--     # rowwise() %>% -->
-<!--     # mutate(med = median(c_across(contains('Sublib')), na.rm=TRUE)) -->
-<!-- }) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- data.table::rbindlist(genecounts, idcol = 'sample') %>% -->
-<!--   separate(sample, into = c('sample', 'lib'), sep = '_', remove = TRUE) %>% -->
-<!--   melt(id.vars = c('sample', 'lib', 'subsample')) %>% -->
-<!--   ggplot(aes(x=subsample, y=value, group=lib, color=lib)) + -->
-<!--   geom_point(alpha=0.5) + -->
-<!--   # geom_path() + -->
-<!--   geom_smooth(alpha=0.5) + -->
-<!--   theme_bw() + -->
-<!--     facet_wrap(~ sample) + -->
-<!--   labs(x='Mean reads per cell', y='Median genes') -->
-<!-- ``` -->
-
-<!-- ### Gene count -->
-
-<!-- ```{r} -->
-<!-- files <- samplesheet$File -->
-<!-- names(files) <- samplesheet$Sample -->
-<!-- umicounts <- lapply(files, function(x){ -->
-<!--   # Seurat::Read10X(file.path(config$base_dir, x)) -->
-<!--   read.csv(file.path(config$base_dir, x, 'report/tscp_counts_subsampled.csv')) #%>% -->
-<!--     # summarise(across(contains('Sublib'), median)) -->
-<!--     # rowwise() %>% -->
-<!--     # mutate(med = median(c_across(contains('Sublib')), na.rm=TRUE)) -->
-<!-- }) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- data.table::rbindlist(umicounts, idcol = 'sample') %>% -->
-<!--   separate(sample, into = c('sample', 'lib'), sep = '_', remove = TRUE) %>% -->
-<!--   melt(id.vars = c('sample', 'lib', 'subsample')) %>% -->
-<!--   ggplot(aes(x=subsample, y=value, group=lib, color=lib)) + -->
-<!--   geom_point(alpha=0.5) + -->
-<!--   # geom_path() + -->
-<!--   geom_smooth(alpha=0.5) + -->
-<!--   theme_bw() + -->
-<!--     facet_wrap(~ sample) + -->
-<!--   labs(x='Mean reads per cell', y='Median UMIs') -->
-<!-- ``` -->
-
-<!-- # ? -->
-
-<!-- ```{r} -->
-<!-- calculateSequencingSaturationMetrics <- function(counts) { -->
-<!--   umis  <- median(colSums(counts)) -->
-<!--   genes <- median(colSums(counts > 0)) -->
-<!--   return(list(umis=umis, genes=genes)) -->
-<!-- } -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- samples <- unique(gsub('_.+$', '', names(objs))) -->
-<!-- downsampling_stats <- array( -->
-<!--   0, -->
-<!--   c(length(samples), 2, 2), -->
-<!--   list(objs = samples, reads = c('full', 'sub'), metrics = c('median_UMIs', 'median_genes')) -->
-<!-- ) -->
-<!-- for (i in 1:length(samples)) { -->
-<!--   for (j in c('full', 'sub')) { -->
-<!--     # downsampled_obj <- SampleUMI(objs[[i]], max.umi = sampling_range[j]) -->
-<!--     metrics <- calculateSequencingSaturationMetrics(objs[[paste0(samples[i], '_', j)]]) -->
-<!--     downsampling_stats[i,j,'median_UMIs'] <- metrics$umis -->
-<!--     downsampling_stats[i,j,'median_genes'] <- metrics$genes -->
-<!--   } -->
-<!-- } -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- reshape2::melt(downsampling_stats) %>% -->
-<!--   ggplot(aes(x=reads, y=value, group=reads, color=reads)) + -->
-<!--     geom_boxplot() + -->
-<!--     geom_point() + -->
-<!--   geom_line(aes(group=objs), color='grey40', lty='dashed', inherit.aes = TRUE) + -->
-<!--     facet_wrap(~ metrics, scales = 'free') + -->
-<!--   theme_bw() + -->
-<!--   labs(x = 'Maximum UMIs per cell', y='Metric value') -->
-<!-- ``` -->
-
-
 
