@@ -36,7 +36,7 @@ main <- function(figures_list, filtering_stage = 'after', outdir='qc_vln_plots')
   labels <- data.frame(
     metric = c('nFeature_RNA', 'nCount_RNA', 'rbRatio', 'mtRatio'),
     label  = c('Feature count', 'UMI count', 'Ribosomal read portion', 'Mitochondrial read portion'),
-    logscale = c(TRUE, TRUE, FALSE, FALSE)
+    logscale = c(FALSE, FALSE, FALSE, FALSE)
   )
   
   for (i in 1:nrow(labels)) {

@@ -6,15 +6,15 @@ library(here)       ## Easier specification of file locations
 rbindlist <- data.table::rbindlist
 
 main <- function() {
-  argv <- arg_parser('Soupx barchart') %>%
-    add_argument('--outfile', help='output file', default='ambient_rna.png') %>%
-    add_argument('--metadata', help='metadata file', default='config/metadata.csv') %>%
-    add_argument('--input', help='input file', default='rds/01-soup_channels.rds') %>%
-    add_argument('--save_plot', help='Overwrite saved file?', default=FALSE) %>%
-    parse_args()
-  
-  metadata <- read.csv(here(file.path(argv$metadata)))
-  objs <- readRDS(here(file.path(argv$input)))
+  # argv <- arg_parser('Soupx barchart') %>%
+  #   add_argument('--outfile', help='output file', default='ambient_rna.pdf') %>%
+  #   add_argument('--metadata', help='metadata file', default='config/metadata.csv') %>%
+  #   add_argument('--input', help='input file', default='rds/01-soup_channels.rds') %>%
+  #   add_argument('--save_plot', help='Overwrite saved file?', default=FALSE) %>%
+  #   parse_args()
+  # 
+  metadata <- read.csv(here('config/metadata.csv'))
+  objs <- readRDS(here('rds/01-soup_channels.rds'))
   
   extractSoupXContamEst <- function(sc){
     rho <- sc$fit$rhoEst
@@ -32,9 +32,9 @@ main <- function() {
     facet_wrap(~ Kit, scales='free_x') +
     labs(x='Sample', y='Contamination fraction')
   
-  if (argv$save_plot) {
-    ggsave(soupx_plot, here(file.path(argv$outfile)), width = unit(5, 'in'), height = unit(5, 'in'))
-  }
+  # if (argv$save_plot) {
+    ggsave(plot=soupx_plot, here('ambient_rna.pdf'), width = unit(5, 'in'), height = unit(5, 'in'))
+  # }
   return(soupx_plot)
 }
 

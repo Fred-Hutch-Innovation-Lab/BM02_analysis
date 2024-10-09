@@ -1,5 +1,5 @@
 ---
-title: 'BM02 Data filtering'
+title: 'BM02 summary'
 author: |
   | Derrik Gratz
   | Fred Hutch Innovation Lab
@@ -8,7 +8,7 @@ output:
   rmdformats::robobook:
     fig_width: 9
     toc_depth: 3
-    css: "utils/robobook.css"
+    css: "../config/robobook.css"
 ---
 
 ```{r, include=FALSE}
@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = FALSE, warning=FALSE,
 
 ```{r, eval=FALSE}
 ## how to render this script
-rmarkdown::render(here('processing_scripts/02-obj_filtering_summary.Rmd'),
+rmarkdown::render(here('figure_scripts/report.Rmd'),
                   output_file = 'BM02_QC_summary.html',
                   output_dir = here('reports'))
 ```
@@ -32,11 +32,18 @@ rmarkdown::render(here('processing_scripts/02-obj_filtering_summary.Rmd'),
 # source(here('figures/figure_scripts/genes_per_cell.R'))
 ```
 
+# Saturation curves
+
+```{r}
+knitr::include_graphics(here('figures/saturation_curves.png'))
+# qc_figures[['nCount_RNA_vln']]
+```
+
+***
+
 # Filtering thresholds
 
 Outputs from processing pipelines were filtered by global thresholds to eliminate extreme values.
-
-## Global
 
 ```{r}
 cutoffs <- list(nCount_RNA.max = 30000,
@@ -56,6 +63,8 @@ stack(cutoffs) %>%
          min = as.character(min)) %>%
   knitr::kable()
 ```
+
+***
 
 # Cell recovery {.tabset}
 
@@ -135,7 +144,7 @@ knitr::include_graphics(here('figures/usable_genes_sample.png'))
 
 ### Kit
 
-```{r, fig.height=4}
+```{r, dpi=150}
 knitr::include_graphics(here('figures/usable_genes_kit.png'))
 # figures[['usable_genes_kit']]
 ```
