@@ -208,16 +208,14 @@ function or class, but this is less trivial.
 figures[['Unique_expression_Fluent']]
 ```
 
-## Unique expression Parse
-
-### Parse V2
-
-```{r}
-figures[['Unique_expression_ParseV2']]
-```
-
-### Parse V3
+## Unique expression Parse V3
 
 ```{r}
 figures[['Unique_expression_ParseV3']]
+```
+
+## Scale
+
+```{r}
+figures[['Unique_expression_Scale']]
 ```

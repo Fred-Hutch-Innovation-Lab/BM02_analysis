@@ -42,8 +42,7 @@ generate_capture_QC_cutoffs <- function(capture,
                                         metrics = c('nCount_RNA',
                                                     'nFeature_RNA',
                                                     'rbRatio',
-                                                    'mtRatio'#,
-                                                    # 'log10GenesPerUMI'
+                                                    'mtRatio'
                                                     ),
                                         default_cutoffs = global_cutoffs){
   cutoffs <- list()
@@ -92,7 +91,16 @@ addQCfilter <- function(obj,
   if (is.null(cutoffs)){
     message('No cutoffs provided. Consider running `generate_capture_QC_cutoffs()` to tailor cutoffs to your captures, or
             manually provide cutoffs.\nUsing arbitrary default values to filter which may not be appropriate for your dataset.')
-    cutoffs <- default_cutoffs
+    cutoffs <- list(nCount_RNA.max = 30000,
+                    nCount_RNA.min = 1000,
+                    nFeature_RNA.max = 10000,
+                    nFeature_RNA.min = 200,
+                    # log10GenesPerUMI.max = Inf,
+                    # log10GenesPerUMI.min = 0.80,
+                    mtRatio.max = 0.15,
+                    mtRatio.min = 0,
+                    rbRatio.max = 0.5,
+                    rbRatio.min = 0)
   }
   obj@meta.data <- obj@meta.data %>% dplyr::mutate(
     !!(filterName) :=
@@ -100,8 +108,6 @@ addQCfilter <- function(obj,
       .data$nCount_RNA <= cutoffs$nCount_RNA.max &
       .data$nFeature_RNA >= cutoffs$nFeature_RNA.min &
       .data$nFeature_RNA <= cutoffs$nFeature_RNA.max &
-      # .data$log10GenesPerUMI >= cutoffs$log10GenesPerUMI.min &
-      # .data$log10GenesPerUMI <= cutoffs$log10GenesPerUMI.max &
       .data$mtRatio >= cutoffs$mtRatio.min &
       .data$mtRatio <= cutoffs$mtRatio.max &
       .data$rbRatio >= cutoffs$rbRatio.min &
@@ -118,6 +124,8 @@ metadata <- read.csv(here('config/metadata.csv'))
 figures <- list()
 ```
 
+## Remove samples
+
 Drop GEMX5P F4A F5A due to poor quality in sample prep
 
 ```{r}
@@ -125,12 +133,25 @@ objs[['NextGEM5P_F4']] <- NULL
 objs[['NextGEM5P_F5']] <- NULL
 ```
 
+```{r}
+# objs[['GEM3P_F1']] <- NULL
+```
+
+
 
 ```{r}
 metadata <- metadata %>%
-  filter(!(Kit == 'Scale')) %>%
+  # filter(!(Sample %in% c('GEM3P_F1'))) %>% ## Data wasn't processed correctly
   filter(!(Sample %in% c('NextGEM5P_F4', 'NextGEM5P_F5'))) 
 ```
+
+```{r}
+stopifnot(all(metadata$Sample %in% names(objs)))
+# stopifnot(all(names(objs) %in% metadata$Sample))
+objs <- objs[metadata$Sample]
+
+```
+
 
 
 ## Rename cells
@@ -156,10 +177,10 @@ objs <- lapply(objs, addQCMetrics)
 
 ```{r}
 ## Scale data not ready yet
-tmp <- setNames(unique(metadata$Kit), unique(metadata$Kit))
-tmp <- tmp[c('Flex','Fluent','GEMX3P','NextGEM3P','Parse_V3')]
+# tmp <- setNames(unique(metadata$Kit), unique(metadata$Kit))
+# tmp <- tmp[c('Flex','Fluent','GEMX3P','NextGEM3P','Parse_V3')]
 
-kit_level_objs <- lapply(tmp, function(kit){
+kit_level_objs <- lapply(setNames(unique(metadata$Kit), unique(metadata$Kit)), function(kit){
   samples <- metadata$Sample[metadata$Kit==kit]
   x <- merge(objs[[samples[1]]], objs[samples[2]])
   x[['RNA']] <- JoinLayers(x[['RNA']])
@@ -328,11 +349,11 @@ plotdata <- lapply(objs, function(x) {
          class = factor(class, levels = c('doublet', 'singlet'))) %>%
   filter(class == 'doublet') %>%
   merge(metadata, by='Sample')
-ggplot(filter(plotdata, BM_project == 'BM01'), aes(x=Kit, y=Freq)) +
+ggplot(plotdata, aes(x=Kit, y=Freq)) +
   geom_boxplot() +
   geom_point(aes(shape=paste0(Individual, Replicate))) +
   labs(x='Sample', y='Portion of capture', shape='Sample', title='Doublet rate') ->
-  figures[['doublet_portion_boxchart_bm01']]
+  figures[['doublet_portion_boxchart']]
 ggplot(plotdata, aes(x=Kit, y=Freq)) +
   geom_boxplot() +
   geom_point(aes(shape=paste0(Individual, Replicate))) +
@@ -561,7 +582,7 @@ figures[['usable_genes_kit']]
 
 ```{r}
 figures[['gene_overlap']] <-
-plot(eulerr::euler(detected_genes_kit_level))
+plot(eulerr::euler(detected_genes_kit_level, shape='ellipse'))
 figures[['gene_overlap']]
 ```
 
@@ -612,7 +633,7 @@ plotdata <- subset(kit_level_objs[[kit]], features = unique_genes)
 plotdata <- calculate_unique_gene_expression(plotdata)
 
 ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression,
-                label=ifelse(median_nonzero_expression>1 | portion_expressed > .5, gene, NA))) +
+                label=ifelse(median_nonzero_expression>1 | portion_expressed > .25, gene, NA))) +
   geom_point(alpha=0.3) +
   ggrepel::geom_text_repel() +
   labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) ->
@@ -621,28 +642,6 @@ figures[['Unique_expression_Fluent']]
 ```
 
 ### Parse
-
-```{r}
-unique_genes <- setdiff(
-  union(detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2),
-        unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P,
-              detected_genes_kit_level$Flex, 
-              detected_genes_kit_level$Fluent,
-              detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P,
-              detected_genes_kit_level$Scale)))
-
-kit <- 'Parse_V2'
-plotdata <- subset(kit_level_objs[[kit]], features = unique_genes)
-plotdata <- calculate_unique_gene_expression(plotdata)
-
-ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression,
-                label=ifelse(median_nonzero_expression>1 | portion_expressed > .5, gene, NA))) +
-  geom_point(alpha=0.3) +
-  ggrepel::geom_text_repel() +
-  labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) ->
-  figures[['Unique_expression_ParseV2']]
-figures[['Unique_expression_ParseV2']]
-```
 
 ```{r}
 unique_genes <- setdiff(
@@ -664,6 +663,31 @@ ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression,
   labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) ->
   figures[['Unique_expression_ParseV3']]
 figures[['Unique_expression_ParseV3']]
+```
+
+### Scale
+
+```{r}
+unique_genes <- setdiff(
+  detected_genes_kit_level$Scale,
+        unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P,
+              detected_genes_kit_level$Flex, 
+              detected_genes_kit_level$Fluent,
+              detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P,
+              union(detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2)
+              )))
+
+kit <- 'Scale'
+plotdata <- subset(kit_level_objs[[kit]], features = unique_genes)
+plotdata <- calculate_unique_gene_expression(plotdata)
+
+ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression,
+                label=ifelse(portion_expressed > .5, gene, NA))) +
+  geom_point(alpha=0.3) +
+  ggrepel::geom_text_repel(max.overlaps = 30) +
+  labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) ->
+  figures[['Unique_expression_Scale']]
+figures[['Unique_expression_Scale']]
 ```
 
 # Filter 
@@ -746,7 +770,7 @@ lapply(objs_filt, function(x) {x@misc$filtering_receipts})
 # Save objs
 
 ```{r}
-saveRDS(objs_filt, here('rds/02-filtered_objs.rds'))
+saveRDS(objs_filt, here('rds/02-filtered_objs.rds'), compress=FALSE)
 ```
 
 # Render report

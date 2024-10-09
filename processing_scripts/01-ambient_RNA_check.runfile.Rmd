@@ -28,20 +28,36 @@ figures <- list()
 # Functions
 
 ```{r}
+# Scale somehow outputs clustering information for cells not present in the input filtered counts matrix. So technically the contamination estimate is on a slight subset of the full input data. Since we're not planning to correct the counts, but only
+# report the contamination estimate, I'm not too worried about this. It does seem problematic in general, but I plan to read in
+# the filtered matrix and work from there, not rely on their processing. 
 runSoupX <- function(tod,
                      toc,
                      clusters,
                      doPlot = TRUE,
                      roundToInt = TRUE){
+  ## this is intended for scale data. They have outputs with additional barcodes somehow
+  if (!all(colnames(toc) %in% names(clusters)) | !(all(names(clusters) %in% colnames(toc)))){
+    warning('Names of clusters and filtered data to not match. Subsetting to values present in both')
+    toc_full <- toc
+    toc <- toc[,colnames(toc)[colnames(toc) %in% names(clusters)]]
+    clusters <- clusters[names(clusters)[names(clusters) %in% colnames(toc)]]
+    store_full = TRUE
+  } else {
+    store_full = FALSE
+  }
   sc <- SoupX::SoupChannel(tod = tod,
-                           toc = toc)
+                           toc = toc[,names(clusters)])
   sc <- SoupX::setClusters(sc, clusters)
   sc <- SoupX::autoEstCont(sc, doPlot = doPlot, contaminationRange = c(0.001,0.8))
   sc$adjusted_counts <- SoupX::adjustCounts(sc, roundToInt = roundToInt)
   sc$plot <- grDevices::recordPlot()
+  
+  if (store_full) {
+    sc$toc_full <- toc_full
+  }
   sc
 }
-
 ```
 
 # Load config
@@ -53,7 +69,7 @@ data_dirs <- list(
   "B2-Fluent_25k"="B2-Fluent_25k/OutPut_25K",
   "B2-GEMX3P_25k"="B2-GEMX3P_25k",
   "B2-NextGEM3P_25k"="B2-NextGEM3P_25k",
-  "B2-Parse_25k"="B2-Parse_25k/OutPut_25K_V.1.1/COMBINED/",
+  "B2-Parse_25k"="B2-Parse_25k/OutPut_25K_V.1.2.1/COMBINED/",
   "B2-Scale_25k"="B2-Scale_25k"
 )
 samplesheets <- lapply(names(data_dirs), function(x) {
@@ -75,7 +91,7 @@ objs <- list()
 
 ## B2-FLEX_10k
 
-```{r, eval=rerun_soupx}
+```{r}
 kit <- 'B2-FLEX_10k'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
@@ -100,7 +116,7 @@ for (i in 1:nrow(samplesheets[[kit]])){
 
 ## B2-Fluent_25k
 
-```{r, eval=rerun_soupx}
+```{r}
 kit <- 'B2-Fluent_25k'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
@@ -129,17 +145,20 @@ for (i in 1:nrow(samplesheets[[kit]])){
 
 ## B2-GEMX3P_25k
 
-```{r, eval=rerun_soupx}
+```{r}
 kit <- 'B2-GEMX3P_25k'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
+  
   filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file,
                                'outs', 'per_sample_outs', file, 'count/sample_filtered_feature_bc_matrix.h5')
   filtered_counts <- Read10X_h5(filtered_counts)
+  
   unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file,
                                  'outs', 'multi/count/raw_feature_bc_matrix.h5')
   unfiltered_counts <- Read10X_h5(unfiltered_counts)
+  
   clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'outs', 'per_sample_outs',
                         file, 'count/analysis/clustering/gene_expression_graphclust/clusters.csv')
   clusters <- read.csv(clusters)
@@ -150,17 +169,20 @@ for (i in 1:nrow(samplesheets[[kit]])){
 
 ## B2-NextGEM3P_25k
 
-```{r, eval=rerun_soupx}
+```{r}
 kit <- 'B2-NextGEM3P_25k'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
+  
   filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file,
                                'outs', 'per_sample_outs', file, 'count/sample_filtered_feature_bc_matrix.h5')
   filtered_counts <- Read10X_h5(filtered_counts)
+  
   unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file,
                                  'outs', 'multi/count/raw_feature_bc_matrix.h5')
   unfiltered_counts <- Read10X_h5(unfiltered_counts)
+  
   clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'outs', 'per_sample_outs',
                         file, 'count/analysis/clustering/gene_expression_graphclust/clusters.csv')
   clusters <- read.csv(clusters)
@@ -171,7 +193,7 @@ for (i in 1:nrow(samplesheets[[kit]])){
 
 ## B2-Parse_25k
 
-```{r, eval=rerun_soupx}
+```{r}
 kit <- 'B2-Parse_25k'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
@@ -193,21 +215,29 @@ for (i in 1:nrow(samplesheets[[kit]])){
 
 ## B2-Scale_25k
 
-```{r, eval=FALSE}
+```{r}
 kit <- 'B2-Scale_25k'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
   
-  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], paste0(file, '.filtered.matrix'))
+  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
+                               'ScaleRNA_out_w_cell_calling', 'samples',
+                               paste0(file, '.downsampled.filtered.matrix'))
   filtered_counts <- Read10X(filtered_counts)
   
-  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], paste0(file, '.unfiltered.matrix'))
-  unfiltered_counts <- Read10X(filtered_counts)
+  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
+                                 'ScaleRNA_out_w_cell_calling', 'samples',
+                                 paste0(file, '.downsampled.unfiltered.matrix'))
+  unfiltered_counts <- Read10X(unfiltered_counts)
   
-  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'report/cluster_assignment.csv')
+  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
+                        'ScaleRNA_out_w_cell_calling', 'cellTyping',
+                        paste0(file, '.downsampled'),
+                        paste0(file, '.downsampled_seurat_clustering_results.csv'))
+  
   clusters <- read.csv(clusters)
-  clusters <- setNames(as.list(clusters$cluster), clusters$bc_wells)
+  clusters <- setNames(as.list(clusters$seurat_clusters), gsub('(.+)_F.+', '\\1', clusters$cellBarcode))
   
   objs[[sample]] <- list(tod = unfiltered_counts, toc = filtered_counts, clusters = clusters)
 }
@@ -215,23 +245,23 @@ for (i in 1:nrow(samplesheets[[kit]])){
 
 # SoupX
 
-```{r, eval=rerun_soupx}
+```{r}
 objs <- lapply(objs, function(x) {
   runSoupX(x$tod, x$toc, x$clusters, doPlot = TRUE, roundToInt = TRUE)
 })
 ```
 
-## Save RDS
+# Save RDS
 
-```{r, eval=rerun_soupx}
-saveRDS(objs, here('rds/01-soup_channels.rds'), compress=FALSE)
+```{r}
+saveRDS(objs, here('rds/01-soup_channels.rds'), compress=TRUE)
 ```
 
-```{r, eval=!rerun_soupx}
+```{r}
 objs <- readRDS(here('rds/01-soup_channels.rds'))
 ```
 
-## Summarize contamination
+# Summarize contamination
 
 ```{r}
 extractSoupXContamEst <- function(sc){
@@ -264,7 +294,12 @@ objs <- lapply(objs, function(x) x$adjusted_counts)
 ```
 
 ```{r, eval = TRUE}
-objs <- lapply(objs, function(x) x$toc)
+objs <- lapply(objs, function(x) {
+  if (!is.null(x$toc_full)) {
+    x$toc_full
+  } else {
+    x$toc
+}})
 ```
 
 # Save objs
@@ -272,7 +307,7 @@ objs <- lapply(objs, function(x) x$toc)
 ```{r}
 objs <- lapply(objs, CreateSeuratObject)
 for (obj in names(objs)){
-  Project(objs[[obj]]) <- metadata$Kit[metadata$Sample == obj]
+  Project(objs[[obj]]) <- obj
 }
 ```
 
