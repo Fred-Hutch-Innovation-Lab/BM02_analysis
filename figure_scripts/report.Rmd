@@ -32,6 +32,17 @@ rmarkdown::render(here('figure_scripts/report.Rmd'),
 # source(here('figures/figure_scripts/genes_per_cell.R'))
 ```
 
+# Pipeline summaries
+
+```{r, fig.height=8}
+source(here('figure_scripts/pipeline_metrics_table.R'))
+qc_metrics_table
+# knitr::include_graphics(here('figures/metrics_table.png'))
+```
+
+
+***
+
 # Saturation curves
 
 ```{r}
