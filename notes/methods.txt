@@ -1,0 +1,25 @@
+Count matrices output by vendor pipelines were imported into R. Ambient RNA contamination was estimated using SoupX [1], but count matrices were not adjusted. 
+The original count matrices were imported into Seurat V5 [2]. 
+QC metrics (unique molecule count, feature count, ribosomal read fraction, mitochondrial read fraction) were added via Seurat.
+Doublet detection was performed prior to cell filtering using scDblFinder [3].
+Each sample was then filtered with loose global thresholds refelcting normal experimental procedures intended to eliminate low quality cells. 
+Cells with greater than 30000 unique transcripts, greater than 10000 unique genes, greater than 15% mitochondrial reads, or greater than 50% ribosomal reads were removed. 
+Cells with less than 1000 unique transcripts or less than 200 unique genes were removed. 
+
+[TODO] Gene filtering?
+
+1.
+Young, M.D., Behjati, S. (2020). SoupX removes ambient RNA contamination from droplet-based single-cell RNA sequencing data, GigaScience, Volume 9, Issue 12, December 2020, giaa151bioRxiv, 303727, https://doi.org/10.1093/gigascience/giaa151
+
+2. 
+@Article{,
+  author = {Yuhan Hao and Tim Stuart and Madeline H Kowalski and Saket Choudhary and Paul Hoffman and Austin Hartman and Avi Srivastava and Gesmira Molla and Shaista Madad and Carlos Fernandez-Granda and Rahul Satija},
+  title = {Dictionary learning for integrative, multimodal and scalable single-cell analysis},
+  journal = {Nature Biotechnology},
+  year = {2023},
+  doi = {10.1038/s41587-023-01767-y},
+  url = {https://doi.org/10.1038/s41587-023-01767-y},
+}
+
+3.
+Germain PL, Lun A, Garcia Meixide C et al. Doublet identification in single-cell sequencing data using scDblFinder [version 2; peer review: 2 approved]. F1000Research 2022, 10:979 (https://doi.org/10.12688/f1000research.73600.2) 
