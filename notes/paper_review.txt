@@ -1,0 +1,19 @@
+Reviewing doublet detection and QC filtering thresholds in reference papers
+ QC filtering thresholds?	Doublets?
+2016_Power analysis of single-cell RNA-sequencing experiments.pdf	NA	NA
+2017_Compararison sc-main.pdf	Some new method looking at correlation of all cells, removing outliers	> 2x mean UMI per sample (outlier method)
+2019_Benchmarking single cell RNA-sequencing analysis pipelines using mixture control experiments.pdf	Outliers, not clear on which metrics	Discuss doubelts but not how they were defined, and kept them in but labelled them on umaps
+2019_Comparative Analysis of Droplet-Based Ultra-High Throughput Single-Cell RNA-Seq Systems.pdf	Global thresholds (1000 umi) and remove outliers based on Spearman correlation of top 500 genes	No method listed
+2020_A single-cell and single-nucleus RNA-Seq toolbox .pdf	Global thresholds, tailored to nucelus vs cell though	Scrublet, didn't remove though
+2020_Systematic comparison of single-cell and single-nucleus RNA-sequencing methods.pdf	Filtered at cluster level, removing clusters with uninformative marker genes	No algorithm used
+2021_A multi-center cross-platform single-cell RNA sequencing reference dataset.pdf	Hard cutoffs and stand dev based cutoffs	No algorithm used
+2021_A multicenter study benchmarking single-cell RNA sequencing technologies using reference samples.pdf	Std dev based cutoffs for genes and UMIs	No algorithm used
+2021_Benchmarking of T cell receptor repertoire profiling methods reveals large systematic biases.pdf	NA	NA
+2021_Comparison sc.pdf	Global thresholds (20000 READS/cell, 500 genes)	No algorithm used
+2021_Doublet Detection-main.pdf	Not super relevant since they are evaluating doublet finding algorithms, but they did recommend DoubletFinder most (github one that required preprocessing)	
+2021_Ultra-high-throughput single-cell RNA sequencing and perturbation screening with combinatorial fluidic indexing.pdf	unclear/na?	unclear/na?
+2024.08.14_Roche benchmark sc.607767v1.full.pdf	Global thresholds 200-10000 genes, 200-50000 UMI	No algorithm used
+2024_A community effort to track commercial single-cell and spatial ’omic technologies and business trends.pdf	NA	NA
+2024_Genetech Comparative Paper	None?	Scrublet
+2024_Review sc and spatial_s41580-024-00768-2.pdf		
+2024_Xie et al 10X Parse Comparative	Global thresholds	DoubletFinder
