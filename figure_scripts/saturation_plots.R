@@ -27,3 +27,29 @@ ggplot(sat_curves, aes(x=reads, y=genes, linetype = paste0(Individual, Replicate
   theme_bw() +
   labs(x='Average reads per cell', y='Median genes per cell', linetype='Sample')
 ggsave('saturation_curves.png', path = here('figures'), width = unit(7, 'in'), height = unit(5, 'in'))
+
+
+
+samples <- c('Scale_F1A', 'FB_2_F5A', 'PA_V3_F5A', 
+             'Scale_F5A', 'FB_2_F5B', 'PA_V3_F1B')
+polygon_data <- sat_curves %>%
+  filter(Kit %in% c('Parse_V3', 'Fluent', 'Scale')) %>%
+  mutate(ID=paste0(Individual, Replicate)) %>%
+  filter(Sample %in% samples) %>%
+  mutate(Sample = factor(Sample, levels=samples)) %>%
+  arrange(Kit, Sample, case_when(
+    Sample %in% c('Scale_F1A', 'FB_2_F5A', 'PA_V3_F5A') ~ reads,
+    Sample %in% c('Scale_F5A', 'FB_2_F5B', 'PA_V3_F1B') ~ desc(reads),
+  ))
+
+sat_curves %>%
+  filter(Kit %in% c('Parse_V3', 'Fluent', 'Scale')) %>%
+  mutate(ID=paste0(Individual, Replicate)) %>%
+ggplot(aes(x=reads, y=genes, color = Kit, linetype=ID)) +
+  scale_color_manual(values = color_palette) +
+  scale_fill_manual(values = color_palette) +
+  geom_line() +
+  geom_polygon(data = polygon_data, aes(x=reads, y=genes, group=Kit, fill=Kit), alpha=0.2, inherit.aes = FALSE)+
+  theme_bw() +
+  labs(x='Average reads per cell', y='Median genes per cell', linetype='Sample')
+ggsave('saturation_curves_blog.svg', path = here('figures/blog'), width = unit(7, 'in'), height = unit(5, 'in'))
