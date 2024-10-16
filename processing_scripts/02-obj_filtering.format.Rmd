@@ -18,11 +18,7 @@ knitr::opts_chunk$set(echo = FALSE, warning=FALSE,
 
 # Filtering thresholds
 
-Filtering cells by either by consistent global thresholds or by kit-level thresholds.
-Global thresholds were defined by Azi as standard cutoffs for PBMCs. 
-Kit-level thresholds are calculated at 4 median absolute deviations from kit median values (values for UMIs and gene counts were log transformed).   
-
-## Global
+Filtering cells by consistent global thresholds.
 
 ```{r}
 stack(global_cutoffs) %>%
@@ -31,16 +27,9 @@ stack(global_cutoffs) %>%
   knitr::kable(digits=2)
 ```
 
-## Kit level
-
-```{r}
-knitr::kable(reshape2::dcast(kit_level_cutoffs_df, formula = Kit + Metric ~ Direction) %>% arrange(Metric), digits = 2)
-```
-
 # Filtering Metrics
 
-Looking at individual metrics and how many cells would be removed if filtering by
-either global or kit-level thresholds. 
+Looking at individual metrics and how many cells would be removed when filtering by global thresholds.
 
 ## nFeature
 
@@ -149,15 +138,12 @@ The doublet finding algorithm could also be viewed as too conservative or lackin
 
 ```{r}
 chunk_text <- '
-\n## {{kit}} {.tabset}
-\n### Kit level filtering {.unlisted}\n\n```{r, fig.width=14, fig.height=4.5}
+\n## {{kit}} {.unlist}
+\n\n```{r, fig.width=14, fig.height=4.5}
 samples <- metadata$Sample[metadata$Kit == "{{kit}}"]
-gridExtra::grid.arrange(grobs = euler_plots_kit[samples], nrow = 1)\n```
-\n### Global filtering {.unlisted}\n\n```{r, fig.width=14, fig.height=4.5}
-samples <- metadata$Sample[metadata$Kit == "{{kit}}"]
-gridExtra::grid.arrange(grobs = euler_plots_global[samples], nrow = 1)\n```\n'
+gridExtra::grid.arrange(grobs = euler_plots[samples], nrow = 1)
+\n```\n'
 ```
-
 
 ```{r, results='asis'}
 out <- NULL
@@ -168,12 +154,20 @@ for (kit in unique(metadata$Kit)) {
 cat(knit_child(text = out, quiet = TRUE), sep = '\n')
 ```
 
-# Cell recovery
+# Cell recovery {.tabset}
 
 What portion of the capture is removed by QC filtering, identified as doublets, etc.
 
+## Counts
+
 ```{r, fig.width=12}
-figures[['cell_recovery_barchart']]
+figures[['cell_recovery_count_barchart']]
+```
+
+## Proportions
+
+```{r, fig.width=12}
+figures[['cell_recovery_portion_barchart']]
 ```
 
 # Gene filtering
@@ -189,33 +183,4 @@ Genes detected in at least 10 cells in 3+ samples for each kit.
 
 ```{r}
 figures[['usable_genes_kit']]
-```
-
-Are there genes unique to a certain kit? This plots the population overlap of genes reliably (>10 cells, >=3 samples) 
-detected by each kit. There are probably better ways to highlight specific differences, but this high-level look shows that
-Fluent and Parse have some unique gene recovery.
-
-```{r}
-figures[['gene_overlap']]
-```
-
-With the unique gene recovery, how much expression is being detected? While most genes look low, this is what most genes look like when quantified this way, so it's not necessarily indicating that these kits are only 'barely' picking up extra genes. I was more interested in seeing if there were any largely abundant genes detected by either as a quick check of the gene's potential relevance. It would probably be more fruitful to look at the gene's
-function or class, but this is less trivial.
-
-## Unique expression Fluent
-
-```{r}
-figures[['Unique_expression_Fluent']]
-```
-
-## Unique expression Parse V3
-
-```{r}
-figures[['Unique_expression_ParseV3']]
-```
-
-## Scale
-
-```{r}
-figures[['Unique_expression_Scale']]
 ```
