@@ -17,3 +17,5 @@ Reviewing doublet detection and QC filtering thresholds in reference papers
 2024_Genetech Comparative Paper	None?	Scrublet
 2024_Review sc and spatial_s41580-024-00768-2.pdf		
 2024_Xie et al 10X Parse Comparative	Global thresholds	DoubletFinder
+
+
