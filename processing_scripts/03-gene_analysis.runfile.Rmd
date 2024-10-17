@@ -1,0 +1,297 @@
+---
+title: 'scRNA QC'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+
+library(tidyverse)  ## General R logic
+library(here)       ## Easier specification of file locations
+library(yaml)       ## parses config yaml
+library(Seurat)
+library(janitor)    ## TAY-BULLS
+# library(reshape2)   ## DF manipulation
+# library(clustree)   ## Resolution selection for clustering
+# library(ggraph)     ## To render clustree
+# library(scuttle)    ## various SC utilities
+# library(ggrastr)    ## rasterized point layers for reduced image size
+set.seed(33)
+```
+
+# Load data
+
+```{r}
+objs <- readRDS(here('rds/02-filtered_objs.rds'))
+kit_order <- unname(unlist(read.table(here('config/kit_order.txt'))))
+metadata <- read.csv(here('config/metadata.csv'))
+metadata$Kit <- factor(metadata$Kit, levels = kit_order)
+figures <- list()
+```
+
+## Data normalization 
+
+```{r}
+objs <- lapply(objs, NormalizeData)
+```
+
+# Gene detection
+
+```{r}
+detected_genes_sample_level <- lapply(objs, function(obj) {
+  genes <- obj@assays$RNA@features@.Data 
+  genes <- genes %>% 
+    as.data.frame() %>%
+    filter(counts == TRUE) %>% 
+    rownames()
+  genes
+})
+detected_genes_kit_level <- lapply(unique(metadata$Kit), function(kit) {
+  samples <- metadata$Sample[metadata$Kit == kit]
+  sets <- list()
+  for (sample in samples) {
+    sets <- list(sets, detected_genes_sample_level[[sample]])
+  }
+  result <- table(unlist(sets))
+  names(result)[result >= 2]
+})
+names(detected_genes_kit_level) <- unique(metadata$Kit)
+```
+
+## shared genes
+
+```{r}
+## Excluding probe-based flex
+shared_genes <- Reduce(intersect, detected_genes_kit_level[c("Fluent", "GEMX3P", "NextGEM3P", "Parse_V3", "Scale")])
+c("## Set of genes present in all 3' kits (not flex as it is probe based) in at least 10 cells in at least 2 samples",
+                  shared_genes) |>
+  write.table(here('rds/gene_whitelist.txt'), quote = FALSE, row.names = FALSE, col.names = FALSE)
+length(shared_genes)
+```
+
+## uniquely expressed genes
+
+```{r}
+unique_genes_kit <- list()
+kits <- unique(metadata$Kit)
+for (kit in kits) {
+  unique_genes_kit[[kit]] <- setdiff(detected_genes_kit_level[[kit]], shared_genes)
+}
+lapply(unique_genes_kit, length)
+```
+
+# Set overlap
+
+```{r}
+figures[['gene_overlap']] <-
+plot(eulerr::euler(detected_genes_kit_level, shape='ellipse'))
+figures[['gene_overlap']]
+```
+
+# Aggregate expression summaries
+
+```{r}
+aggregate_gene_expression <- function(obj, genes = rownames(obj@assays$RNA@features@.Data[,'data'])) {
+  genes <- obj@assays$RNA@features@.Data[,'data']
+  genes <- names(genes[genes])
+  exp <- obj@assays$RNA@layers$data
+  rownames(exp) <- genes
+  portion_expressed <- rowSums(exp > 0) / ncol(exp)
+  median_nonzero_expression <- apply(exp, 1, function(x) {
+    non_zero_values <- x[x != 0]
+    if (length(non_zero_values) > 0) {
+      return(median(non_zero_values))
+    } else {
+      return(NA)
+    }
+  })
+  portion_of_total_reads <- rowSums(exp)
+  portion_of_total_reads <- portion_of_total_reads / sum(portion_of_total_reads)
+  res <- cbind(portion_expressed, median_nonzero_expression, portion_of_total_reads)
+  res <- res[rownames(res) %in% genes,]
+  return(as.data.frame(res))
+}
+```
+
+```{r}
+gene_exp_summary <- lapply(objs, aggregate_gene_expression)
+```
+
+# Define gene families
+
+```{r}
+## crudely peep the top expressed families with a lazy definition
+gsub('(\\D+)\\d+$', '\\1', detected_genes_sample_level)  |>
+  tabyl() |> 
+  arrange(desc(n)) |> 
+  head()
+```
+
+
+```{r}
+gene_families <- list(
+  'mitochondrial' = '^MT-',
+  'ribosomal' = '^RP[SL]', 
+  'Unidentified' = c('^AC', '^LOC', 'orf', '^ENSG'),
+  'ZNF' = '^ZNF',
+  'long intergenic non-coding' = '^LINC',
+  'histones' = c('^HIST', '^H\\d')
+)
+find_group <- function(rowname, patterns=gene_families) {
+  matched_group <- purrr::keep(patterns, function(pat_vec) {
+    any(sapply(pat_vec, function(pat) grepl(pat, rowname)))
+  })
+  if (length(matched_group) > 0) {
+    return(paste0(names(matched_group), collapse = ','))
+  } else {
+    return("Other")
+  }
+}
+gene_exp_summary <- lapply(gene_exp_summary, function(x) {
+  mutate(x, group = map_chr(rownames(x), find_group))
+})
+```
+
+# Unique genes
+
+```{r}
+gene_exp_summary <- lapply(gene_exp_summary, function(x) {
+  x$shared <-  rownames(x) %in% shared_genes
+  x
+})
+```
+
+
+```{r, fig.width=10, fig.height=5}
+plotdata <- lapply(gene_exp_summary, function(x) {
+  x |>
+    group_by(group, shared) |>
+    summarize(y = sum(portion_of_total_reads))
+}) |>
+  data.table::rbindlist(idcol='Sample') |>
+   merge(metadata, by='Sample') |> 
+   filter(shared == TRUE)
+plotdata |>
+  ggplot(aes(x=paste0(Individual, Replicate), y=y, fill=group)) +
+  geom_col(position='stack') +
+    facet_wrap(~ Kit, nrow=1) +
+   labs(y='Portion of total reads', x='Sample', fill='Gene family', 
+   caption = 'Only showing genes from shared gene pool') ->
+  figures[['Expression_barchart_shared']]
+figures[['Expression_barchart_shared']]
+```
+
+```{r, fig.width=10, fig.height=5}
+plotdata <- lapply(gene_exp_summary, function(x) {
+  x |>
+    group_by(group, shared) |>
+    summarize(y = sum(portion_of_total_reads))
+}) |>
+  data.table::rbindlist(idcol='Sample') |>
+   merge(metadata, by='Sample') |> 
+   filter(shared == FALSE)
+plotdata |>
+  ggplot(aes(x=interaction(Individual, Replicate), y=y, fill=group)) +
+  geom_col(position='stack') +
+    facet_wrap(~ Kit, nrow=1) +
+   labs(y='Portion of total reads', x='Sample', fill='Gene family', 
+   caption = 'Only showing genes not found in all kits.\nThese genes are not necessarily unique to a kit, just not found in all kits') ->
+  figures[['Expression_barchart_unique']]
+figures[['Expression_barchart_unique']]
+```
+
+# Old
+
+
+
+<!-- ## Genes with sufficient data -->
+
+<!-- ```{r} -->
+<!-- gtf <- read.table('/fh/fast/_IRC/FHIL/pub/ref/GRCh38/refdata-gex-GRCh38-2024-A/star/geneInfo.tab', header = FALSE, skip = 1, sep='\t') -->
+<!-- colnames(gtf) <- c('ENS_ID', 'Symbol', 'Type') -->
+<!-- ``` -->
+
+<!-- ## Shared genes -->
+
+
+
+
+
+<!-- ### Fluent -->
+
+<!-- ```{r} -->
+<!-- unique_genes <- setdiff( -->
+<!--   detected_genes_kit_level$Fluent, -->
+<!--         unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P, -->
+<!--               detected_genes_kit_level$Flex,  -->
+<!--               detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2,  -->
+<!--               detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P, -->
+<!--               detected_genes_kit_level$Scale))) -->
+
+<!-- kit <- 'Fluent' -->
+<!-- plotdata <- subset(kit_level_objs[[kit]], features = unique_genes) -->
+<!-- plotdata <- calculate_unique_gene_expression(plotdata) -->
+
+<!-- ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression, -->
+<!--                 label=ifelse(median_nonzero_expression>1 | portion_expressed > .25, gene, NA))) + -->
+<!--   geom_point(alpha=0.3) + -->
+<!--   ggrepel::geom_text_repel() + -->
+<!--   labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) -> -->
+<!--   figures[['Unique_expression_Fluent']] -->
+<!-- figures[['Unique_expression_Fluent']] -->
+<!-- ``` -->
+
+
+
+<!-- ### Parse -->
+
+<!-- ```{r} -->
+<!-- unique_genes <- setdiff( -->
+<!--   union(detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2), -->
+<!--         unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P, -->
+<!--               detected_genes_kit_level$Flex,  -->
+<!--               detected_genes_kit_level$Fluent, -->
+<!--               detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P, -->
+<!--               detected_genes_kit_level$Scale))) -->
+
+<!-- kit <- 'Parse_V3' -->
+<!-- plotdata <- subset(kit_level_objs[[kit]], features = unique_genes) -->
+<!-- plotdata <- calculate_unique_gene_expression(plotdata) -->
+
+<!-- ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression, -->
+<!--                 label=ifelse(median_nonzero_expression>1 | portion_expressed > .5, gene, NA))) + -->
+<!--   geom_point(alpha=0.3) + -->
+<!--   ggrepel::geom_text_repel() + -->
+<!--   labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) -> -->
+<!--   figures[['Unique_expression_ParseV3']] -->
+<!-- figures[['Unique_expression_ParseV3']] -->
+<!-- ``` -->
+
+<!-- ### Scale -->
+
+<!-- ```{r} -->
+<!-- unique_genes <- setdiff( -->
+<!--   detected_genes_kit_level$Scale, -->
+<!--         unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P, -->
+<!--               detected_genes_kit_level$Flex,  -->
+<!--               detected_genes_kit_level$Fluent, -->
+<!--               detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P, -->
+<!--               union(detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2) -->
+<!--               ))) -->
+
+<!-- kit <- 'Scale' -->
+<!-- plotdata <- subset(kit_level_objs[[kit]], features = unique_genes) -->
+<!-- plotdata <- calculate_unique_gene_expression(plotdata) -->
+
+<!-- ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression, -->
+<!--                 label=ifelse(portion_expressed > .5, gene, NA))) + -->
+<!--   geom_point(alpha=0.3) + -->
+<!--   ggrepel::geom_text_repel(max.overlaps = 30) + -->
+<!--   labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) -> -->
+<!--   figures[['Unique_expression_Scale']] -->
+<!-- figures[['Unique_expression_Scale']] -->
+<!-- ``` -->
