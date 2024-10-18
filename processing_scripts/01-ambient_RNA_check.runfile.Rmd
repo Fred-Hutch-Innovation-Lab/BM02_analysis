@@ -312,7 +312,7 @@ for (obj in names(objs)){
 ```
 
 ```{r}
-saveRDS(objs, here('rds/01_raw_objs_10x.rds'), compress=TRUE)
+saveRDS(objs, here('rds/01_raw_objs.rds'), compress=TRUE)
 ```
 
 # Render report

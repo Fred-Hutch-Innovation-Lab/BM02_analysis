@@ -16,7 +16,7 @@ library(yaml)       ## parses config yaml
 library(Seurat)
 library(reshape2)   ## DF manipulation
 # library(celldex)    ## Reference datasets for celltype annotation
-library(SingleR)
+# library(SingleR)
 library(SingleCellExperiment) ## Doublet detection dependency
 library(scDblFinder) ## Doublet detection
 # library(clustree)   ## Resolution selection for clustering
@@ -72,7 +72,7 @@ addQCfilter <- function(obj,
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/01_raw_objs_10x.rds'))
+objs <- readRDS(here('rds/01_raw_objs.rds'))
 kit_order <- unname(unlist(read.table(here('config/kit_order.txt'))))
 metadata <- read.csv(here('config/metadata.csv'))
 metadata$Kit <- factor(metadata$Kit, levels = kit_order)
@@ -365,66 +365,9 @@ for (kit in unique(metadata$Kit)) {
 euler_plots
 ```
 
-
-# Gene filtering
-
-```{r}
-## Looking for genes with non-zero expression in at least 10 cells
-## maybe this should be a percentage rather than a hard number
-detected_genes_sample_level <- lapply(objs, function(obj) {
-  genes <- obj@assays$RNA@features@.Data 
-  genes <- genes %>% 
-    as.data.frame() %>%
-    filter(counts == TRUE) %>% 
-    rownames()
-  detected_genes <- rowSums(obj@assays$RNA@layers$counts > 0) > 10 
-  detected_genes <- genes[detected_genes]
-  detected_genes
-})
-detected_genes_kit_level <- lapply(unique(metadata$Kit), function(kit) {
-  samples <- metadata$Sample[metadata$Kit == kit]
-  sets <- list()
-  for (sample in samples) {
-    sets <- list(sets, detected_genes_sample_level[[sample]])
-  }
-  result <- table(unlist(sets))
-  names(result[result >= 2])
-})
-names(detected_genes_kit_level) <- unique(metadata$Kit)
-```
-
-## Gene count
-
-```{r, fig.width=9}
-figures[['usable_genes']] <-
-lapply(detected_genes_sample_level, length) %>%
-  stack() %>%
-  merge(metadata, by.x='ind', by.y='Sample') %>%
-  ggplot(aes(x=Kit, y=values)) +
-  geom_boxplot() +
-  geom_point(aes(shape=paste0(Individual, Replicate))) +
-  # facet_wrap(~ Kit, scales='free_x') + 
-  labs(x = 'Kit', y='Genes detected', shape='Sample', caption = 'Genes detected in at least 10 cells')
-figures[['usable_genes']]
-```
- 
-```{r, fig.width=9}
-figures[['usable_genes_kit']] <-
-lapply(detected_genes_kit_level, length) %>%
-  stack() %>%
-  ggplot(aes(x=ind, y=values)) +
-  geom_col() +
-  # geom_point(aes(shape=paste0(Individual, Replicate))) +
-  # facet_wrap(~ Kit, scales='free_x') + 
-  labs(x = 'Kit', y='Genes detected', caption = 'Genes detected in at least 10 cells in 2+ samples')
-figures[['usable_genes_kit']]
-```
-
 # Filter 
 
-## Cells
-
-### QC thresholds
+## QC thresholds
 
 ```{r}
 for (obj in names(objs)) {
@@ -442,11 +385,12 @@ objs_filt <- lapply(objs, function(x) {
 objs_filt <- lapply(objs_filt, subset, subset = global_filter == TRUE) #'global_filter'
 
 ## Genes
-objs_filt <- lapply(objs_filt, function(x) {
-# for (x in objs_filt){
-  genes <- detected_genes_sample_level[[x@project.name]]
-  x <- subset(x, features = genes)
-})
+# objs_filt <- lapply(objs_filt, function(x) {
+# # for (x in objs_filt){
+#   genes <- detected_genes_sample_level[[x@project.name]]
+#   x <- subset(x, features = genes)
+#   x
+# })
 
 objs_filt <- lapply(objs_filt, function(x) {
   x@misc$filtering_receipts$after_qc_filtering <- dim(x)
@@ -455,7 +399,7 @@ objs_filt <- lapply(objs_filt, function(x) {
 ```
 
 
-### Doublets
+## Doublets
 
 ```{r}
 objs_filt <- lapply(objs_filt, subset, subset = scDblFinder.class == 'singlet')
@@ -466,7 +410,7 @@ objs_filt <- lapply(objs_filt, function(x) {
 })
 ```
 
-### Plot
+## Plot
 
 ```{r}
 plotdata <- lapply(objs_filt, function(x) {
@@ -524,7 +468,7 @@ lapply(objs_filt, function(x) {x@misc$filtering_receipts})
 ```
 
 ```{r}
-saveRDS(objs_filt, here('rds/02-filtered_objs.rds'), compress=FALSE)
+saveRDS(objs_filt, here('rds/02-objs_post_cell_filtering.rds'), compress=FALSE)
 ```
 
 # Render report
@@ -533,7 +477,7 @@ saveRDS(objs_filt, here('rds/02-filtered_objs.rds'), compress=FALSE)
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/02-obj_filtering.format.Rmd'),
-                  output_file = '02-obj_filtering.html',
+rmarkdown::render(here('processing_scripts/02-cell_filtering.format.Rmd'),
+                  output_file = '02-cell_filtering.html',
                   output_dir = here('reports'))
 ```

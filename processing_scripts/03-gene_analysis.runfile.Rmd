@@ -15,6 +15,7 @@ library(here)       ## Easier specification of file locations
 library(yaml)       ## parses config yaml
 library(Seurat)
 library(janitor)    ## TAY-BULLS
+library(UpSetR)
 # library(reshape2)   ## DF manipulation
 # library(clustree)   ## Resolution selection for clustering
 # library(ggraph)     ## To render clustree
@@ -26,7 +27,7 @@ set.seed(33)
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/02-filtered_objs.rds'))
+objs <- readRDS(here('rds/02-objs_post_cell_filtering.rds'))
 kit_order <- unname(unlist(read.table(here('config/kit_order.txt'))))
 metadata <- read.csv(here('config/metadata.csv'))
 metadata$Kit <- factor(metadata$Kit, levels = kit_order)
@@ -42,14 +43,57 @@ objs <- lapply(objs, NormalizeData)
 # Gene detection
 
 ```{r}
-detected_genes_sample_level <- lapply(objs, function(obj) {
-  genes <- obj@assays$RNA@features@.Data 
-  genes <- genes %>% 
-    as.data.frame() %>%
-    filter(counts == TRUE) %>% 
-    rownames()
-  genes
-})
+## Looking for genes with non-zero expression in at least 10 cells
+## maybe this should be a percentage rather than a hard number
+detected_genes <- function(obj, min_cells, min_expression = 0, layer = 'counts') {
+  genes <- Features(obj, layer = layer)  
+  # genes <- genes %>% 
+  #   as.data.frame() %>%
+  #   # filter(.data[[layer]]) %>% 
+  #   rownames()
+  detected_genes <- rowSums(obj@assays$RNA[layer] > min_expression) > min_cells 
+  detected_genes <- genes[detected_genes]
+  detected_genes
+}
+```
+
+## Sample level
+
+### Lowly expressed genes
+
+```{r}
+detected_genes_sample_level <-  lapply(objs, detected_genes, min_cells=10)
+
+dropped_genes <- list()
+for (sample in metadata$Sample) {
+  dropped_genes[[sample]] <- setdiff(detected_genes(objs[[sample]], min_cells=0), detected_genes_sample_level[[sample]])
+}
+```
+
+```{r, fig.width=9}
+merge(lapply(detected_genes_sample_level, length) %>%
+        stack() %>%
+        dplyr::rename(good_genes = values, Sample = ind),
+      lapply(dropped_genes, length) %>%
+        stack() %>%
+        dplyr::rename(bad_genes = values, Sample = ind)) %>%
+  reshape2::melt() %>%
+  merge(metadata, by.y='Sample') %>%
+  mutate(variable = factor(variable, levels=c('bad_genes', 'good_genes'))) %>%
+  ggplot(aes(x=paste0(Individual, Replicate), y=value, fill=variable)) +
+  geom_col(position='stack') +
+  scale_fill_manual(values = c('bad_genes' = 'goldenrod', 'good_genes' = 'darkgreen'),
+                    labels = c('Low detection', 'Good')) +
+  facet_wrap(~ Kit, ncol=6) +
+  labs(x = 'Kit', y='Genes detected', shape='Sample', fill = 'Status') ->
+  figures[['usable_genes_sample']]
+figures[['usable_genes_sample']]
+```
+
+
+## Kit level
+
+```{r}
 detected_genes_kit_level <- lapply(unique(metadata$Kit), function(kit) {
   samples <- metadata$Sample[metadata$Kit == kit]
   sets <- list()
@@ -57,12 +101,23 @@ detected_genes_kit_level <- lapply(unique(metadata$Kit), function(kit) {
     sets <- list(sets, detected_genes_sample_level[[sample]])
   }
   result <- table(unlist(sets))
-  names(result)[result >= 2]
+  names(result[result >= 2])
 })
 names(detected_genes_kit_level) <- unique(metadata$Kit)
 ```
 
-## shared genes
+```{r, fig.width=9}
+figures[['usable_genes_kit']] <-
+lapply(detected_genes_kit_level, length) %>%
+  stack() %>%
+  ggplot(aes(x=ind, y=values)) +
+  geom_col() +
+  labs(x = 'Kit', y='Genes detected', caption = 'Genes detected in at least 10 cells in 2+ samples')
+figures[['usable_genes_kit']]
+```
+
+
+### shared genes
 
 ```{r}
 ## Excluding probe-based flex
@@ -73,7 +128,7 @@ c("## Set of genes present in all 3' kits (not flex as it is probe based) in at 
 length(shared_genes)
 ```
 
-## uniquely expressed genes
+### uniquely expressed genes
 
 ```{r}
 unique_genes_kit <- list()
@@ -86,19 +141,35 @@ lapply(unique_genes_kit, length)
 
 # Set overlap
 
+```{r, fig.width=12, fig.height=6}
+upset(fromList(detected_genes_kit_level), 
+      sets=levels(metadata$Kit),
+      nsets=6,
+      nintersects = NA, 
+      keep.order = TRUE,
+      order.by='degree',
+      decreasing = FALSE,
+      mainbar.y.label='Gene count',
+      number.angles = 0,
+      empty.intersections=TRUE) ->
+  figures[['gene_overlap_upset']]
+figures[['gene_overlap_upset']]
+```
+
+
 ```{r}
-figures[['gene_overlap']] <-
+figures[['gene_overlap_euler']] <-
 plot(eulerr::euler(detected_genes_kit_level, shape='ellipse'))
-figures[['gene_overlap']]
+figures[['gene_overlap_euler']]
 ```
 
 # Aggregate expression summaries
 
 ```{r}
-aggregate_gene_expression <- function(obj, genes = rownames(obj@assays$RNA@features@.Data[,'data'])) {
-  genes <- obj@assays$RNA@features@.Data[,'data']
-  genes <- names(genes[genes])
-  exp <- obj@assays$RNA@layers$data
+aggregate_gene_expression <- function(obj, layer='data', genes = Features(obj, layer=layer)) {
+  # genes <- obj@assays$RNA@features@.Data[,'data']
+  # genes <- names(genes[genes])
+  exp <- obj@assays$RNA@layers[[layer]]
   rownames(exp) <- genes
   portion_expressed <- rowSums(exp > 0) / ncol(exp)
   median_nonzero_expression <- apply(exp, 1, function(x) {
@@ -125,7 +196,7 @@ gene_exp_summary <- lapply(objs, aggregate_gene_expression)
 
 ```{r}
 ## crudely peep the top expressed families with a lazy definition
-gsub('(\\D+)\\d+$', '\\1', detected_genes_sample_level)  |>
+gsub('(\\D+)\\d+$', '\\1', detected_genes_sample_level$Flex_F1A)  |>
   tabyl() |> 
   arrange(desc(n)) |> 
   head()
@@ -152,19 +223,13 @@ find_group <- function(rowname, patterns=gene_families) {
   }
 }
 gene_exp_summary <- lapply(gene_exp_summary, function(x) {
-  mutate(x, group = map_chr(rownames(x), find_group))
-})
-```
-
-# Unique genes
-
-```{r}
-gene_exp_summary <- lapply(gene_exp_summary, function(x) {
+  x <- mutate(x, group = map_chr(rownames(x), find_group))
   x$shared <-  rownames(x) %in% shared_genes
   x
 })
 ```
 
+# Unique genes
 
 ```{r, fig.width=10, fig.height=5}
 plotdata <- lapply(gene_exp_summary, function(x) {
@@ -195,7 +260,7 @@ plotdata <- lapply(gene_exp_summary, function(x) {
    merge(metadata, by='Sample') |> 
    filter(shared == FALSE)
 plotdata |>
-  ggplot(aes(x=interaction(Individual, Replicate), y=y, fill=group)) +
+  ggplot(aes(x=paste0(Individual, Replicate), y=y, fill=group)) +
   geom_col(position='stack') +
     facet_wrap(~ Kit, nrow=1) +
    labs(y='Portion of total reads', x='Sample', fill='Gene family', 
@@ -204,94 +269,53 @@ plotdata |>
 figures[['Expression_barchart_unique']]
 ```
 
-# Old
+```{r, fig.height=14, fig.width=16}
+lapply(gene_exp_summary, rownames_to_column, var='gene') |>
+  data.table::rbindlist(idcol='Sample', ) |>
+  filter(!shared) |>
+  # rownames_to_column('gene') |>
+  mutate(gene = ifelse((portion_expressed > 0.5 | median_nonzero_expression > 2) & group=='Other', gene, NA)) |>
+  merge(metadata, by='Sample') |>
+  ggplot(aes(x=portion_expressed, median_nonzero_expression, color=group, label=gene)) +
+  geom_point() +
+  ggrepel::geom_text_repel(color='black', max.overlaps = 15) +
+  facet_grid(Kit ~ paste0(Individual, Replicate)) +
+  labs(x='Portion of cells with expression', y='Median log-normalized expression in expressing cells', 
+       caption = 'Showing expression of cells not in global set.\nLabels are shown on highly expressed "other" category genes.') ->
+  figures[['unique_expression_grid']]
+figures[['unique_expression_grid']]
+```
 
+# Filter and save obj
 
+```{r}
+# lapply(objs, function(x) {x@misc$filtering_receipts})
 
-<!-- ## Genes with sufficient data -->
+objs <- lapply(objs, function(x){
+  x <- subset(x, features = detected_genes_kit_level[[metadata$Kit[metadata$Sample==x@project.name]]])
+  x
+})
 
-<!-- ```{r} -->
-<!-- gtf <- read.table('/fh/fast/_IRC/FHIL/pub/ref/GRCh38/refdata-gex-GRCh38-2024-A/star/geneInfo.tab', header = FALSE, skip = 1, sep='\t') -->
-<!-- colnames(gtf) <- c('ENS_ID', 'Symbol', 'Type') -->
-<!-- ``` -->
+objs <- lapply(objs, function(x) {
+  x@misc$filtering_receipts$after_gene_filtering <- dim(x)
+  x
+})
+lapply(objs, function(x) {x@misc$filtering_receipts})
+objs <- lapply(objs, NormalizeData)
+```
 
-<!-- ## Shared genes -->
+```{r}
+saveRDS(objs, here('rds/03-objs_post_gene_filtering.rds'), compress=FALSE)
+```
 
+# Render report
 
+```{r, eval=TRUE}
+## This only works if all the variables called in the format file 
+## are in the current environment. Check the format file to tweak
+## aesthetics 
+rmarkdown::render(here('processing_scripts/03-gene_analysis.format.Rmd'),
+                  output_file = '03-gene_analysis.html',
+                  output_dir = here('reports'))
+```
 
-
-
-<!-- ### Fluent -->
-
-<!-- ```{r} -->
-<!-- unique_genes <- setdiff( -->
-<!--   detected_genes_kit_level$Fluent, -->
-<!--         unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P, -->
-<!--               detected_genes_kit_level$Flex,  -->
-<!--               detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2,  -->
-<!--               detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P, -->
-<!--               detected_genes_kit_level$Scale))) -->
-
-<!-- kit <- 'Fluent' -->
-<!-- plotdata <- subset(kit_level_objs[[kit]], features = unique_genes) -->
-<!-- plotdata <- calculate_unique_gene_expression(plotdata) -->
-
-<!-- ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression, -->
-<!--                 label=ifelse(median_nonzero_expression>1 | portion_expressed > .25, gene, NA))) + -->
-<!--   geom_point(alpha=0.3) + -->
-<!--   ggrepel::geom_text_repel() + -->
-<!--   labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) -> -->
-<!--   figures[['Unique_expression_Fluent']] -->
-<!-- figures[['Unique_expression_Fluent']] -->
-<!-- ``` -->
-
-
-
-<!-- ### Parse -->
-
-<!-- ```{r} -->
-<!-- unique_genes <- setdiff( -->
-<!--   union(detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2), -->
-<!--         unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P, -->
-<!--               detected_genes_kit_level$Flex,  -->
-<!--               detected_genes_kit_level$Fluent, -->
-<!--               detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P, -->
-<!--               detected_genes_kit_level$Scale))) -->
-
-<!-- kit <- 'Parse_V3' -->
-<!-- plotdata <- subset(kit_level_objs[[kit]], features = unique_genes) -->
-<!-- plotdata <- calculate_unique_gene_expression(plotdata) -->
-
-<!-- ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression, -->
-<!--                 label=ifelse(median_nonzero_expression>1 | portion_expressed > .5, gene, NA))) + -->
-<!--   geom_point(alpha=0.3) + -->
-<!--   ggrepel::geom_text_repel() + -->
-<!--   labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) -> -->
-<!--   figures[['Unique_expression_ParseV3']] -->
-<!-- figures[['Unique_expression_ParseV3']] -->
-<!-- ``` -->
-
-<!-- ### Scale -->
-
-<!-- ```{r} -->
-<!-- unique_genes <- setdiff( -->
-<!--   detected_genes_kit_level$Scale, -->
-<!--         unique(c(detected_genes_kit_level$GEMX5P, detected_genes_kit_level$NextGEM5P, -->
-<!--               detected_genes_kit_level$Flex,  -->
-<!--               detected_genes_kit_level$Fluent, -->
-<!--               detected_genes_kit_level$GEMX3P, detected_genes_kit_level$NextGEM3P, -->
-<!--               union(detected_genes_kit_level$Parse_V3, detected_genes_kit_level$Parse_V2) -->
-<!--               ))) -->
-
-<!-- kit <- 'Scale' -->
-<!-- plotdata <- subset(kit_level_objs[[kit]], features = unique_genes) -->
-<!-- plotdata <- calculate_unique_gene_expression(plotdata) -->
-
-<!-- ggplot(plotdata, aes(x=portion_expressed, y=median_nonzero_expression, -->
-<!--                 label=ifelse(portion_expressed > .5, gene, NA))) + -->
-<!--   geom_point(alpha=0.3) + -->
-<!--   ggrepel::geom_text_repel(max.overlaps = 30) + -->
-<!--   labs(x = 'Portion of cells expressing gene across all samples', y = 'Median UMI count in expressing cells', main = kit) -> -->
-<!--   figures[['Unique_expression_Scale']] -->
-<!-- figures[['Unique_expression_Scale']] -->
-<!-- ``` -->

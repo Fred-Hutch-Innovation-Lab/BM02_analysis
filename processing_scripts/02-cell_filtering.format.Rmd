@@ -169,18 +169,3 @@ figures[['cell_recovery_count_barchart']]
 ```{r, fig.width=12}
 figures[['cell_recovery_portion_barchart']]
 ```
-
-# Gene filtering
-
-While we have genes detected per sample from the QC reports, this is a more functional count of reliable genes recovery: 
-genes detected in at least 10 cells.
-
-```{r}
-figures[['usable_genes']]
-```
-
-Genes detected in at least 10 cells in 3+ samples for each kit.
-
-```{r}
-figures[['usable_genes_kit']]
-```

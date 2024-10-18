@@ -1,0 +1,255 @@
+---
+title: 'SC processing'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+
+library(tidyverse)  ## General R logic
+library(here)       ## Easier specification of file locations
+library(yaml)       ## parses config yaml
+library(Seurat)
+library(reshape2)   ## DF manipulation
+# library(clustree)   ## Resolution selection for clustering
+# library(ggraph)     ## To render clustree
+library(bluster)     ## Sihouette scores
+library(SingleR)
+library(SingleCellExperiment)
+rbindlist <- data.table::rbindlist
+set.seed(33)
+```
+
+# Load data
+
+```{r}
+objs <- readRDS(here('rds/02-filtered_objs.rds'))
+metadata <- read.csv(here('config/metadata.csv'))
+figures <- list()
+```
+
+# Data normalization and processing
+
+```{r}
+objs <- lapply(objs, NormalizeData)
+objs <- lapply(objs, FindVariableFeatures)
+objs <- lapply(objs, ScaleData)
+objs <- lapply(objs, RunPCA)
+```
+
+```{r}
+#Check if 30 dims is appropriate
+lapply(objs, ElbowPlot, ndim=30)
+```
+
+```{r}
+objs <- lapply(objs, FindNeighbors, dims=1:20, graph.name=c('RNA_NN', 'RNA_SNN'))
+objs <- lapply(objs, RunUMAP, nn.name='RNA_NN')#dims=1:20)
+```
+
+# Reference annotation
+
+```{r run_SingleR}
+runSingleR <- function(obj.seurat,
+                       ref,
+                       labels,
+                       de.method = "classic",
+                       meta.prefix = 'singleR',
+                       num.threads = BiocParallel::bpnworkers(BiocParallel::MulticoreParam()),
+                       ...) {
+  singleR.out <- obj.seurat %>%
+    Seurat::as.SingleCellExperiment(assay = "RNA") %>%
+    scuttle::logNormCounts() %>%
+    SummarizedExperiment::assays() # %>%
+    # .$logcounts %>%
+  singleR.out <- SingleR::SingleR(test = singleR.out$logcounts,
+                     ref = ref,
+                     labels = labels,
+                     de.method = de.method,
+                     num.threads = num.threads,
+                     ...)
+
+  obj.seurat@meta.data[[paste0(meta.prefix,".labels")]] <- singleR.out$labels
+  obj.seurat@meta.data[[paste0(meta.prefix,".pruned.labels")]] <- singleR.out$pruned.labels
+  obj.seurat@meta.data[[paste0(meta.prefix,".delta.next")]] <- singleR.out$delta.next
+
+  return(obj.seurat)
+}
+```
+
+## Novershtern
+
+```{r}
+ref <- readRDS('/fh/fast/_IRC/FHIL/pub/ref/single_cell_references/Novershtern_celldex.rds')
+objs <- lapply(objs, function(x) {
+  runSingleR(x, 
+             ref = assays(ref)$logcounts,
+             labels = ref$label.main,
+             meta.prefix = 'Novershtern.main',
+             de.method = 'wilcox')
+  })
+```
+
+## HPCA
+
+```{r}
+ref <- readRDS('/fh/fast/_IRC/FHIL/pub/ref/single_cell_references/HPCA_celldex.rds')
+objs <- lapply(objs, function(x) {
+  runSingleR(x, 
+             ref = assays(ref)$logcounts,
+             labels = ref$label.main,
+             meta.prefix = 'HPCA.main',
+             de.method = 'wilcox')
+  })
+```
+
+# Fixed resolution
+
+```{r}
+objs <- lapply(objs, FindClusters, resolution=1.0, graph.name='RNA_NN', cluster.name='res_1.0_clusters') #, algorithm=4
+```
+
+# Explore resolutions
+
+## Seurat louvain
+
+```{r}
+res_selection <- function(obj, seqs=c(seq(0.05,1,0.05), seq(1.1,1.5, .1), 1.75, 2)) {
+  x <- list()
+  print('Next iter')
+  for (res in seqs) {
+    print(res)
+    clus <- FindClusters(obj, resolution = res, graph.name = 'RNA_NN', verbose = FALSE)$seurat_clusters
+    nclus <- length(levels(clus))
+    if (nclus > 20) {
+      break
+    } else if (nclus > 1) {
+      avg_sil <- approxSilhouette(obj@reductions$pca@cell.embeddings, clus)$width %>% mean()
+      avg_pur <- neighborPurity(obj@reductions$pca@cell.embeddings, clus)$purity %>% mean()
+    } else if (nclus == 0) {
+      avg_sil <- NA
+      avg_pur <- NA
+    } else {
+      cat('huh?')
+    }
+    x[[paste0('res_', res)]] <- list(avg_sil=avg_sil, avg_pur=avg_pur, nclus=nclus, joint=avg_sil + avg_pur)
+  }
+  x <- data.table::rbindlist(x) %>%
+    as.data.frame()
+  x[['rank1']] <- data.table::frankv(x, 'avg_sil', order=-1)
+  x[['rank2']] <- data.table::frankv(x, 'avg_pur', order=-1)
+  x <- x %>% mutate(rank = (rank1 + rank2) /2)
+  x$resolution <- seqs
+  x #%>%
+    # mutate(rank = mean(rank1, rank2)) %>%
+    # select(-c(rank1, rank2))
+}
+res_table2 <- lapply(objs, res_selection, seqs=seq(0.01,0.05, 0.01))
+
+res_table3 <- list()
+for (obj in names(objs)) {
+  x <- rbind(res_table2[[obj]], res_table[[obj]])
+  x$rank1 <- data.table::frankv(x, 'avg_sil', order=-1)
+  x$rank2 <- data.table::frankv(x, 'avg_pur', order=-1)
+  x <- x %>% mutate(rank = (rank1 + rank2) /2)
+  res_table3[[obj]] <- x
+}
+
+tmp <- res_selection(objs$FB_2_F1A, seqs=seq(0.01,0.05, 0.01))
+res_table
+```
+
+## Bluster ?
+
+```{r, eval=FALSE}
+res <- seq(0.01,0.1,0.01)
+obj <- objs$Flex_F1A
+pca <- obj@reductions$pca@cell.embeddings[,1:20]
+tmp1 <- clusterSweep(pca, BLUSPARAM = NNGraphParam(cluster.fun = 'leiden'), cluster.args=list(resolution_parameter=res))
+tmp2 <- clusterSweep(pca, BLUSPARAM = NNGraphParam(cluster.fun = 'leiden'), cluster.args=list(resolution_parameter=res))
+sum(tmp1$clusters[,1] == tmp2$clusters[,1])
+
+tmp1 <- igraph::cluster_leiden(igraph::graph_from_adjacency_matrix(obj@graphs$RNA_NN), resolution = 0.1)
+tmp2 <- igraph::cluster_leiden(obj@graphs$RNA_SNN, resolution = 0.1)
+
+tmp1 <- FindClusters(obj, res=1, graph.name = 'RNA_NN', algorithm = 4 )
+tmp2 <- FindClusters(obj, res=1, graph.name = 'RNA_NN', algorithm=4)
+sum(tmp1$seurat_clusters == tmp2$seurat_clusters)
+
+apply(tmp$clusters,2,function(x) length(unique(x)))
+sil <- vapply(as.list(tmp$clusters), function(x) mean(approxSilhouette(objs$Flex_F1A@reductions$pca@cell.embeddings[,1:20], x)$width), 0)
+plot(seq(0.01,0.1,0.01), sil, xlab="Resolution", ylab="Average silhouette width")
+```
+
+
+```{r}
+figures[['Sample_level_umaps']] <- list()
+for (kit in metadata$Kit) {
+  figures[['Sample_level_umaps']][[kit]] <- list()
+  for (sample in metadata$Sample[metadata$Kit == kit]) {
+    res <- res_table[[sample]]
+    res <- res$resolution[which.max(res$avg_sil)]
+    print(res)
+    # objs[[sample]] <- FindClusters(objs[[sample]], resolution = res, graph.name = 'RNA_NN', verbose = FALSE)
+    # figures[['Sample_level_umaps']][[kit]][[sample]] <- DimPlot(objs[[sample]], group.by='seurat_clusters', label=TRUE)
+  }
+}
+```
+
+# Annotation cluster overlap
+
+```{r}
+objs$Flex_F1A %>% DimPlot(group.by='seurat_clusters', label = TRUE)
+objs$Flex_F1A %>% DimPlot(group.by='HPCA.main.pruned.labels', label = TRUE)
+objs$Flex_F1A %>% FeaturePlot(group.by='HPCA.main.delta.next', label = TRUE)
+
+objs$Flex_F1A %>% DimPlot(group.by='seurat_clusters', label = TRUE)
+objs$Flex_F1A %>% DimPlot(group.by='HPCA.main.pruned.labels', label = TRUE)
+objs$Flex_F1A %>% FeaturePlot(group.by='HPCA.main.delta.next', label = TRUE)
+```
+
+```{r}
+summarize_annotations <- function(obj, annotation_prefix, cluster_column='seurat_clusters') {
+  annotation_col <- paste0(annotation_prefix, '.pruned.labels')
+  score_col <- paste0(annotation_prefix, '.delta.next')
+  obj@meta.data %>%
+    group_by(all_of(cluster_column, annotation_col)) %>%
+    summarize(
+      count = n(),
+      percentage = n() / sum(n()),
+      median_score = median(all_of(score_col)),
+      .groups = "drop"
+    ) %>%
+    arrange({{cluster_column}}, desc(count)) %>%
+    group_by({{cluster_column}}) %>%
+    slice_head(n = 2) %>%          
+    ungroup() %>%
+    group_by({{cluster_column}}) %>%
+    summarize(
+      first_annotation = first(all_of(annotation_col)),
+      first_annotation_percentage = first(percentage) * 100,
+      first_annotation_median_score = first(median_score),
+      second_annotation = nth(all_of(annotation_col), 2),
+      second_annotation_percentage = nth(percentage, 2) * 100,
+      second_annotation_median_score = nth(median_score, 2)
+    )
+}
+summarize_annotations(objs$Flex_F1A, 'HPCA.main')
+```
+
+
+
+# Render report
+
+```{r, eval=TRUE}
+## This only works if all the variables called in the format file 
+## are in the current environment. Check the format file to tweak
+## aesthetics 
+rmarkdown::render(here('scripts/03-clustering.format.Rmd'),
+                  output_file = '10x_3p+felx_QC_figs.html',
+                  output_dir = here('reports'))
+```
