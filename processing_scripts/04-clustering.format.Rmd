@@ -1,6 +1,8 @@
 ---
-title: 'SC processing'
-author: "FHIL\nDerrikGratz"
+title: 'BM02 Clustering and annotation'
+author: |
+  | FHIL
+  | Derrik Gratz
 date: '`r Sys.Date()`'
 output: 
   rmdformats::robobook:
@@ -10,165 +12,152 @@ output:
 ---
 
 ```{r, include=FALSE}
+library(knitr)
 knitr::opts_chunk$set(echo = FALSE,
                       fig.width = 8, fig.height = 6,
                       cache=FALSE, cache.lazy = FALSE) 
 ```
 
-# QC Metrics
+This report is intended as an in-depth look at the decision points, intermediate data, and possible points of interest. 
+It does not represent a final state of the data, and not every figure here is intended to be used for publication. 
+Aesthetics and image quality can be improved for final versions of images.
 
-## Mitochondrial {.tabset}
+# Natural clustering {.tabset}
 
-### Vln
+Clustering resolution for each sample was selected by optomizing for the silhouette score for a span of resolution values that
+produced between 5 and 20 clusters.The Louvian algorithm implemented by Seurat was used for clustering.
 
-```{r}
-figures[['mt_vln_facet']]
-```
-
-### Summarized boxplot
-
-```{r}
-figures[['mt_sum_boxplot']]
-```
-
-***
-
-## Ribosomal {.tabset}
-
-### Vln
-
-```{r}
-figures[['rb_vln_facet']]
-```
-
-### Summarized boxplot
-
-```{r}
-figures[['rb_sum_boxplot']]
-```
-
-***
-
-## Gene count {.tabset}
-
-### Vln
-
-```{r}
-figures[['nFeature_vln_facet']]
-```
-
-### Summarized boxplot
-
-```{r}
-figures[['nFeature_sum_boxplot']]
-```
-
-***
-
-## UMI count {.tabset}
-
-### Vln
-
-```{r}
-figures[['nCountUMI_vln_facet']]
-```
-
-### Summarized boxplot
-
-```{r}
-figures[['nCountUMI_sum_boxplot']]
-```
-
-***
-
-## Complexity {.tabset}
-
-$log10(nGene)/log10(nUMI)$ A proxy for diversity of expression across genes (i.e. "complexity score"). Low complexity cells (e.g. red blood cells) have expression dominated by only a few genes.
-
-### Vln
-
-```{r}
-figures[['complexity_vln_facet']]
-```
-
-### Summarized boxplot
-
-```{r}
-figures[['complexity_sum_boxplot']]
-```
-
-***
-
-# Metric outliers
-
-Rather than setting hard cutoffs for QC metrics, thresholds are set based on median absolute deviations on a per-capture basis. 
-This provides more tailored QC filtering that allows for variability between captures. Outlier sensitivity can be changed
-up or down based on study needs. For this analysis, cells greater than 4 MADs are considered outliers.
-
-```{r}
-figures[['outlier_portion_barchart']]
-```
-
-***
-
-# Multiplets
-
-As identified by [scDblFinder](https://bioconductor.org/packages/release/bioc/html/scDblFinder.html). The algorithm is ran on the full, unfiltered dataset. 
-
-## Barchart
-
-```{r}
-figures[['doublet_portion_barchart']]
-```
-
-## Dotplots {.tabset}
-
-Most doublet finding algorithms will struggle to identify homotypic multiplets, where 2 or more cells of the same biological state/type
-occupy the same GEM. These can often be identified by higher UMI recovery than the rest of the data. Dashed lines here indicate thresholds for outliers in this capture.
-
-```{r, eval=FALSE, results='asis'}
-chunk_text = "\n### {{i}}\n```{r}\nfigures[['doublet_metric_dotplot']][['{{i}}']]\n```"
+```{r, results='asis'}
 out <- NULL
-for (i in names(figures[['doublet_metric_dotplot']])) {
-  out = c(out, knitr::knit_expand(text = chunk_text))
+for (kit in unique(metadata$Kit)) {
+  chunktext <- '\n## {{kit}} {.unlist}\n'
+  out = c(out, knit_expand(text = chunktext))
+      chunktext <- '
+      \n```{r, fig.width=12, fig.height=10}\n
+      grid.arrange(grobs=figures$Sample_level_umaps[["{{kit}}"]], nrow=2, ncol=2)
+      \n```\n
+      '
+      out = c(out, knit_expand(text = chunktext))
 }
 
-cat(knitr::knit_child(text = out, quiet = TRUE), sep = '\n')
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
 ```
 
-## {-}
+# Gene signatures {.tabset}
 
-***
+Celltype gene markers from literature. **If you have more, please let me know so we can expand the database**. 
 
-## Dimplots {.tabset}
-
-It can be interesting to see if doublets are clustering together. This may indicate a true cell population being called as doublets.
-
-```{r, eval=FALSE, results='asis'}
-chunk_text = "\n### {{i}}\n```{r}\nfigures[['doublet_dimplots']][['{{i}}']]\n```"
+```{r, results='asis'}
 out <- NULL
-for (i in names(figures[['doublet_dimplots']])) {
-  out = c(out, knitr::knit_expand(text = chunk_text))
+for (kit in unique(metadata$Kit)) {
+  chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
+  out = c(out, knit_expand(text = chunktext))
+  for (sample in metadata$Sample[metadata$Kit == kit]) {
+    ind <- metadata$Individual[metadata$Sample==sample]
+    rep <- metadata$Replicate[metadata$Sample==sample]
+    chunktext <- '\n### {{ind}}{{rep}} {.unlist}
+    \n```{r, fig.width=40, fig.height=11}\n
+    figures$marker_dotplots[[paste0("{{sample}}")]]
+    \n```\n
+    '
+    out = c(out, knit_expand(text = chunktext))
+  }
 }
 
-cat(knitr::knit_child(text = out, quiet = TRUE), sep = '\n')
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
 ```
 
-## {-}
+# Reference mapping
 
-***
+Expression matrices from published annotated datasets are used to predict celltype labels in our data. [SingleR](https://www.nature.com/articles/s41590-018-0276-y) is used as the prediction algorithm with data
+from the [celldex](https://github.com/SingleR-inc/celldex) collection. The following datasets were used:
 
-# Final GEM quantification {.tabset}
+- Human primary cell atlas [Mabbott et al. 2013](https://doi.org/10.1186/1471-2164-14-632)
+- Sorted hematopoietic cells [Novershtern et al. 2011](https://doi.org/10.1016/j.cell.2011.01.004)
 
-## Counts
+## Novershtern {.tabset}
 
-```{r}
-figures[['cell_quality_counts']]
+```{r, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  chunktext <- '\n### {{kit}} {.tabset .unlist}\n'
+  out = c(out, knit_expand(text = chunktext))
+  for (sample in metadata$Sample[metadata$Kit == kit]) {
+    ind <- metadata$Individual[metadata$Sample==sample]
+    rep <- metadata$Replicate[metadata$Sample==sample]
+    chunktext <- '\n#### {{ind}}{{rep}} {.unlist}
+      \n```{r, fig.width=18, fig.height=5}\n
+      grid.arrange(grobs=figures[["annotation_overlays_nove"]][["{{kit}}"]][["{{sample}}"]], nrow=1)
+      nove_annotations[["{{sample}}"]] |>
+          janitor::adorn_rounding(digits = 2) |>
+          knitr::kable(col.names = c("Cluster", "Primary annotation", "% primary annotation", "Primary annotation median score",
+                                               "Secondary annotation", "% secondary annotation", "Second annotation median score"))
+      \n```\n
+      '
+      out = c(out, knit_expand(text = chunktext))
+  }
+}
+
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
 ```
 
-## Proportions
+## Human primary cell atlas {.tabset}
 
-```{r}
-figures[['cell_quality_proportions']]
+```{r, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  chunktext <- '\n### {{kit}} {.tabset .unlist}\n'
+  out = c(out, knit_expand(text = chunktext))
+  for (sample in metadata$Sample[metadata$Kit == kit]) {
+    ind <- metadata$Individual[metadata$Sample==sample]
+    rep <- metadata$Replicate[metadata$Sample==sample]
+    chunktext <- '\n#### {{ind}}{{rep}} {.unlist}
+      \n```{r, fig.width=18, fig.height=5}\n
+      grid.arrange(grobs=figures[["annotation_overlays_hpca"]][["{{kit}}"]][["{{sample}}"]], nrow=1)
+      hpca_annotations[["{{sample}}"]] |>
+          janitor::adorn_rounding(digits = 2) |>
+          knitr::kable(col.names = c("Cluster", "Primary annotation", "% primary annotation", "Primary annotation median score",
+                                               "Secondary annotation", "% secondary annotation", "Second annotation median score"))
+      \n```\n
+      '
+      out = c(out, knit_expand(text = chunktext))
+  }
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
 ```
 
+# Final annotations {.tabset}
+
+My first pass at cell annotation, manually aggregating calls from the reference sets and marker genes.
+
+**This will likely not be the final annotations, and should be reviewed more carefully.**
+
+```{r, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
+  out = c(out, knit_expand(text = chunktext))
+  for (sample in metadata$Sample[metadata$Kit == kit]) {
+    ind <- metadata$Individual[metadata$Sample==sample]
+    rep <- metadata$Replicate[metadata$Sample==sample]
+    chunktext <- '\n### {{ind}}{{rep}} {.unlist}
+      \n```{r, fig.width=13, fig.height=5}\n
+      grid.arrange(
+        DimPlot(objs[["{{sample}}"]], group.by = "annotations", raster = TRUE, raster.dpi = c(512, 512), label=TRUE),
+        DimPlot(objs[["{{sample}}"]], group.by = "cell_labels", raster = TRUE, raster.dpi = c(512, 512), label=TRUE),
+        nrow=1
+      )
+      objs[["{{sample}}"]]@meta.data$cell_labels |> 
+        tabyl() |> 
+        arrange(desc(n)) |>
+        adorn_rounding(digits=2) |>
+        knitr::kable(col.names=c("Cell label", "Count", "Percent"))
+      \n```\n
+      '
+      out = c(out, knit_expand(text = chunktext))
+  }
+}
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
