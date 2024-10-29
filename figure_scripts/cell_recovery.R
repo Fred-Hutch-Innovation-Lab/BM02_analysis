@@ -16,7 +16,6 @@ main <- function() {
   
   pipeline_data <- read_xlsx(here('data/pipeline_summary_statistics/downsampled_data.xlsx'), skip = 1) %>%
     filter(!METRICS %in% c('Last updated')) %>%
-    # mutate(across(-c('METRICS'), as.numeric)) %>%
     column_to_rownames('METRICS') %>%
     t() %>% 
     as.data.frame() %>%
@@ -59,52 +58,55 @@ main <- function() {
              next_remaining = lead(Freq, default = 0),  # Next step's remaining count (or 0 for the last step)
              difference = Freq - next_remaining         # Difference from the next entry
            )
-  
   ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
     facet_wrap(~Kit, scales = 'free_x', nrow=1) +
     ggbreak::scale_y_break(c(130000, 200000), ticklabels = c(200000, 230000))+
-    scale_fill_manual(values = c('darkgrey', '#7c1d6f', '#Cf597e', '#e9e29c', '#39B185'), labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
+    scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
+                      labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
     labs(x='Sample', y='Number of cells', fill='Classification') ->
     cell_recovery_figures[['cell_recovery_counts_break']] 
-  ggsave(filename = 'cell_recovery_counts_break.png', path = here('figures'),
+  ggsave(filename = 'cell_recovery_counts_break.png', path = here('figures/cell_recovery'),
          device = 'png', 
          height = unit(7, 'in'), width = unit(9, 'in'))
   
   ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
     facet_wrap(~Kit, scales = 'free_x', nrow=1) +
-    scale_fill_manual(values = c('darkgrey', '#7c1d6f', '#Cf597e', '#e9e29c', '#39B185'), labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
+    scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
+                      labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
     labs(x='Sample', y='Number of cells', fill='Classification') ->
     cell_recovery_figures[['cell_recovery_counts']] 
-  ggsave(filename = 'cell_recovery_counts.png', path = here('figures'),
+  ggsave(filename = 'cell_recovery_counts.png', path = here('figures/cell_recovery'),
          device = 'png', 
          height = unit(7, 'in'), width = unit(9, 'in'))
   
   plotdata %>% 
     group_by(Sample) %>%
-    mutate(difference = difference / sum (difference)) %>%
+    mutate(difference = 100 * difference / sum (difference)) %>%
     ggplot(aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
     facet_wrap(~Kit, scales = 'free_x', nrow=1) +
-    scale_fill_manual(values = c('darkgrey', '#7c1d6f', '#Cf597e', '#e9e29c', '#39B185'), labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
-    labs(x='Sample', y='Portion of capture', fill='Classification') ->
+    scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'), 
+                      labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
+    labs(x='Sample', y='% of capture', fill='Classification') ->
     cell_recovery_figures[['cell_recovery_portions']] 
-  ggsave(filename = 'cell_recovery_portions.png', path = here('figures'),
+  ggsave(filename = 'cell_recovery_portions.png', path = here('figures/cell_recovery'),
          device = 'png', 
          height = unit(7, 'in'), width = unit(9, 'in')) 
   
   plotdata %>% 
     group_by(Sample) %>%
     filter(class != '# cells barcoded') %>%
-    mutate(difference = difference / sum (difference)) %>%
+    mutate(difference = 100 * difference / sum (difference)) %>%
     ggplot(aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
     facet_wrap(~Kit, scales = 'free_x', nrow=1) +
-    scale_fill_manual(values = c('#7c1d6f', '#Cf597e', '#e9e29c', '#39B185'), labels = c('Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
-    labs(x='Sample', y='Portion of capture', fill='Classification') ->
+    scale_fill_manual(values = c('#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
+                      labels = c('Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
+    labs(x='Sample', y='% of capture', fill='Classification') ->
     cell_recovery_figures[['cell_recovery_portions_nocellbarcoded']] 
-  ggsave(filename = 'cell_recovery_portions_noremainderbarcoded.png', path = here('figures'),
+  ggsave(filename = 'cell_recovery_portions_noremainderbarcoded.png', path = here('figures/cell_recovery'),
          device = 'png', 
          height = unit(7, 'in'), width = unit(9, 'in')) 
   
