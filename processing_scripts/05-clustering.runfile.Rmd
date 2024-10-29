@@ -1,0 +1,1442 @@
+---
+title: 'SC processing'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+
+library(tidyverse)  ## General R logic
+library(here)       ## Easier specification of file locations
+library(yaml)       ## parses config yaml
+library(Seurat)
+library(reshape2)   ## DF manipulation
+# library(clustree)   ## Resolution selection for clustering
+# library(ggraph)     ## To render clustree
+library(bluster)     ## Sihouette scores
+library(SingleR)    ## reference based annotation
+library(ggforestplot) ## Striped lines for dotplots
+library(SingleCellExperiment)
+library(gridExtra)  ## arrange plots
+library(janitor) ## Tabyl, adorn_rounding
+library(ggrastr) ## Rasterize images for smaller size
+rbindlist <- data.table::rbindlist
+set.seed(33)
+```
+
+# Functions
+
+```{r}
+add_suffix_to_duplicates <- function(vec) {
+  counts <- ave(seq_along(vec), vec, FUN = seq_along)
+  vec[counts > 1] <- paste0(vec[counts > 1], "_", counts[counts > 1])
+  return(vec)
+}
+```
+
+
+# Load data
+
+```{r}
+objs <- readRDS(here('rds/04_objs_post_annotation.rds'))
+metadata <- read.csv(here('config/metadata.csv'))
+figures <- list()
+```
+
+# Fixed resolution
+
+```{r}
+lapply(objs, DimPlot)
+```
+
+# Explore resolutions
+
+<!-- ## Louvian -->
+
+<!-- ### Clustree -->
+
+<!-- ```{r} -->
+<!-- createClustree <- function(obj, -->
+<!--                            res = c(seq(0.1,1.5, .1), 2, 3, 5), ...) { -->
+<!--   for (i in res) { -->
+<!--     obj <- Seurat::FindClusters(obj, res=i) -->
+<!--   } -->
+<!--   clustree::clustree(obj, ...) -->
+<!-- } -->
+
+<!-- clustrees <- lapply(objs, createClustree) -->
+
+<!-- for ( i in names(clustrees)){ -->
+<!--   clustrees[[i]] <- clustrees[[i]] + ggtitle(i) -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- ### Seurat louvain -->
+
+<!-- ```{r} -->
+<!-- res_selection <- function(obj, -->
+<!--                           seqs=c(seq(0.01,0.05, 0.01),  -->
+<!--                                  seq(0.1,0.4,0.05), -->
+<!--                                  seq(0.5,1, .1),  -->
+<!--                                  c(1.2, 1.4, 1.6, 1.8, 2)), -->
+<!--                           ndim=20) { -->
+<!--   x <- list() -->
+<!--   print('Next iter') -->
+<!--   for (res in seqs) { -->
+<!--     print(res) -->
+<!--     clus <- FindClusters(obj, resolution = res, verbose = FALSE)$seurat_clusters -->
+<!--     nclus <- length(levels(clus)) -->
+<!--     if (nclus == 0) { -->
+<!--       avg_sil <- NA -->
+<!--       avg_pur <- NA -->
+<!--     } else { -->
+<!--       avg_sil <- approxSilhouette(obj@reductions$pca@cell.embeddings[,1:ndim], clus)$width %>% mean() -->
+<!--       avg_pur <- neighborPurity(obj@reductions$pca@cell.embeddings[,1:ndim], clus)$purity %>% mean() -->
+<!--     } -->
+<!--     x[[paste0('res_', res)]] <- list(avg_sil=avg_sil, avg_pur=avg_pur, nclus=nclus, joint=avg_sil + avg_pur)   -->
+<!--     if (nclus > 20) { -->
+<!--       break -->
+<!--     } -->
+<!--   } -->
+<!--   x <- data.table::rbindlist(x) %>% -->
+<!--     as.data.frame() -->
+<!--   x[['rank_sil']] <- data.table::frankv(x, 'avg_sil', order=-1) -->
+<!--   x[['rank_pur']] <- data.table::frankv(x, 'avg_pur', order=-1) -->
+<!--   x <- x %>% mutate(rank = (rank_sil + rank_pur) /2) -->
+<!--   x$resolution <- seqs[1:match(res, seqs)] -->
+<!--   x  -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- res_table <- lapply(objs, res_selection) -->
+<!-- ``` -->
+
+## Leiden Igraph
+
+```{r}
+PrepareGraph <- function(g) {
+  ## https://rdrr.io/github/joshpeters/westerlund/src/R/functions.R
+  attributes(g)[[1]] <- NULL
+  attributes(g)$class <- "dgCMatrix"
+  g <- igraph::graph_from_adjacency_matrix(adjmatrix = g, mode = "undirected", weighted = TRUE, add.colnames = TRUE)
+  g
+}
+
+relevel_clusters <- function(numbers) {
+  value_counts <- table(numbers)
+  sorted_values <- names(sort(value_counts, decreasing = TRUE))
+  factor_map <- setNames(seq_along(sorted_values) - 1, sorted_values)
+  replaced_values <- factor_map[as.character(numbers)]
+  factor(replaced_values, levels = factor_map)
+}
+
+GroupSingletons <- function(ids, snn, min.size = 9, clusters.to.merge, group.singletons = TRUE, verbose = TRUE) {
+
+  # usethis::ui_info("Merging small or provided clusters")
+
+  # identify singletons
+  singletons <- c()
+  singletons <- names(x = which(x = table(ids) <= min.size))
+  singletons <- intersect(x = unique(x = ids), singletons)
+
+  if (!missing(clusters.to.merge)) {
+    singletons <- c(singletons, as.character(clusters.to.merge))
+  }
+
+  if (!group.singletons) {
+    ids[which(ids %in% singletons)] <- "singleton"
+    return(ids)
+  }
+
+  # calculate connectivity of singletons to other clusters, add singleton
+  # to cluster it is most connected to
+
+  if (!is_empty(singletons)) {
+    cluster_names <- as.character(x = unique(x = ids))
+    cluster_names <- setdiff(x = cluster_names, y = singletons)
+    connectivity <- vector(mode = "numeric", length = length(x = cluster_names))
+    names(x = connectivity) <- cluster_names
+    new.ids <- ids
+    for (i in singletons) {
+      i.cells <- names(which(ids == i))
+      for (j in cluster_names) {
+        j.cells <- names(which(ids == j))
+        subSNN <- snn[i.cells, j.cells]
+        # set.seed(1) # to match previous behavior, random seed being set in WhichCells
+        if (is.object(x = subSNN)) {
+          connectivity[j] <- sum(subSNN) / (nrow(x = subSNN) * ncol(x = subSNN))
+        } else {
+          connectivity[j] <- mean(x = subSNN)
+        }
+      }
+      m <- max(connectivity, na.rm = T)
+      mi <- which(x = connectivity == m, arr.ind = TRUE)
+      closest_cluster <- sample(x = names(x = connectivity[mi]), 1)
+      ids[i.cells] <- closest_cluster
+    }
+  }
+
+  if (verbose) {
+    message(paste(
+      length(x = singletons),
+      "singletons identified.",
+      length(x = unique(x = ids)),
+      "final clusters."
+    ))
+  }
+
+  return(ids)
+}
+```
+
+
+```{r}
+clusterSweepLeiden <- function(obj, resolutions, graph='RNA_snn', ndim=20) {
+  pca <- obj@reductions$pca@cell.embeddings[,1:ndim]
+  i_graph <- PrepareGraph(obj@graphs[[graph]])
+  results <- list()
+  for (res in resolutions){
+    comm <- igraph::cluster_leiden(i_graph, resolution = res)
+    ids <- comm$membership
+    names(ids) <- Cells(obj)
+    ids <- GroupSingletons(ids, obj@graphs[[graph]])
+    ids <- relevel_clusters(ids)
+    names(ids) <- Cells(obj)
+    
+    comm$membership <- ids
+    comm$nb_clusters <- length(levels(ids))
+    
+    comm$sil <- bluster::approxSilhouette(pca, ids)
+    comm$pur <- bluster::neighborPurity(pca, ids)
+    results[[paste0('res_', res)]] <- comm
+    
+    if (comm$nb_clusters > 30) {
+      break
+    }
+  }
+  message('returning obj ', obj@project.name)
+  return(results)
+}
+
+```
+
+
+```{r, eval=FALSE}
+leiden_sweep_res <- lapply(objs, clusterSweepLeiden, resolutions = seq(0.0001, 0.001, 0.0001))
+for (smple in metadata$Sample[metadata$Kit=='Scale' | metadata$Kit=='NextGEM3P']) {
+  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.00001, 0.001, 0.00005))
+}
+saveRDS(leiden_sweep_res, here('rds/leiden_sweep_res.rds'), compress = FALSE)
+```
+
+```{r}
+leiden_sweep_res <- readRDS(here('rds/leiden_sweep_res.rds'))
+```
+
+
+```{r}
+optimal_resolution <- list()
+for (smple in names(leiden_sweep_res)) {
+  optimal_resolution[[smple]] <- lapply(leiden_sweep_res[[smple]], function(x){
+    return(list(nclus=x$nb_clusters, quality=x$quality, sil=mean(x$sil$width), pur=mean(x$pur$purity)))
+  }) |>
+    rbindlist(idcol='res', use.names = TRUE) |>
+    mutate( z = quality + pur + sil - (1/nclus)) |>
+    mutate(z2 = rank(-z), sil2 = rank(-sil))
+}
+optimal_resolution <- lapply(optimal_resolution, function(x){
+  x |>
+    filter(nclus >= 10) |>
+    slice_max(sil)
+}) |> 
+  rbindlist(idcol='sample')
+optimal_resolution
+```
+
+```{r}
+for (smple in metadata$Sample) {
+  res <- optimal_resolution$res[optimal_resolution$sample==smple]
+  clus <- leiden_sweep_res[[smple]][[res]]$membership
+  names(clus) <- Cells(objs[[smple]])
+  objs[[smple]]$seurat_clusters <- clus 
+  objs[[smple]]$seurat_clusters <- clus 
+  Idents(objs[[smple]]) <- objs[[smple]]$seurat_clusters 
+}
+```
+
+```{r}
+lapply(objs, DimPlot, label=TRUE)
+```
+
+# Annotation cluster overlap
+
+## DT
+
+```{r}
+extract_cluster_annotations <- function(data, label_cols, score_cols, names) {
+  results <- list()
+  for (i in 1:length(label_cols)) {
+    labels <- label_cols[i]
+    scores <- score_cols[i]
+    results[[names[i]]] <- data@meta.data %>%
+      select(seurat_clusters, .data[[labels]], .data[[scores]]) %>%
+      group_by(seurat_clusters, .data[[labels]]) %>%
+      summarise(n = n(),
+                med.score = round(median(.data[[scores]]),2), .groups = 'drop_last') %>%
+      mutate(total_cells = sum(n),
+             percent = round(n / total_cells * 100, 2)) %>%
+      slice_max(n, with_ties = FALSE) %>%
+      select(-n) %>%
+    rename_with(~ paste0(names[i], '.', .x), .cols = c('percent', 'med.score'))
+  }
+  if (length(label_cols) > 1) {
+    results <- Reduce(function(x,y) merge(x,y, by=c('seurat_clusters', 'total_cells')), results)
+  } else {
+    results <- results[[1]]
+  }
+  results <- results %>% arrange(seurat_clusters)
+}
+```
+
+```{r}
+cluster_annotations <- lapply(objs, extract_cluster_annotations, 
+                              label_cols = c("renamed.predicted.pbmc3k_seurat_annotations",
+                                             "renamed.Mona.main.labels",
+                                             "renamed.Novershtern.main.labels",
+                                             "renamed.HPCA.main.labels"),
+                              score_cols = c('predicted.pbmc3k_seurat_annotations.score',
+                                             "Mona.main.delta.next",
+                                             "Novershtern.main.delta.next",
+                                             "HPCA.main.delta.next"),
+                              names=c('seurat_pbmc3k', 'singler_mona', 'singler_novershtern', 'singler_HPCA'))
+```
+
+
+```{r}
+annotation_summary_DT <- function(data) {
+  datatable(data, rownames = FALSE,
+    options = list(pageLength = 22,
+                   searching=FALSE,
+                   ordering=FALSE,
+                   lengthChange = FALSE), 
+    colnames = c('Cluster', 'Cell count', 'Seurat pbcm3k label', 'Seurat pbmc3k score', 'Seurat pbmc3k %', 
+                 'SingleR Mona label', 'SingleR Mona score', 'SingleR Mona %',
+                 'SingleR Nover label', 'SingleR Nover score', 'SingleR Nover %',
+                 'SingleR HPCA label', 'SingleR HPCA score', 'SingleR HPCA %')
+    ) %>%
+  formatStyle(c("seurat_pbmc3k.percent","singler_mona.percent","singler_novershtern.percent","singler_HPCA.percent"),
+              background = styleColorBar(range(c(0,100)), 'lightgreen'))  %>%
+  formatStyle(c("seurat_pbmc3k.med.score",
+                "singler_mona.med.score",
+                "singler_novershtern.med.score",
+                "singler_HPCA.med.score"),
+              background = styleColorBar(seq(0,0.9,.1), 'lightblue')) %>%
+  formatStyle(
+    c("renamed.predicted.pbmc3k_seurat_annotations",
+    "renamed.Mona.main.labels",
+    "renamed.Novershtern.main.labels",
+    "renamed.HPCA.main.labels"),
+    `border-left` = styleEqual(1, 'solid 3px')
+  )
+}
+```
+
+```{r}
+figures[['annotation_DT']] <- lapply(objs, function(x) annotation_summary_DT(cluster_annotations[[x@project.name]]))
+```
+
+<!-- ## Dimplots -->
+
+<!-- ```{r, fig.width=18, fig.height=5} -->
+<!-- figures[['annotation_overlays_nove']] <- list() -->
+<!-- for (kit in unique(metadata$Kit)) { -->
+<!--   figures[['annotation_overlays_nove']][[kit]] <- list() -->
+<!--   for (sample in metadata$Sample[metadata$Kit == kit]) { -->
+<!--     p1 <- DimPlot(objs[[sample]], group.by="seurat_clusters", label = TRUE, raster = TRUE, raster.dpi = c(512, 512)) -->
+<!--     p2 <- DimPlot(objs[[sample]], group.by="Novershtern.main.pruned.labels", raster = TRUE, raster.dpi = c(512, 512) , label = TRUE) -->
+<!--     p3 <- FeaturePlot(objs[[sample]], "Novershtern.main.delta.next", raster = TRUE, raster.dpi = c(512, 512)) -->
+<!--     figures[['annotation_overlays_nove']][[kit]][[sample]] <- list(p1, p2, p3) -->
+<!--   } -->
+<!-- } -->
+<!-- grid.arrange(grobs=figures[['annotation_overlays_nove']][['Fluent']]$FB_2_F1A, nrow=1) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- figures[['annotation_overlays_hpca']] <- list() -->
+<!-- for (kit in unique(metadata$Kit)) { -->
+<!--   figures[['annotation_overlays_hpca']][[kit]] <- list() -->
+<!--   for (sample in metadata$Sample[metadata$Kit == kit]) { -->
+<!--     p1 <- DimPlot(objs[[sample]], group.by="seurat_clusters", raster = TRUE, raster.dpi = c(512, 512), label = TRUE) -->
+<!--     p2 <- DimPlot(objs[[sample]], group.by="HPCA.main.pruned.labels", raster = TRUE, raster.dpi = c(512, 512), label = TRUE) -->
+<!--     p3 <- FeaturePlot(objs[[sample]], "HPCA.main.delta.next", raster = TRUE, raster.dpi = c(512, 512)) -->
+<!--     figures[['annotation_overlays_hpca']][[kit]][[sample]] <- list(p1, p2, p3) -->
+<!--   } -->
+<!-- } -->
+<!-- figures[['annotation_overlays_hpca']][['Fluent']] -->
+<!-- ``` -->
+
+<!-- ## Tables -->
+
+<!-- ```{r} -->
+<!-- summarize_annotations <- function(obj, annotation_prefix, cluster_column='seurat_clusters') { -->
+<!--   annotation_col <- paste0(annotation_prefix, '.pruned.labels') -->
+<!--   score_col <- paste0(annotation_prefix, '.delta.next') -->
+<!--   obj@meta.data %>% -->
+<!--     group_by(.data[[cluster_column]], .data[[annotation_col]]) %>% -->
+<!--     summarize( -->
+<!--       n = n(), -->
+<!--       median_score = median(.data[[score_col]]), .groups = 'keep' -->
+<!--     ) %>% -->
+<!--     arrange(.data[[cluster_column]], desc(n)) %>% -->
+<!--     group_by(.data[[cluster_column]]) %>% -->
+<!--     mutate(percentage = n / sum(n)) %>% -->
+<!--     summarize( -->
+<!--       first_annotation = dplyr::first(.data[[annotation_col]]), -->
+<!--       first_annotation_percentage = dplyr::first(percentage) * 100, -->
+<!--       first_annotation_median_score = dplyr::first(median_score), -->
+<!--       second_annotation = dplyr::nth(.data[[annotation_col]], 2), -->
+<!--       second_annotation_percentage = dplyr::nth(percentage, 2) * 100, -->
+<!--       second_annotation_median_score = dplyr::nth(median_score, 2) -->
+<!--     ) -->
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- hpca_annotations <- lapply(objs, summarize_annotations, annotation_prefix = 'HPCA.main')  -->
+<!-- nove_annotations <- lapply(objs, summarize_annotations, annotation_prefix = 'Novershtern.main')  -->
+<!-- hpca_annotations$Flex_F1A |>  -->
+<!--   janitor::adorn_rounding(digits = 2) -->
+
+<!-- nove_annotations$Flex_F1A |>  -->
+<!--   janitor::adorn_rounding(digits = 2)  -->
+<!-- ``` -->
+
+# Marker genes
+
+```{r}
+celltype_markers <- read.csv('/fh/fast/_IRC/FHIL/grp/FHIL_knowledgebase/biology/celltype_markers.csv')
+
+parse_marker_table <- function(celltype_dataframe) {
+  celltype_dataframe %>%
+    filter(expression_level == 'Increased' & tissue == 'PBMC') %>%
+    filter(confidence != 'low') %>%
+    filter(celltype %in% c('T', 'B', 'Monocyte', 'NK', 'Dendritic', 'Neutrophil')) %>%
+    select(gene_symbol, celltype) %>%
+    unstack()
+}
+
+prune_marker_list <- function(input_list) {
+  all_items <- unlist(input_list, use.names = TRUE)
+  dup_items <- names(table(all_items))[table(all_items) > 1]
+  input_list_cleaned <- lapply(input_list, function(x) setdiff(x, dup_items))
+  
+  new_groups <- sapply(dup_items, function(item) {
+    found_in <- names(input_list)[sapply(input_list, function(x) item %in% x)]
+    new_group_name <- paste(found_in, collapse = " &\n")
+    return(new_group_name)
+  }, USE.NAMES = TRUE)
+  
+  new_list <- input_list_cleaned  
+  for (i in seq_along(dup_items)) {
+    new_list[[new_groups[i]]] <- c(new_list[[new_groups[i]]], dup_items[i])
+  }
+  
+  wrap_name <- function(name) {
+    wrapped_name <- strwrap(name, width = 10, simplify = TRUE)
+    wrapped_name <- paste(wrapped_name, collapse = "\n")
+    return(wrapped_name)
+  }
+  
+  names(new_list) <- sapply(names(new_list), wrap_name)# {
+  new_list
+}
+
+celltype_markers <- parse_marker_table(celltype_markers)
+celltype_markers <- prune_marker_list(celltype_markers)
+```
+
+```{r, fig.width=40, fig.height=12}
+figures$marker_dotplots <- lapply(objs, function(x) {
+  DotPlot(x, celltype_markers, group.by = 'seurat_clusters') + 
+    theme_grey() +
+    geom_stripes()
+})
+figures$marker_dotplots$Flex_F1A
+```
+
+# Final annotations
+
+## Flex
+
+### F1A
+
+```{r}
+samplename <- 'Flex_F1A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD8+ T",
+      "CD4+ T",
+      "Monocyte",
+      "B",
+      "CD8+ T", #5
+      "NK",
+      "Monocyte",
+      "CD8+ T",
+      "Dendritic",
+      "Platelet", #10
+      "Unknown"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F1B
+
+```{r}
+samplename <- 'Flex_F1B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD8+ T",
+      "CD4+ T",
+      "Monocyte",
+      "CD8+ T",
+      "CD8+ T", #5
+      "NK",
+      "Monocyte",
+      "CD8+ T",
+      "B",
+      "B", #10
+      "CD4+ T",
+      "Dendritic",
+      "Platelet",
+      "Unknown"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5A
+
+```{r}
+samplename <- 'Flex_F5A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD4+ T",
+      "Monocyte",
+      "CD8+ T",
+      "NK",
+      "CD8+ T", #5
+      "CD8+ T",
+      "B",
+      "B",
+      "Other T",
+      "CD4+ T", #10
+      "Monocyte",
+      "Dendritic",
+      "Platelet",
+      "Dendritic",
+      "Unknown",#15
+      "Unknown",
+      "NK"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5B
+
+```{r}
+samplename <- 'Flex_F5B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Monocyte",
+      "B",
+      "NK",
+      "CD4+ T",
+      "CD8+ T", #5
+      "CD8+ T", 
+      "CD8+ T",
+      "Other T",
+      "Platelet",
+      "Dendritic" #10
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+## Fluent
+
+### F1A
+
+```{r}
+samplename <- 'FB_2_F1A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Other T",
+      "CD8+ T",
+      "B",
+      "Other T",
+      "Other T", #5
+      "CD8+ T",
+      "Monocyte",
+      "NK",
+      "CD8+ T",
+      "Monocyte", #10
+      "CD4+ T",
+      "Platelet",
+      "Dendritic",
+      "Unknown"
+)
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F1B
+
+```{r}
+samplename <- 'FB_2_F1B'
+cell_labels <- c(
+    "CD4+ T", #0
+    "CD4+ T",
+    "CD8+ T",
+    "B",
+    "CD4+ T",
+    "Monocyte", #5
+    "Other T",
+    "CD8+ T",
+    "Unknown",
+    "NK",
+    "Monocyte", #10
+    "Unknown",
+    "Dendritic",
+    "Dendritic"
+  )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5A
+
+```{r}
+samplename <- 'FB_2_F5A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD4+ T",
+      "CD8+ T",
+      "NK",
+      "B",
+      "Monocyte", #5
+      "CD4+ T",
+      "Unknown",
+      "CD8+ T",
+      "Monocyte",
+      "Dendritic", #10
+      "Dendritic"
+)
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5B
+
+```{r}
+samplename <- 'FB_2_F5B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD4+ T",
+      "NK",
+      "B",
+      "CD8+ T",
+      "Monocyte", #5
+      "CD4+ T",
+      "CD4+ T",
+      "Other T",
+      "CD8+ T",
+      "Dendritic", #10
+      "Monocyte",
+      "Unknown" 
+)
+
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+## NextGEM
+
+### F1A
+
+```{r}
+samplename <- 'NextGEM3P_F1A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD8+ T",
+      "CD4+ T",
+      "Monocyte",
+      "B",
+      "CD8+ T", #5
+      "Monocyte",
+      "NK",
+      "CD8+ T",
+      "Dendritic",
+      "Platelet", #10
+      "Unknown"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F1B
+
+```{r}
+samplename <- 'NextGEM3P_F1B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD8+ T",
+      "CD4+ T",
+      "Monocyte",
+      "B",
+      "CD8+ T", #5
+      "Monocyte",
+      "CD8+ T",
+      "NK",
+      "Platelet",
+      "Dendritic", #10
+      "Unknown"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5A
+
+```{r}
+samplename <- 'NextGEM3P_F5A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD4+ T",
+      "Monocyte",
+      "NK",
+      "CD8+ T",
+      "CD8+ T", #5
+      "B",
+      "CD8+ T",
+      "B",
+      "CD4+ T",
+      "Other T", #10
+      "CD4+ T",
+      "Monocyte",
+      "Dendritic",
+      "Platelet",
+      "Dendritic"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5B
+
+```{r}
+samplename <- 'NextGEM3P_F5B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD4+ T",
+      "Monocyte",
+      "NK",
+      "CD8+ T",
+      "CD8+ T", #5
+      "B",
+      "CD8+ T",
+      "B",
+      "CD4+ T",
+      "CD8+ T", #10
+      "CD8+ T",
+      "Monocyte",
+      "CD4+ T",
+      "Dendritic",
+      "Platelet", #15
+      "NK",
+      "Dendritic",
+      "Monocyte"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+## GEMX
+
+### F1A
+
+```{r}
+samplename <- 'GEMX3P_F1A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD4+ T",
+      "CD8+ T",
+      "Monocyte",
+      "Other T",
+      "B", #5
+      "CD8+ T",
+      "CD8+ T",
+      "Monocyte",
+      "NK",
+      "Monocyte", #10
+      "Platelet",
+      "Dendritic",
+      "Unknown"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F1B
+
+```{r}
+samplename <- 'GEMX3P_F1B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "CD8+ T",
+      "CD4+ T",
+      "Monocyte",
+      "B",
+      "Other T", #5
+      "CD8+ T",
+      "NK",
+      "Monocyte",
+      "CD8+ T",
+      "Platelet", #10
+      "Monocyte",
+      "Dendritic",
+      "Unknown"
+      )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5A
+
+```{r}
+samplename <- 'GEMX3P_F5A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Monocyte",
+      "CD4+ T",
+      "NK",
+      "B",
+      "Other T", #5
+      "CD8+ T",
+      "CD8+ T",
+      "CD8+ T",
+      "B",
+      "Other T", #10
+      "CD8+ T",
+      "Monocyte",
+      "B",
+      "Dendritic",
+      "Platelet",
+      'Unknown',
+      'Unknown'
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5B
+
+```{r}
+samplename <- 'GEMX3P_F5B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Monocyte",
+      "CD4+ T",
+      "B",
+      "Other T",
+      "NK", #5
+      "CD8+ T",
+      "CD8+ T",
+      "CD8+ T",
+      "B",
+      "Other T", #10
+      "CD4+ T",
+      "CD8+ T",
+      "B",
+      "Monocyte",
+      "Platelet", #15
+      "NK",
+      "Dendritic",
+      "CD4+ T",
+      "NK",
+      "Dendritic", #20
+      "Monocyte",
+      "Unknown"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+## Parse
+
+### F1A
+
+```{r}
+samplename <- 'PA_V3_F1A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Other T",
+      "Monocyte",
+      "CD8+ T",
+      "CD8+ T",
+      "Monocyte", #5
+      "NK",
+      "CD8+ T",
+      "B",
+      "B",
+      "CD4+ T", #10
+      "Dendritic",
+      "Dendritic"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F1B
+
+```{r}
+samplename <- 'PA_V3_F1B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Monocyte",
+      "CD4+ T",
+      "CD8+ T",
+      "CD8+ T",
+      "CD8+ T", #5
+      "Monocyte",
+      "NK",
+      "B",
+      "CD8+ T",
+      "B", #10
+      "CD4+ T",
+      "Dendritic",
+      "Dendritic"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5A
+
+```{r}
+samplename <- 'PA_V3_F5A'
+cell_labels <- c(
+      "Other T", #0
+      "Monocyte",
+      "CD4+ T",
+      "B",
+      "NK",
+      "CD8+ T", #5
+      "CD8+ T",
+      "Other T",
+      "Monocyte",
+      "Dendritic"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5B
+
+```{r}
+samplename <- 'PA_V3_F5B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Monocyte",
+      "CD4+ T",
+      "CD8+ T",
+      "NK",
+      "CD8+ T", #5
+      "B",
+      "Other T",
+      "B",
+      "CD4+ T",
+      "CD8+ T", #10
+      "Monocyte",
+      "Dendritic",
+      "Dendritic"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+## Scale
+
+### F1A
+
+```{r}
+samplename <- 'Scale_F1A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Monocyte",
+      "CD4+ T",
+      "NK",
+      "B",
+      "B", #5
+      "CD8+ T",
+      "CD8+ T",
+      "NK",
+      "Other T",
+      "CD4+ T", #10
+      "NK",
+      "Monocyte",
+      "Dendritic",
+      "Monocyte",
+      "Dendritic", #15
+      "Dendritic"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F1B
+
+```{r}
+samplename <- 'Scale_F1B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Monocyte",
+      "CD8+ T",
+      "CD4+ T",
+      "CD8+ T",
+      "Monocyte", #5
+      "B",
+      "B",
+      "NK",
+      "CD8+ T",
+      "Other T", #10
+      "Other T",
+      "Other T",
+      "Monocyte",
+      "Dendritic",
+      "Monocyte", #15
+      'Dendritic'
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5A
+
+```{r}
+samplename <- 'Scale_F5A'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Monocyte",
+      "Other T",
+      "CD8+ T",
+      "B",
+      "CD8+ T", #5
+      "NK",
+      "Monocyte",
+      "CD8+ T",
+      "Other T",
+      "CD4+ T", #10
+      "CD4+ T",
+      "Dendritic",
+      "Dendritic"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+### F5B
+
+```{r}
+samplename <- 'Scale_F5B'
+cell_labels <- c(
+      "CD4+ T", #0
+      "Monocyte",
+      "B",
+      "CD4+ T",
+      "CD8+ T",
+      "CD8+ T", #5
+      "NK",
+      "CD4+ T",
+      "CD8+ T",
+      "CD8+ T",
+      "NK", #10
+      "Monocyte",
+      "Dendritic",
+      "Dendritic"
+    )
+objs[[samplename]]$cell_labels.fine <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = cell_labels
+  )
+
+objs[[samplename]]$annotations <- 
+  plyr::mapvalues(
+    x = objs[[samplename]]$seurat_clusters,
+    from = levels(objs[[samplename]]$seurat_clusters),
+    to = add_suffix_to_duplicates(cell_labels)
+  )
+
+DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
+DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
+```
+
+```{r}
+objs <- lapply(objs, function(obj) {
+  obj$cell_labels.coarse <- 
+    case_when(
+      obj$cell_labels.fine %in% c("CD4+ T", "CD8+ T", "Other T") ~ 'T',
+      .default = obj$cell_labels.fine
+    )
+  obj
+})
+```
+
+
+# Save objs
+
+```{r}
+saveRDS(objs, here('rds/05_objs_post_clustering.rds'), compress=FALSE)
+```
+
+# Render report
+
+```{r, eval=TRUE}
+## This only works if all the variables called in the format file 
+## are in the current environment. Check the format file to tweak
+## aesthetics 
+rmarkdown::render(here('processing_scripts/05-clustering.format.Rmd'),
+                  output_file = '05-clustering.html',
+                  output_dir = here('reports'))
+```
