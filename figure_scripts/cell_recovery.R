@@ -14,6 +14,26 @@ main <- function() {
   
   cell_recovery_figures <- list()
   
+  target_cells <- list(
+    'Flex' = 10000,
+    'NextGEM3P' = 10000,
+    'GEMX3P' = 20000,
+    'Fluent' = 20000,
+    'Parse_V3' = 25000,
+    'Scale' = 125000 /4
+  ) |> reshape2::melt() |>
+    rename(Kit = L1)
+  
+  target_cells_fraction <- list(
+    'Flex' = 10000/16871,
+    'NextGEM3P' = 10000/(1100*15),
+    'GEMX3P' = 20000/(1300*22.3),
+    'Fluent' = .5,
+    'Parse_V3' = 100000/(4*(520*14*12)),
+    'Scale' = NA
+  ) |> reshape2::melt() |>
+    rename(Kit = L1)
+  
   pipeline_data <- read_xlsx(here('data/pipeline_summary_statistics/downsampled_data.xlsx'), skip = 1) %>%
     filter(!METRICS %in% c('Last updated')) %>%
     column_to_rownames('METRICS') %>%
@@ -48,6 +68,7 @@ main <- function() {
   colnames(bad_cells) <- c('Freq', 'Sample')
   bad_cells$class <- 'after_qc_filtering'
   
+  
   plotdata <- do.call(rbind, list(pipeline_data, doublets, bad_cells)) %>%
     merge(metadata, by='Sample') %>%
     arrange(Sample, class) %>%
@@ -61,14 +82,15 @@ main <- function() {
   ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
     facet_wrap(~Kit, scales = 'free_x', nrow=1) +
-    ggbreak::scale_y_break(c(130000, 200000), ticklabels = c(200000, 230000))+
+    geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
+    ggbreak::scale_y_break(c(130000, 200000), ticklabels = c(200000, 230000))+ 
     scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
                       labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
-    labs(x='Sample', y='Number of cells', fill='Classification') ->
+    labs(x='Sample', y='Number of cells', fill='Classification', caption = 'Dashed lines indicate targeted cell recovery') ->
     cell_recovery_figures[['cell_recovery_counts_break']] 
   ggsave(filename = 'cell_recovery_counts_break.png', path = here('figures/cell_recovery'),
          device = 'png', 
-         height = unit(7, 'in'), width = unit(9, 'in'))
+         height = unit(7, 'in'), width = unit(10.5, 'in'))
   
   ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
@@ -81,15 +103,27 @@ main <- function() {
          device = 'png', 
          height = unit(7, 'in'), width = unit(9, 'in'))
   
+  ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
+    geom_col(position='stack') +
+    facet_wrap(~Kit, scales = 'free', nrow=1) +
+    scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
+                      labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
+    labs(x='Sample', y='Number of cells', fill='Classification') ->
+    cell_recovery_figures[['cell_recovery_counts']] 
+  ggsave(filename = 'cell_recovery_counts_freey.png', path = here('figures/cell_recovery'),
+         device = 'png', 
+         height = unit(7, 'in'), width = unit(14, 'in'))
+  
   plotdata %>% 
     group_by(Sample) %>%
     mutate(difference = 100 * difference / sum (difference)) %>%
     ggplot(aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
+    geom_hline(data = target_cells_fraction, aes(yintercept = 100*value), lty='dashed', color='black') +
     facet_wrap(~Kit, scales = 'free_x', nrow=1) +
     scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'), 
                       labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
-    labs(x='Sample', y='% of capture', fill='Classification') ->
+    labs(x='Sample', y='% of capture', fill='Classification', caption = 'Dashed lines indicate expected cell recovery') ->
     cell_recovery_figures[['cell_recovery_portions']] 
   ggsave(filename = 'cell_recovery_portions.png', path = here('figures/cell_recovery'),
          device = 'png', 
@@ -101,10 +135,11 @@ main <- function() {
     mutate(difference = 100 * difference / sum (difference)) %>%
     ggplot(aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
+    geom_hline(data = target_cells_fraction, aes(yintercept = 100*value), lty='dashed', color='black') +
     facet_wrap(~Kit, scales = 'free_x', nrow=1) +
     scale_fill_manual(values = c('#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
                       labels = c('Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
-    labs(x='Sample', y='% of capture', fill='Classification') ->
+    labs(x='Sample', y='% of capture', fill='Classification', caption = 'Dashed lines indicate expected cell recovery') ->
     cell_recovery_figures[['cell_recovery_portions_nocellbarcoded']] 
   ggsave(filename = 'cell_recovery_portions_noremainderbarcoded.png', path = here('figures/cell_recovery'),
          device = 'png', 
