@@ -72,7 +72,7 @@ for (kit in unique(metadata$Kit)) {
     chunktext <- "\n### {{ind}}{{rep}} {.unlist}
       \n```{r, fig.width=12, fig.height=10}\n
       grid.arrange(DimPlot(objs[['{{sample}}']], group.by = 'predicted.pbmc3k_seurat_annotations', label=TRUE),
-        DimPlot(objs[['{{sample}}']], group.by = 'Novershtern.main.labels', label=TRUE),
+        DimPlot(objs[['{{sample}}']], group.by = 'predicted.pbmcsca_seurat_annotations', label=TRUE),
         DimPlot(objs[['{{sample}}']], group.by = 'Mona.main.labels', label=TRUE),
         DimPlot(objs[['{{sample}}']], group.by = 'HPCA.main.labels', label=TRUE), nrow=2)
       \n```\n
@@ -99,7 +99,7 @@ for (kit in unique(metadata$Kit)) {
     rep <- metadata$Replicate[metadata$Sample==sample]
     chunktext <- '\n Sample {{ind}}{{rep}} \n'
     out = c(out, knit_expand(text = chunktext))
-    for (ref in c('nova', 'hpca', 'mona', 'pbmc3k')){
+    for (ref in c('pbmc3k','pbmcsca', 'mona', 'hpca')){
       chunktext <- '\n### {{ref}} {.unlist}
       \n```{r, fig.width=40, fig.height=11}\n
       figures[[paste0("marker_dotplots_", "{{ref}}")]][["{{sample}}"]]
