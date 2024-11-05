@@ -111,17 +111,25 @@ for (kit in unique(metadata$Kit)) {
     ind <- metadata$Individual[metadata$Sample==sample]
     rep <- metadata$Replicate[metadata$Sample==sample]
     chunktext <- '\n### {{ind}}{{rep}} {.unlist}
-      \n```{r, fig.width=13, fig.height=5}\n
+      \n```{r, fig.width=15, fig.height=5}\n
       grid.arrange(
-        DimPlot(objs[["{{sample}}"]], group.by = "annotations", raster = TRUE, raster.dpi = c(512, 512), label=TRUE),
+        DimPlot(objs[["{{sample}}"]], group.by = "cell_labels.fine", raster = TRUE, raster.dpi = c(512, 512), label=TRUE),
         DimPlot(objs[["{{sample}}"]], group.by = "cell_labels.coarse", raster = TRUE, raster.dpi = c(512, 512), label=TRUE),
         nrow=1
       )
-      objs[["{{sample}}"]]@meta.data$cell_labels.coarse |> 
+      d1 <- objs[["{{sample}}"]]@meta.data$cell_labels.fine |> 
         tabyl() |> 
         arrange(desc(n)) |>
         adorn_rounding(digits=2) |>
-        knitr::kable(col.names=c("Cell label", "Count", "Percent"))
+        knitr::kable(col.names=c("Cell label", "Count", "Proportion"))
+      d2 <- objs[["{{sample}}"]]@meta.data$cell_labels.coarse |> 
+        tabyl() |> 
+        arrange(desc(n)) |>
+        adorn_rounding(digits=2) |>
+        knitr::kable(col.names=c("Cell label", "Count", "Proportion"))
+      knitr::kables(
+        list(d1, d2)
+      )
       \n```\n
       '
       out = c(out, knit_expand(text = chunktext))

@@ -24,6 +24,7 @@ library(SingleCellExperiment)
 library(gridExtra)  ## arrange plots
 library(janitor) ## Tabyl, adorn_rounding
 library(ggrastr) ## Rasterize images for smaller size
+library(DT)     ## Datatables
 rbindlist <- data.table::rbindlist
 set.seed(33)
 ```
@@ -215,7 +216,7 @@ clusterSweepLeiden <- function(obj, resolutions, graph='RNA_snn', ndim=20) {
     comm$pur <- bluster::neighborPurity(pca, ids)
     results[[paste0('res_', res)]] <- comm
     
-    if (comm$nb_clusters > 30) {
+    if (comm$nb_clusters > 50) {
       break
     }
   }
@@ -227,12 +228,38 @@ clusterSweepLeiden <- function(obj, resolutions, graph='RNA_snn', ndim=20) {
 
 
 ```{r, eval=FALSE}
-leiden_sweep_res <- lapply(objs, clusterSweepLeiden, resolutions = seq(0.0001, 0.001, 0.0001))
-for (smple in metadata$Sample[metadata$Kit=='Scale' | metadata$Kit=='NextGEM3P']) {
-  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.00001, 0.001, 0.00005))
+# tmp <- clusterSweepLeiden(objs$Flex_F1A, resolutions = c(0.001, 0.001, 0.01, 0.1, 1))
+leiden_sweep_res <- list()
+# leiden_sweep_res <- lapply(objs, clusterSweepLeiden, resolutions = seq(0.0001, 0.001, 0.0001))
+for (smple in metadata$Sample[metadata$Kit=='GEMX3P']) {
+  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = 10^seq(-4, -1, 0.05))
+}
+for (smple in metadata$Sample[metadata$Kit=='Fluent']) {
+  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
+}
+for (smple in metadata$Sample[metadata$Kit=='Flex']) {
+  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
+}
+for (smple in metadata$Sample[metadata$Kit=='Parse_V3']) {
+  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
+}
+for (smple in metadata$Sample[metadata$Kit=='Scale']) {
+  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
+}
+leiden_sweep_res[['Scale_F5A']] <- clusterSweepLeiden(objs[['Scale_F5A']], resolutions = seq(0.0001, 0.1, 0.0001))
+
+for (smple in metadata$Sample[metadata$Kit=='NextGEM3P']) {
+  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = 10^seq(-3.5, -1, 0.05))
 }
 saveRDS(leiden_sweep_res, here('rds/leiden_sweep_res.rds'), compress = FALSE)
 ```
+
+```{r}
+lapply(leiden_sweep_res, function(x) {
+  unname(unlist(lapply(x, function(y) y$nb_clusters)))
+})
+```
+
 
 ```{r}
 leiden_sweep_res <- readRDS(here('rds/leiden_sweep_res.rds'))
@@ -251,7 +278,7 @@ for (smple in names(leiden_sweep_res)) {
 }
 optimal_resolution <- lapply(optimal_resolution, function(x){
   x |>
-    filter(nclus >= 10) |>
+    filter(nclus >= 20) |>
     slice_max(sil)
 }) |> 
   rbindlist(idcol='sample')
@@ -271,6 +298,35 @@ for (smple in metadata$Sample) {
 
 ```{r}
 lapply(objs, DimPlot, label=TRUE)
+```
+
+
+## Kmeans
+
+```{r, eval=FALSE}
+library(scran)
+kmeans_sweep <- function(obj, ks) {
+  pca <- obj@reductions$pca@cell.embeddings
+  rownames(pca) <- unname(rownames(pca))
+  sce <- SingleCellExperiment(
+    assays = list(
+          counts = GetAssayData(obj, assay = 'RNA', layer = 'counts'),
+          logcounts = GetAssayData(obj, assay = 'RNA', layer = 'data')
+      ), 
+      colData = obj@meta.data,
+      reducedDims = list(pca=pca)
+  )
+  for (k in ks) {
+    clus <- clusterCells(sce, use.dimred="pca", BLUSPARAM=KmeansParam(centers=k, iter.max=20))
+    obj <- AddMetaData(obj, clus, col.name=paste0('k', k, '_clusters'))
+  }
+  obj
+}
+obj <- kmeans_sweep(objs$Flex_F1A, ks=c(15:40))
+DimPlot(obj, group.by = 'k10_clusters')
+DimPlot(obj, group.by = 'k10_clusters')
+DimPlot(obj, group.by = 'k10_clusters')
+DimPlot(obj, group.by = 'k10_clusters')
 ```
 
 # Annotation cluster overlap
@@ -305,15 +361,15 @@ extract_cluster_annotations <- function(data, label_cols, score_cols, names) {
 
 ```{r}
 cluster_annotations <- lapply(objs, extract_cluster_annotations, 
-                              label_cols = c("renamed.predicted.pbmc3k_seurat_annotations",
+                              label_cols = c("renamed.predicted.pbmcsca_seurat_annotations",
+                                             'renamed.predicted.pbmc3k_seurat_annotations',
                                              "renamed.Mona.main.labels",
-                                             "renamed.Novershtern.main.labels",
                                              "renamed.HPCA.main.labels"),
-                              score_cols = c('predicted.pbmc3k_seurat_annotations.score',
+                              score_cols = c('predicted.pbmcsca_seurat_annotations.score',
+                                             'predicted.pbmc3k_seurat_annotations.score',
                                              "Mona.main.delta.next",
-                                             "Novershtern.main.delta.next",
                                              "HPCA.main.delta.next"),
-                              names=c('seurat_pbmc3k', 'singler_mona', 'singler_novershtern', 'singler_HPCA'))
+                              names=c('seurat_pbmcsca', 'seurat_pbmc3k', 'singler_mona', 'singler_HPCA'))
 ```
 
 
@@ -324,22 +380,23 @@ annotation_summary_DT <- function(data) {
                    searching=FALSE,
                    ordering=FALSE,
                    lengthChange = FALSE), 
-    colnames = c('Cluster', 'Cell count', 'Seurat pbcm3k label', 'Seurat pbmc3k score', 'Seurat pbmc3k %', 
+    colnames = c('Cluster', 'Cell count', 
+                 'Seurat pbcmsca label', 'Seurat pbmcsca score', 'Seurat pbmcsca %', 
+                 'Seurat pbcm3k label', 'Seurat pbmc3k score', 'Seurat pbmc3k %', 
                  'SingleR Mona label', 'SingleR Mona score', 'SingleR Mona %',
-                 'SingleR Nover label', 'SingleR Nover score', 'SingleR Nover %',
                  'SingleR HPCA label', 'SingleR HPCA score', 'SingleR HPCA %')
     ) %>%
-  formatStyle(c("seurat_pbmc3k.percent","singler_mona.percent","singler_novershtern.percent","singler_HPCA.percent"),
+  formatStyle(c("seurat_pbmcsca.percent", 'seurat_pbmc3k.percent',"singler_mona.percent","singler_HPCA.percent"),
               background = styleColorBar(range(c(0,100)), 'lightgreen'))  %>%
-  formatStyle(c("seurat_pbmc3k.med.score",
+  formatStyle(c("seurat_pbmcsca.med.score",
+                "seurat_pbmc3k.med.score",
                 "singler_mona.med.score",
-                "singler_novershtern.med.score",
                 "singler_HPCA.med.score"),
               background = styleColorBar(seq(0,0.9,.1), 'lightblue')) %>%
   formatStyle(
-    c("renamed.predicted.pbmc3k_seurat_annotations",
+    c("renamed.predicted.pbmcsca_seurat_annotations",
+      "renamed.predicted.pbmc3k_seurat_annotations",
     "renamed.Mona.main.labels",
-    "renamed.Novershtern.main.labels",
     "renamed.HPCA.main.labels"),
     `border-left` = styleEqual(1, 'solid 3px')
   )
@@ -425,8 +482,17 @@ celltype_markers <- read.csv('/fh/fast/_IRC/FHIL/grp/FHIL_knowledgebase/biology/
 parse_marker_table <- function(celltype_dataframe) {
   celltype_dataframe %>%
     filter(expression_level == 'Increased' & tissue == 'PBMC') %>%
-    filter(confidence != 'low') %>%
-    filter(celltype %in% c('T', 'B', 'Monocyte', 'NK', 'Dendritic', 'Neutrophil')) %>%
+    filter(confidence == 'high' | 
+             (celltype == 'Dendritic' & confidence == 'med') |
+             # celltype == 'HSPC' | 
+             # celltype == 'Lymphocyte progenitor' |
+             (celltype %in% c('B naive', 'B memory') & confidence == 'med')) %>%
+    filter(celltype %in% c('T', 'CD4+ T', 'CD8+ T', 
+                           'B', 'B naive', 'B memory',
+                           'Monocyte', 'Non-classical monocyte', 'Classical monocyte',
+                           'NK', 'Dendritic', 'pDC', 'Neutrophil'#,  
+                           # 'Megakaryocyte', 'Lymphocyte progenitor', 'HSPC'
+                           )) %>%
     select(gene_symbol, celltype) %>%
     unstack()
 }
@@ -463,11 +529,20 @@ celltype_markers <- prune_marker_list(celltype_markers)
 
 ```{r, fig.width=40, fig.height=12}
 figures$marker_dotplots <- lapply(objs, function(x) {
-  DotPlot(x, celltype_markers, group.by = 'seurat_clusters') + 
+  z <- DotPlot(x, celltype_markers, group.by = 'seurat_clusters') + 
     theme_grey() +
     geom_stripes()
+  z$data$feature.groups <- factor(z$data$feature.groups, levels =c(
+  'B', 'B naive', 'B memory', 'Megakaryocyte',
+  'T', "CD4+ T &\nT", 'CD4+ T', 'CD8+ T',
+  "CD8+ T &\nNK", 'NK', "CD8+ T &\nNK & pDC",
+  'pDC', 'Dendritic', "Non-classical\nmonocyte", 
+  "Classical\nmonocyte", "Neutrophil",
+  'Lymphocyte\nprogenitor', 'HSPC'))
+  z
 })
 figures$marker_dotplots$Flex_F1A
+figures$marker_dotplots$FB_2_F1B
 ```
 
 # Final annotations
@@ -479,18 +554,27 @@ figures$marker_dotplots$Flex_F1A
 ```{r}
 samplename <- 'Flex_F1A'
 cell_labels <- c(
-      "CD4+ T", #0
+      "Classical monocyte", #0
+      "CD4+ T",
+      "CD8+ T",
       "CD8+ T",
       "CD4+ T",
-      "Monocyte",
-      "B",
       "CD8+ T", #5
+      "CD4+ T",
+      "CD4+ T",
+      "CD4+ T",
       "NK",
-      "Monocyte",
-      "CD8+ T",
-      "Dendritic",
-      "Platelet", #10
-      "Unknown"
+      "CD8+ T", #10
+      "Non-classical monocyte",
+      'B naive',
+      'B memory',
+      'CD4+ T',
+      'T', #15
+      'Monocyte',
+      'Dendritic',
+      'Megakaryocyte',
+      'CD4+ T',
+      'pDC'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -515,21 +599,27 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 ```{r}
 samplename <- 'Flex_F1B'
 cell_labels <- c(
-      "CD4+ T", #0
+      "Classical monocyte", #0
+      "CD4+ T",
       "CD8+ T",
       "CD4+ T",
-      "Monocyte",
-      "CD8+ T",
+      "CD4+ T",
       "CD8+ T", #5
-      "NK",
-      "Monocyte",
-      "CD8+ T",
-      "B",
-      "B", #10
       "CD4+ T",
-      "Dendritic",
-      "Platelet",
-      "Unknown"
+      "CD8+ T",
+      "Non-classical monocyte",
+      "NK",
+      "CD4+ T", #10
+      "CD8+ T",
+      'B naive',
+      'B memory',
+      'CD4+ T',
+      'T', #15
+      'CD8+ T',
+      'Dendritic',
+      'Megakaryocyte',
+      'Classical monocyte',
+      'pDC'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -554,24 +644,29 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 ```{r}
 samplename <- 'Flex_F5A'
 cell_labels <- c(
-      "CD4+ T", #0
+      "Classical monocyte", #0
       "CD4+ T",
-      "Monocyte",
-      "CD8+ T",
       "NK",
-      "CD8+ T", #5
       "CD8+ T",
-      "B",
-      "B",
-      "Other T",
-      "CD4+ T", #10
-      "Monocyte",
-      "Dendritic",
-      "Platelet",
-      "Dendritic",
-      "Unknown",#15
-      "Unknown",
-      "NK"
+      "CD4+ T",
+      "CD8+ T", #5
+      "CD4+ T",
+      "B naive",
+      "B memory", 
+      "CD8+ T",
+      "CD8+ T", #10
+      "CD8+ T",
+      'CD4+ T',
+      'CD4+ T',
+      'CD8+ T',
+      'Non-classical monocyte', #15
+      'NK',
+      'Dendritic',
+      'Megakaryocyte',
+      'pDC',
+      'Unknown', #20
+      'Unknown',
+      'NK'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -597,16 +692,29 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'Flex_F5B'
 cell_labels <- c(
       "CD4+ T", #0
-      "Monocyte",
-      "B",
       "NK",
-      "CD4+ T",
-      "CD8+ T", #5
-      "CD8+ T", 
+      "Classical monocyte",
       "CD8+ T",
-      "Other T",
-      "Platelet",
-      "Dendritic" #10
+      "B naive",
+      "CD8+ T", #5
+      "CD4+ T",
+      "CD4+ T",
+      "B memory", 
+      "CD8+ T",
+      "Classical monocyte", #10
+      "T",
+      'CD4+ T',
+      'CD8+ T',
+      'CD4+ T',
+      'CD8+ T', #15
+      'CD4+ T',
+      'NK',
+      'Non-classical monocyte',
+      'Dendritic',
+      'Megakaryocyte', #20
+      'Unknown',
+      'pDC',
+      'CD4+ T'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -634,20 +742,26 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'FB_2_F1A'
 cell_labels <- c(
       "CD4+ T", #0
-      "Other T",
       "CD8+ T",
-      "B",
-      "Other T",
-      "Other T", #5
+      "CD4+ T",
+      "CD4+ T",
+      "CD4+ T",
+      "Unknown", #5
       "CD8+ T",
-      "Monocyte",
+      "CD8+ T",
       "NK",
       "CD8+ T",
-      "Monocyte", #10
+      "Classical monocyte", #10
+      "B memory",
+      "B naive",
+      "Non-classical monocyte",
       "CD4+ T",
-      "Platelet",
-      "Dendritic",
-      "Unknown"
+      'T', #15
+      'Dendritic', 
+      'Megakaryocyte',
+      'CD4+ T',
+      'pDC',
+      'Unknown'
 )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -673,19 +787,25 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'FB_2_F1B'
 cell_labels <- c(
     "CD4+ T", #0
+    "CD8+ T",
     "CD4+ T",
     "CD8+ T",
-    "B",
     "CD4+ T",
-    "Monocyte", #5
-    "Other T",
+    "CD8+ T", #5
+    "Classical monocyte",
+    "CD4+ T",
     "CD8+ T",
-    "Unknown",
     "NK",
-    "Monocyte", #10
+    "B naive", #10
+    "B memory",
+    "Non-classical monocyte",
     "Unknown",
-    "Dendritic",
-    "Dendritic"
+    'Unknown',
+    'Unknown', #15
+    'CD4+ T',
+    'Dendritic',
+    'pDC',
+    'CD4+ T'
   )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -711,17 +831,25 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'FB_2_F5A'
 cell_labels <- c(
       "CD4+ T", #0
-      "CD4+ T",
-      "CD8+ T",
       "NK",
-      "B",
-      "Monocyte", #5
-      "CD4+ T",
-      "Unknown",
       "CD8+ T",
-      "Monocyte",
-      "Dendritic", #10
-      "Dendritic"
+      "Classical monocyte",
+      "CD4+ T",
+      "CD8+ T", #5
+      "B naive",
+      "CD8+ T",
+      "CD4+ T",
+      "B memory",
+      "CD8+ T", #10
+      "CD8+ T",
+      'Unknown',
+      'CD8+ T',
+      'CD4+ T',
+      'Non-classical monocyte', #15
+      'Classical monocyte',
+      'Dendritic',
+      'Unknown',
+      'pDC'
 )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -746,19 +874,27 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 ```{r}
 samplename <- 'FB_2_F5B'
 cell_labels <- c(
-      "CD4+ T", #0
+      "NK", #0
       "CD4+ T",
-      "NK",
-      "B",
       "CD8+ T",
-      "Monocyte", #5
       "CD4+ T",
+      "Classical monocyte",
+      "CD8+ T", #5
+      "B naive",
+      "B memory",
       "CD4+ T",
-      "Other T",
       "CD8+ T",
-      "Dendritic", #10
-      "Monocyte",
-      "Unknown" 
+      "CD8+ T", #10
+      "CD8+ T",
+      "CD4+ T",
+      'T',
+      'CD8+ T',
+      'Non-classical monocyte', #15
+      'Dendritic',
+      'Classical monocyte',
+      'Unknown',
+      'pDC',
+      'CD8+ T'
 )
 
 objs[[samplename]]$cell_labels.fine <- 
@@ -786,18 +922,27 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 ```{r}
 samplename <- 'NextGEM3P_F1A'
 cell_labels <- c(
-      "CD4+ T", #0
-      "CD8+ T",
+      "CD8+ T", #0
       "CD4+ T",
-      "Monocyte",
-      "B",
-      "CD8+ T", #5
-      "Monocyte",
-      "NK",
+      "CD4+ T",
+      "CD4+ T",
       "CD8+ T",
-      "Dendritic",
-      "Platelet", #10
-      "Unknown"
+      "CD8+ T", #5
+      "CD4+ T",
+      "Classical monocyte",
+      "Classical monocyte",
+      "CD4+ T",
+      "Non-classical monocyte", #10
+      "B memory",
+      'NK',
+      'B naive',
+      'CD8+ T',
+      'CD4+ T', #15
+      'CD8+ T',
+      'Dendritic',
+      'Megakaryocyte',
+      'pDC',
+      'Unknown'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -819,21 +964,34 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 
 ### F1B
 
-```{r}
+```{r, fig.width=14}
 samplename <- 'NextGEM3P_F1B'
 cell_labels <- c(
       "CD4+ T", #0
-      "CD8+ T",
       "CD4+ T",
-      "Monocyte",
-      "B",
-      "CD8+ T", #5
-      "Monocyte",
+      "CD4+ T",
       "CD8+ T",
-      "NK",
-      "Platelet",
-      "Dendritic", #10
-      "Unknown"
+      "Classical monocyte",
+      "CD4+ T", #5
+      "CD8+ T",
+      "Classical monocyte",
+      "CD8+ T",
+      "CD8+ T",
+      "B memory", #10
+      "B naive",
+      'NK',
+      'CD4+ T',
+      'CD8+ T',
+      'Non-classical monocyte', #15
+      'CD4+ T',
+      'CD4+ T',
+      'Dendritic',
+      'CD8+ T',
+      'Megakaryocyte', #20
+      'Monocyte',
+      'pDC',
+      'Unknown',
+      'Unknown'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -858,22 +1016,27 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 ```{r}
 samplename <- 'NextGEM3P_F5A'
 cell_labels <- c(
-      "CD4+ T", #0
-      "CD4+ T",
-      "Monocyte",
+      "Classical monocyte", #0
       "NK",
-      "CD8+ T",
+      "CD4+ T",
+      "CD4+ T",
+      "CD4+ T",
       "CD8+ T", #5
-      "B",
       "CD8+ T",
-      "B",
+      "B naive",
+      "CD8+ T",
       "CD4+ T",
-      "Other T", #10
+      "B memory", #10
       "CD4+ T",
-      "Monocyte",
-      "Dendritic",
-      "Platelet",
-      "Dendritic"
+      "T",
+      "T",
+      "CD8+ T",
+      "Non-classical monocyte", #15
+      'Dendritic',
+      'NK',
+      'Megakaryocyte',
+      'pDC',
+      'Classical monocyte'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -899,24 +1062,25 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'NextGEM3P_F5B'
 cell_labels <- c(
       "CD4+ T", #0
-      "CD4+ T",
-      "Monocyte",
+      "Classical monocyte",
       "NK",
+      "CD4+ T",
       "CD8+ T",
       "CD8+ T", #5
-      "B",
-      "CD8+ T",
-      "B",
       "CD4+ T",
-      "CD8+ T", #10
+      "B naive",
       "CD8+ T",
-      "Monocyte",
+      "B memory",
+      "CD4+ T", #10
+      "CD8+ T",
+      "CD8+ T",
+      "Non-classical",
       "CD4+ T",
-      "Dendritic",
-      "Platelet", #15
-      "NK",
-      "Dendritic",
-      "Monocyte"
+      "Dendritic", #15
+      "Megakaryocyte",
+      "pDC",
+      "Classical monocyte",
+      'Unknown'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -944,19 +1108,26 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'GEMX3P_F1A'
 cell_labels <- c(
       "CD4+ T", #0
+      "Classical monocyte",
       "CD4+ T",
       "CD8+ T",
-      "Monocyte",
-      "Other T",
-      "B", #5
+      "CD4+ T",
+      "CD4+ T", #5
       "CD8+ T",
+      "B naive",
       "CD8+ T",
-      "Monocyte",
-      "NK",
-      "Monocyte", #10
-      "Platelet",
-      "Dendritic",
-      "Unknown"
+      "B memory",
+      "NK", #10
+      "T",
+      "Non-classical monocyte",
+      "CD8+ T",
+      'Classical monocyte',
+      'Megakaryocyte', #15
+      'Dendritic', 
+      'CD8+ T',
+      'Unknown',
+      'T'
+      
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -982,19 +1153,25 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'GEMX3P_F1B'
 cell_labels <- c(
       "CD4+ T", #0
+      "CD4+ T",
+      "Classical monocyte",
       "CD8+ T",
       "CD4+ T",
-      "Monocyte",
-      "B",
-      "Other T", #5
+      "CD8+ T", #5
+      "B memory",
+      "T",
+      "B naive",
+      "CD4+ T",
+      "Non-classical monocyte", #10
       "CD8+ T",
       "NK",
-      "Monocyte",
       "CD8+ T",
-      "Platelet", #10
-      "Monocyte",
-      "Dendritic",
-      "Unknown"
+      'Megakaryocyte',
+      'Monocyte', #15
+      'Dendritic',
+      'CD8+ T',
+      'Unknown',
+      'pDC'
       )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -1020,21 +1197,23 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'GEMX3P_F5A'
 cell_labels <- c(
       "CD4+ T", #0
-      "Monocyte",
+      "Classical monocyte",
       "CD4+ T",
       "NK",
+      "B naive",
+      "CD8+ T", #5
+      "CD8+ T",
+      "T",
+      "CD8+ T",
+      "B memory",
+      "CD4+ T", #10
+      "CD8+ T",
+      "CD8+ T",
+      "Non-classical monocyte",
       "B",
-      "Other T", #5
-      "CD8+ T",
-      "CD8+ T",
-      "CD8+ T",
-      "B",
-      "Other T", #10
-      "CD8+ T",
-      "Monocyte",
-      "B",
-      "Dendritic",
-      "Platelet",
+      "Dendritic", #15
+      'Megakaryocyte',
+      'NK',
       'Unknown',
       'Unknown'
     )
@@ -1062,28 +1241,26 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'GEMX3P_F5B'
 cell_labels <- c(
       "CD4+ T", #0
-      "Monocyte",
+      "Classical monocyte",
       "CD4+ T",
-      "B",
-      "Other T",
-      "NK", #5
-      "CD8+ T",
-      "CD8+ T",
-      "CD8+ T",
-      "B",
-      "Other T", #10
-      "CD4+ T",
-      "CD8+ T",
-      "B",
-      "Monocyte",
-      "Platelet", #15
       "NK",
+      "B naive",
+      "T", #5
+      "CD8+ T",
+      "CD8+ T",
+      "CD8+ T",
+      "B memory",
+      "CD8+ T", #10
+      "CD4+ T",
+      "CD8+ T",
+      "B naive",
+      "Non-classical monocyte",
+      "Megakaryocyte", #15
       "Dendritic",
-      "CD4+ T",
-      "NK",
-      "Dendritic", #20
-      "Monocyte",
-      "Unknown"
+      "pDC",
+      "Classical monocyte",
+      "Unknown",
+      "Unknown" #20
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -1111,18 +1288,26 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'PA_V3_F1A'
 cell_labels <- c(
       "CD4+ T", #0
-      "Other T",
-      "Monocyte",
+      "Classical monocyte",
       "CD8+ T",
+      "CD4+ T",
+      "Classical monocyte",
+      "CD8+ T", #5
       "CD8+ T",
-      "Monocyte", #5
-      "NK",
-      "CD8+ T",
-      "B",
-      "B",
+      "CD4+ T",
+      "CD4+ T",
+      "Non-classical monocyte",
       "CD4+ T", #10
-      "Dendritic",
-      "Dendritic"
+      "CD4+ T",
+      "NK",
+      'CD8+ T',
+      'CD8+ T',
+      'B memory', #15
+      'B naive',
+      'CD4+ T',
+      'CD8+ T',
+      'Dendritic',
+      'pDC'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -1148,19 +1333,25 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'PA_V3_F1B'
 cell_labels <- c(
       "CD4+ T", #0
-      "Monocyte",
       "CD4+ T",
       "CD8+ T",
+      "Classical monocyte",
+      "Classical monocyte",
+      "CD4+ T", #5
       "CD8+ T",
-      "CD8+ T", #5
-      "Monocyte",
-      "NK",
-      "B",
       "CD8+ T",
-      "B", #10
       "CD4+ T",
-      "Dendritic",
-      "Dendritic"
+      "Non-classical monocyte",
+      "NK", #10
+      "B naive",
+      "CD8+ T",
+      "B memory",
+      'CD4+ T',
+      'CD4+ T', #15
+      'CD4+ T',
+      'Dendritic',
+      'Unknown',
+      'pDC'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -1185,16 +1376,26 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 ```{r}
 samplename <- 'PA_V3_F5A'
 cell_labels <- c(
-      "Other T", #0
-      "Monocyte",
-      "CD4+ T",
-      "B",
+      "CD4+ T", #0
+      "Classical monocyte",
       "NK",
-      "CD8+ T", #5
       "CD8+ T",
-      "Other T",
-      "Monocyte",
-      "Dendritic"
+      "CD4+ T",
+      "CD4+ T", #5
+      "CD8+ T",
+      "B naive",
+      'B memory',
+      "Classical monocyte",
+      'CD4+ T', #10
+      'CD8+ T',
+      'CD4+ T',
+      'CD8+ T',
+      'CD8+ T',
+      'CD8+ T', #15
+      'Non-classical monocyte',
+      'CD8+ T',
+      'Dendritic',
+      'Unknown'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -1220,19 +1421,27 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'PA_V3_F5B'
 cell_labels <- c(
       "CD4+ T", #0
-      "Monocyte",
+      "Classical monocyte",
+      "CD4+ T",
+      "NK",
+      "B naive",
+      "CD8+ T", #5
+      "CD8+ T",
+      "B memory",
+      "CD4+ T",
+      "CD4+ T",
+      "Classical monocyte", #10
+      "Classical monocyte",
+      "CD8+ T",
       "CD4+ T",
       "CD8+ T",
+      "CD8+ T", #15
+      "CD8+ T",
+      "CD8+ T",
+      "Non-classical monocyte",
       "NK",
-      "CD8+ T", #5
-      "B",
-      "Other T",
-      "B",
-      "CD4+ T",
-      "CD8+ T", #10
-      "Monocyte",
-      "Dendritic",
-      "Dendritic"
+      "Dendritic", #20
+      "pDC"
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -1248,6 +1457,7 @@ objs[[samplename]]$annotations <-
     to = add_suffix_to_duplicates(cell_labels)
   )
 
+DimPlot(objs[[samplename]], group.by = 'seurat_clusters', label=TRUE)
 DimPlot(objs[[samplename]], group.by = 'annotations', label=TRUE)
 DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 ```
@@ -1256,26 +1466,32 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 
 ### F1A
 
-```{r}
+```{r, fig.width=14}
 samplename <- 'Scale_F1A'
 cell_labels <- c(
       "CD4+ T", #0
-      "Monocyte",
+      "Classical monocyte",
+      "NK",
       "CD4+ T",
-      "NK",
-      "B",
-      "B", #5
+      "Classical monocyte",
+      "B naive", #5
+      "B memory",
       "CD8+ T",
       "CD8+ T",
-      "NK",
-      "Other T",
+      "CD4+ T",
       "CD4+ T", #10
-      "NK",
-      "Monocyte",
-      "Dendritic",
-      "Monocyte",
-      "Dendritic", #15
-      "Dendritic"
+      "CD8+ T",
+      "CD8+ T",
+      "CD4+ T",
+      "CD8+ T",
+      "CD8+ T", #15
+      "Non-classical monocyte",
+      'Dendritic',
+      'CD8+ T',
+      'Classical monocyte',
+      'Unknown', #20
+      'pDC',
+      'Dendritic'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -1300,23 +1516,26 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 ```{r}
 samplename <- 'Scale_F1B'
 cell_labels <- c(
-      "CD4+ T", #0
-      "Monocyte",
-      "CD8+ T",
+      "Classical monocyte", #0
+      "CD4+ T",
+      "CD4+ T",
       "CD4+ T",
       "CD8+ T",
-      "Monocyte", #5
-      "B",
-      "B",
-      "NK",
+      "CD8+ T", #5
+      "Non-classical monocyte",
+      "B memory",
       "CD8+ T",
-      "Other T", #10
-      "Other T",
-      "Other T",
-      "Monocyte",
-      "Dendritic",
-      "Monocyte", #15
-      'Dendritic'
+      "B naive",
+      "CD8+ T", #10
+      "NK",
+      "T",
+      "T",
+      "CD4+ T",
+      "Dendritic", #15
+      'Classical monocyte',
+      'Classical monocyte',
+      'Classical monocyte',
+      'pDC'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -1342,19 +1561,26 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'Scale_F5A'
 cell_labels <- c(
       "CD4+ T", #0
-      "Monocyte",
-      "Other T",
-      "CD8+ T",
-      "B",
-      "CD8+ T", #5
-      "NK",
-      "Monocyte",
-      "CD8+ T",
-      "Other T",
-      "CD4+ T", #10
+      "Classical monocyte",
       "CD4+ T",
-      "Dendritic",
-      "Dendritic"
+      "CD8+ T",
+      "CD8+ T",
+      "B memory", #5
+      "NK",
+      "CD8+ T",
+      "B naive",
+      "Non-classical monocyte",
+      "Classical monocyte", #10
+      "CD8+ T",
+      "CD8+ T",
+      "CD4+ T",
+      'CD4+ T',
+      'Dendritic', #15
+      'Classical monocyte',
+      'Classical monocyte',
+      'pDC',
+      'Non-classical monocyte',
+      'Unknown'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -1380,19 +1606,27 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 samplename <- 'Scale_F5B'
 cell_labels <- c(
       "CD4+ T", #0
-      "Monocyte",
-      "B",
+      "Classical monocyte",
       "CD4+ T",
-      "CD8+ T",
-      "CD8+ T", #5
+      "B naive",
       "NK",
+      "Classical monocyte", #5
+      "CD8+ T",
+      "CD8+ T",
+      "CD4+ T",
+      "B memory",
+      "CD4+ T", #10
+      "CD8+ T",
       "CD4+ T",
       "CD8+ T",
-      "CD8+ T",
-      "NK", #10
-      "Monocyte",
-      "Dendritic",
-      "Dendritic"
+      'NK',
+      'CD8+ T', #15
+      'Non-classical monocyte',
+      'Dendritic',
+      'CD8+ T',
+      'Classical monocyte',
+      'NK', #20
+      'pDC'
     )
 objs[[samplename]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -1416,7 +1650,9 @@ DimPlot(objs[[samplename]], group.by = 'cell_labels.fine', label=TRUE)
 objs <- lapply(objs, function(obj) {
   obj$cell_labels.coarse <- 
     case_when(
-      obj$cell_labels.fine %in% c("CD4+ T", "CD8+ T", "Other T") ~ 'T',
+      obj$cell_labels.fine %in% c("CD4+ T", "CD8+ T", "Other T", 'T') ~ 'T',
+      obj$cell_labels.fine %in% c("B naive", "B memory", "B") ~ 'B',
+      obj$cell_labels.fine %in% c("Classical monocyte", "Non-classical monocyte", "Monocyte") ~ 'Monocyte',
       .default = obj$cell_labels.fine
     )
   obj
@@ -1426,7 +1662,7 @@ objs <- lapply(objs, function(obj) {
 
 # Save objs
 
-```{r}
+```{r, eval=TRUE}
 saveRDS(objs, here('rds/05_objs_post_clustering.rds'), compress=FALSE)
 ```
 
