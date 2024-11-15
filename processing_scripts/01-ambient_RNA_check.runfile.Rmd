@@ -63,22 +63,7 @@ runSoupX <- function(tod,
 # Load config
 
 ```{r}
-config <- read_yaml(here('config/config.yaml'))
-data_dirs <- list(
-  "B2-FLEX_10k"="B2-FLEX_10k/full_data",
-  "B2-Fluent_25k"="B2-Fluent_25k/OutPut_25K",
-  "B2-GEMX3P_25k"="B2-GEMX3P_25k",
-  "B2-NextGEM3P_25k"="B2-NextGEM3P_25k",
-  "B2-Parse_25k"="B2-Parse_25k/OutPut_25K_V.1.2.1/COMBINED/",
-  "B2-Scale_25k"="B2-Scale_25k"
-)
-samplesheets <- lapply(names(data_dirs), function(x) {
-  read.table(here(file.path('config', paste0(x, '_samplesheet.txt'))), header = TRUE)
-})
-names(samplesheets) <- names(data_dirs)
-```
-
-```{r}
+source(here('config/generate_metadata.R'))
 metadata <- read.csv(here('config/metadata.csv'))
 metadata
 ```
@@ -89,7 +74,7 @@ metadata
 objs <- list()
 ```
 
-## B2-FLEX_10k
+## B2-FLEX
 
 ```{r}
 kit <- 'B2-FLEX_10k'
@@ -114,10 +99,10 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-Fluent_25k
+## B2-Fluentv4
 
 ```{r}
-kit <- 'B2-Fluent_25k'
+kit <- 'B2-FluentV4_25k'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
@@ -143,7 +128,36 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-GEMX3P_25k
+## B2-Fluentv5
+
+```{r}
+kit <- 'B2-FluentV5_25k'
+for (i in 1:nrow(samplesheets[[kit]])){
+  sample <- samplesheets[[kit]][i,'Sample']
+  file <- samplesheets[[kit]][i,'File']
+  sensitivity <- samplesheets[[kit]][i,'Sensitivity']
+  
+  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'filtered_matrix', paste0('sensitivity_', sensitivity))
+  filtered_counts <- Read10X(filtered_counts)
+  
+  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'raw_matrix')
+  unfiltered_counts <- Read10X(unfiltered_counts)
+  
+  barcodes <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'raw_matrix', 'barcodes.tsv.gz')
+  barcodes <- read.table(gzfile(barcodes))
+  barcodes$cell_id <- 1:nrow(barcodes)
+  
+  
+  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'clustering', paste0('sensitivity_', sensitivity), 'clusters.csv')
+  clusters <- read.csv(clusters)
+  clusters <- right_join(barcodes, clusters, by ='cell_id')
+  clusters <- setNames(as.list(clusters$graph), clusters$V1)
+  
+  objs[[sample]] <- list(tod = unfiltered_counts, toc = filtered_counts, clusters = clusters)
+}
+```
+
+## B2-GEMX3P
 
 ```{r}
 kit <- 'B2-GEMX3P_25k'
@@ -167,7 +181,7 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-NextGEM3P_25k
+## B2-NextGEM3P
 
 ```{r}
 kit <- 'B2-NextGEM3P_25k'
@@ -191,7 +205,7 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-Parse_25k
+## B2-Parse
 
 ```{r}
 kit <- 'B2-Parse_25k'
@@ -213,7 +227,7 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-Scale_25k
+## B2-Scale
 
 ```{r}
 kit <- 'B2-Scale_25k'
@@ -238,6 +252,35 @@ for (i in 1:nrow(samplesheets[[kit]])){
   
   clusters <- read.csv(clusters)
   clusters <- setNames(as.list(clusters$seurat_clusters), gsub('(.+)_F.+', '\\1', clusters$cellBarcode))
+  
+  objs[[sample]] <- list(tod = unfiltered_counts, toc = filtered_counts, clusters = clusters)
+}
+```
+
+## B2-BD
+
+```{r}
+kit <- 'B2-BD_WTA_25k'
+for (i in 1:nrow(samplesheets[[kit]])){
+  sample <- samplesheets[[kit]][i,'Sample']
+  file <- samplesheets[[kit]][i,'File']
+  individual <- samplesheets[[kit]][i,'Individual']
+  
+  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
+                               individual, paste0('BD2-WTA-downsampled_', individual, '_RSEC_MolsPerCell_MEX'))
+  filtered_counts <- Read10X(filtered_counts)
+  
+  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
+                                 individual, paste0('BD2-WTA-downsampled_', individual, '_RSEC_MolsPerCell_Unfiltered_MEX'))
+  unfiltered_counts <- Read10X(unfiltered_counts)
+  unfiltered_counts <- unfiltered_counts[rownames(filtered_counts), ]
+  
+  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], individual,
+                        paste0('BD2-WTA-downsampled_', individual, '_Seurat.rds'))
+  
+  clusters <- readRDS(clusters)
+  clusters <- clusters$Cell_Type_Experimental
+  # clusters <- setNames(as.list(clusters$seurat_clusters), gsub('(.+)_F.+', '\\1', clusters$cellBarcode))
   
   objs[[sample]] <- list(tod = unfiltered_counts, toc = filtered_counts, clusters = clusters)
 }
@@ -282,7 +325,7 @@ soupx_results %>%
   ggplot(aes(x=paste0(Individual, Replicate), y=rho)) +
   geom_col() +
   geom_errorbar(aes(ymin=rho_low, ymax=rho_high), width=0.4) +
-  facet_wrap(~ Kit, scales='free_x') +
+  facet_wrap(~ Kit, scales='free_x', ncol=4) +
   labs(x='Sample', y='Contamination fraction')
 figures[['rho_barchart']] 
 ```
@@ -312,7 +355,7 @@ for (obj in names(objs)){
 ```
 
 ```{r}
-saveRDS(objs, here('rds/01_raw_objs.rds'), compress=TRUE)
+saveRDS(objs, here('rds/01_raw_objs.rds'), compress=FALSE)
 ```
 
 # Render report
