@@ -103,8 +103,8 @@ runSingleR <- function(obj.seurat,
 ref.nove <- readRDS('/fh/fast/_IRC/FHIL/pub/ref/single_cell_references/Novershtern_celldex.rds')
 objs <- lapply(objs, function(x) {
   runSingleR(x, 
-             ref = assays(ref)$logcounts,
-             labels = ref$label.main,
+             ref = assays(ref.nove)$logcounts,
+             labels = ref.nove$label.main,
              meta.prefix = 'Novershtern.main',
              de.method = 'wilcox')
   })
@@ -176,10 +176,10 @@ objs <- lapply(objs, function(obj) {
 ```
 
 ```{r,fig.width=12, fig.height=10}
-grid.arrange(DimPlot(obj, group.by = 'predicted.pbmc3k_seurat_annotations', label=TRUE),
-DimPlot(obj, group.by = 'Novershtern.main.labels', label=TRUE),
-DimPlot(obj, group.by = 'Mona.main.labels', label=TRUE),
-DimPlot(obj, group.by = 'HPCA.main.labels', label=TRUE), nrow=2)
+# grid.arrange(DimPlot(obj, group.by = 'predicted.pbmc3k_seurat_annotations', label=TRUE),
+# DimPlot(obj, group.by = 'Novershtern.main.labels', label=TRUE),
+# DimPlot(obj, group.by = 'Mona.main.labels', label=TRUE),
+# DimPlot(obj, group.by = 'HPCA.main.labels', label=TRUE), nrow=2)
 
 ```
 
@@ -220,6 +220,7 @@ objs <- lapply(objs, function(obj) {
 ```
 
 ```{r,fig.width=12, fig.height=10}
+obj <- objs[[1]]
 grid.arrange(DimPlot(obj, group.by = 'predicted.pbmc3k_seurat_annotations', label=TRUE),
 DimPlot(obj, group.by = 'predicted.pbmcsca_seurat_annotations', label=TRUE),
 DimPlot(obj, group.by = 'Mona.main.labels', label=TRUE),
@@ -363,6 +364,15 @@ figures$marker_dotplots_pbmcsca <- lapply(objs, function(x) {
     ggforestplot::geom_stripes()
 })
 figures$marker_dotplots_pbmcsca$Flex_F1A
+```
+
+```{r, fig.width=40, fig.height=12}
+figures$marker_dotplots_pbmc3k <- lapply(objs, function(x) {
+  DotPlot(x, celltype_markers, group.by = 'renamed.predicted.pbmc3k_seurat_annotations') + 
+    theme_grey() +
+    ggforestplot::geom_stripes()
+})
+figures$marker_dotplots_pbmc3k$Flex_F1A
 ```
 
 ```{r, fig.width=40, fig.height=12}
