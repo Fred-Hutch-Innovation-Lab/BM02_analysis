@@ -1,0 +1,460 @@
+---
+title: 'SC processing'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+
+library(tidyverse)  ## General R logic
+library(here)       ## Easier specification of file locations
+library(yaml)       ## parses config yaml
+library(Seurat)
+library(reshape2)   ## DF manipulation
+# library(clustree)   ## Resolution selection for clustering
+# library(ggraph)     ## To render clustree
+# library(ggforestplot) ## Striped lines for dotplots
+# library(SingleCellExperiment)
+library(gridExtra)  ## arrange plots
+# library(janitor) ## Tabyl, adorn_rounding
+# library(ggrastr) ## Rasterize images for smaller size
+library(DT)     ## Datatables
+library(UCell)  ## Module scoring
+rbindlist <- data.table::rbindlist
+library(patchwork)
+set.seed(33)
+```
+
+# Functions
+
+```{r}
+filter_marker_genes <- function(marker_genes, obj_genes){
+  marker_genes <- lapply(marker_genes, function(x){
+    x[x %in% obj_genes]
+  })
+}
+```
+
+```{r}
+label_order <- list(
+  coarse = c(
+    "B", "T", "NK", "Monocyte",
+    "Dendritic", "pDC",
+    "Megakaryocyte", "Unknown"),
+  fine = c(
+    "B","B naive", "B memory",
+    "T", "CD4+ T", "CD8+ T", 
+    "NK",
+    "Classical monocyte", "Non-classical monocyte", "Monocyte", 
+    "Dendritic", "pDC",
+    "Megakaryocyte", 'Unknown'
+  )
+)
+```
+
+
+# Load data
+
+```{r}
+objs <- readRDS(here('rds/05_objs_post_clustering.rds'))
+metadata <- read.csv(here('config/metadata.csv'))
+figures <- list()
+```
+
+```{r}
+library(pbmcsca.SeuratData)
+data("pbmcsca")
+pbmcsca <- UpdateSeuratObject(pbmcsca)
+```
+
+
+```{r}
+celltype_markers <- read.csv('/fh/fast/_IRC/FHIL/grp/FHIL_knowledgebase/biology/celltype_markers.csv')
+shared_genes <- read.table(here('rds/gene_whitelist.txt'))$V1
+
+parse_marker_table <- function(celltype_dataframe) {
+  celltype_dataframe %>%
+    filter(expression_level == 'Increased' & tissue == 'PBMC') %>%
+    filter(confidence %in% c('high', 'med')) %>%
+    filter(celltype %in% c('T', 'CD4+ T', 'CD8+ T',
+                           'B', 'B naive', 'B memory',
+                           'Monocyte', 'Non-classical monocyte', 'Classical monocyte',
+                           'NK', 'Dendritic', 'Megakaryocyte', 'pDC')) %>%
+    select(gene_symbol, celltype) %>%
+    filter(gene_symbol %in% shared_genes) %>%
+    unstack()
+}
+
+celltype_markers <- parse_marker_table(celltype_markers)
+
+flex_genes <- Reduce(intersect, list(Features(objs$Flex_F1A),
+                        Features(objs$Flex_F1B),
+                        Features(objs$Flex_F5A),
+                        Features(objs$Flex_F5B)))
+celltype_markers_modules <- lapply(celltype_markers, function(x)
+  x[x %in% shared_genes & x %in% flex_genes]
+)
+# celltype_markers_shared <- filter_marker_genes(celltype_markers, shared_genes)
+```
+
+# Annotation score dotplot
+
+```{r, fig.width=10, fig.height=9}
+plotdata <- lapply(objs, function(x){
+  y <- t(GetAssayData(x, assay = 'prediction.score.pbmcsca_seurat_annotations'))
+  y <- merge(y, select(x@meta.data, cell_labels.fine), by='row.names')
+  y |>
+    column_to_rownames('Row.names') |>
+    group_by(cell_labels.fine) |>
+    summarize(across(everything(),\(x) mean(x, na.rm = TRUE)))
+}) |> 
+  rbindlist(idcol = 'Sample') |>
+  melt(id=c('Sample', 'cell_labels.fine')) |>
+  mutate(variable = case_when(
+    variable == 'Cytotoxic T cell' ~ 'CD8+ T',
+    variable == 'CD4+ T cell' ~ 'CD4+ T',
+    variable == 'CD14+ monocyte' ~ 'Classical monocyte',
+    variable == 'B cell' ~ 'B',
+    variable == 'Megakaryocyte' ~ 'Megakaryocyte',
+    variable == 'CD16+ monocyte' ~ 'Non-classical monocyte',
+    variable == 'Natural killer cell' ~ 'NK',
+    variable == 'Dendritic cell' ~ 'Dendritic',
+    variable == 'Plasmacytoid dendritic cell' ~ 'pDC',
+    variable == 'Unassigned' ~ 'Unknown',
+    .default = 'whoops'
+  )) |>
+  mutate(variable=factor(variable, levels=c(label_order$fine)),
+         cell_labels.fine = factor(cell_labels.fine, levels = label_order$fine)) |>
+  filter(variable != 'Unknown')
+
+figures[['annotation_scores_kit_fine']] <-
+  plotdata |> 
+    filter((as.character(cell_labels.fine) == as.character(variable)) |
+             (cell_labels.fine %in% c('B naive', 'B memory') & variable == 'B')) |>
+    merge(metadata, by='Sample') |>
+  ggplot(aes(x=Kit, y=cell_labels.fine, fill=value, label=round(value, 2))) +
+  geom_tile() +
+    geom_text() +
+  scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
+    theme_minimal() +
+  labs(x='Kit', y='Marker module', fill='Average\nscore') +
+    facet_wrap(~ Individual + Replicate) +
+    theme(axis.text.x = element_text(angle=45, hjust=1))
+figures[['annotation_scores_kit_fine']]
+```
+
+# Annotation score confusion matrix
+
+```{r, fig.width=10, fig.height=9}
+plotdata <- lapply(objs, function(x){
+  y <- t(GetAssayData(x, assay = 'prediction.score.pbmcsca_seurat_annotations'))
+  y <- merge(y, select(x@meta.data, cell_labels.fine), by='row.names')
+  y |>
+    column_to_rownames('Row.names') |>
+    group_by(cell_labels.fine) |>
+    summarize(across(everything(),\(x) mean(x, na.rm = TRUE)))
+}) |> 
+  rbindlist(idcol = 'Sample') |>
+  melt(id=c('Sample', 'cell_labels.fine')) |>
+  mutate(variable = case_when(
+    variable == 'Cytotoxic T cell' ~ 'CD8+ T',
+    variable == 'CD4+ T cell' ~ 'CD4+ T',
+    variable == 'CD14+ monocyte' ~ 'Classical monocyte',
+    variable == 'B cell' ~ 'B',
+    variable == 'Megakaryocyte' ~ 'Megakaryocyte',
+    variable == 'CD16+ monocyte' ~ 'Non-classical monocyte',
+    variable == 'Natural killer cell' ~ 'NK',
+    variable == 'Dendritic cell' ~ 'Dendritic',
+    variable == 'Plasmacytoid dendritic cell' ~ 'pDC',
+    variable == 'Unassigned' ~ 'Unknown',
+    .default = 'whoops'
+  )) |>
+  mutate(variable=factor(variable, levels=c(label_order$fine)),
+         cell_labels.fine = factor(cell_labels.fine, levels = label_order$fine)) |>
+  filter(variable != 'Unknown')
+
+# figures[['module_scores_kit_coarse']] <-
+  
+# figures[['module_scores_kit_coarse']]
+  
+annotation_confusion_plot <- function(plotdata, sample){
+  plotdata |> 
+    filter(Sample == sample) |>
+    # filter((as.character(cell_labels.fine) == as.character(variable)) |
+    #          (cell_labels.fine %in% c('B naive', 'B memory') & variable == 'B')) |>
+    merge(metadata, by='Sample') |>
+  ggplot(aes(x=cell_labels.fine, y=variable, fill=value, label=round(value, 2))) +
+  geom_tile() +
+    geom_text() +
+  scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
+    theme_minimal() +
+  labs(x='Cell label', y='Marker module', fill='Average\nscore') +
+    facet_wrap(~ Individual + Replicate) +
+    theme(axis.text.x = element_text(angle=45, hjust=1))
+}
+for (kit in unique(metadata$Kit)) {
+  plots <- list()
+  for (sample in metadata$Sample[metadata$Kit==kit]) {
+    ind <- metadata$Individual[metadata$Sample==sample]
+    rep <- metadata$Replicate[metadata$Sample==sample]
+    plots[[sample]] <- annotation_confusion_plot(plotdata, sample) +
+      ggtitle(paste0(ind,rep))
+  }
+  figures[['annotation_confusion_mat_fine']][[kit]] <- 
+    plots[[1]] + plots[[2]] + plots[[3]] + plots[[4]] +
+    plot_layout(guides = 'collect', axes='keep')
+}
+figures[['annotation_confusion_mat_fine']][[kit]]
+```
+
+
+# Marker dotplots
+
+```{r}
+prune_marker_list <- function(input_list) {
+  all_items <- unlist(input_list, use.names = TRUE)
+  dup_items <- names(table(all_items))[table(all_items) > 1]
+  input_list_cleaned <- lapply(input_list, function(x) setdiff(x, dup_items))
+
+  new_groups <- sapply(dup_items, function(item) {
+    found_in <- names(input_list)[sapply(input_list, function(x) item %in% x)]
+    new_group_name <- paste(found_in, collapse = " &\n")
+    return(new_group_name)
+  }, USE.NAMES = TRUE)
+
+  new_list <- input_list_cleaned
+  for (i in seq_along(dup_items)) {
+    new_list[[new_groups[i]]] <- c(new_list[[new_groups[i]]], dup_items[i])
+  }
+
+  wrap_name <- function(name) {
+    wrapped_name <- strwrap(name, width = 10, simplify = TRUE)
+    wrapped_name <- paste(wrapped_name, collapse = "\n")
+    return(wrapped_name)
+  }
+
+  names(new_list) <- sapply(names(new_list), wrap_name)# {
+  new_list
+}
+celltype_markers_dotplot <- prune_marker_list(celltype_markers)
+```
+
+
+```{r}
+figures$marker_dotplots <- lapply(objs, function(x) {
+  z <- DotPlot(x, celltype_markers_dotplot, group.by = 'cell_labels.fine') + 
+    theme_grey() +
+    ggforestplot::geom_stripes() +
+    theme(axis.text.x = element_text(angle=90, vjust=0.5))
+  z$data$feature.groups <- factor(z$data$feature.groups, levels =c(
+  'B', 'B naive', 'B memory', 'Megakaryocyte',
+  'T', "CD4+ T &\nT", 'CD4+ T', 'CD8+ T',
+  "CD8+ T &\nNK", 'NK', "CD8+ T &\nNK & pDC",
+  'pDC', 'Dendritic',
+  'Monocyte', "Non-classical\nmonocyte", 
+  "Classical\nmonocyte"))
+  z
+})
+```
+
+```{r, fig.width=27, fig.height=6}
+figures$marker_dotplots$Flex_F1A +
+  theme(axis.text.x = element_text(angle=90, vjust=0.5))
+```
+
+# Module scoring
+
+```{r}
+objs <- lapply(objs, function(x){
+  markers <- filter_marker_genes(celltype_markers, Features(x))
+  AddModuleScore_UCell(x,
+               features=markers, name= '_filtered_UCell',
+               storeRanks=TRUE, ncores=4)
+})
+```
+
+```{r, fig.height=20, fig.width=20}
+signature.names <- paste0(names(celltype_markers), "_filtered_UCell")
+VlnPlot(objs$FB_2_F1A, features = signature.names, group.by = "cell_labels.fine")
+```
+
+# Module dotplots
+
+## Coarse
+
+```{r}
+signature.names <- paste0(names(celltype_markers), "_filtered_UCell")
+plotdata <- lapply(objs, function(x){
+  x@meta.data |>
+    select(cell_labels.coarse, all_of(signature.names)) |>
+    group_by(cell_labels.coarse) |>
+    summarize(across(everything(),\(x) mean(x, na.rm = TRUE)))
+}) |> 
+  rbindlist(idcol = 'Sample') |>
+  melt() |>
+  mutate(module=gsub('(.+)_filtered_UCell', '\\1', variable)) |>
+  select(-variable) |>
+  mutate(module=factor(module, levels=c(label_order$fine)),
+         cell_labels.coarse = factor(cell_labels.coarse, levels = label_order$coarse))
+
+figures[['module_scores_kit_coarse']] <-
+  plotdata |> filter(
+    as.character(cell_labels.coarse) == as.character(module)
+  ) |> merge(metadata, by='Sample') |>
+  ggplot(aes(x=Kit, y=module, fill=value, label=round(value, 2))) +
+  geom_tile() +
+    geom_text() +
+  scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
+    theme_minimal() +
+  labs(x='Kit', y='Marker module', fill='Average\nscore') +
+    facet_wrap(~ Individual + Replicate) +
+    theme(axis.text.x = element_text(angle=45, hjust=1))
+figures[['module_scores_kit_coarse']]
+```
+
+
+## Fine
+
+```{r, fig.width=8, fig.height=8}
+signature.names <- paste0(names(celltype_markers), "_filtered_UCell")
+plotdata <- lapply(objs, function(x){
+  x@meta.data |>
+    select(cell_labels.fine, all_of(signature.names)) |>
+    group_by(cell_labels.fine) |>
+    summarize(across(everything(),\(x) mean(x, na.rm = TRUE)))
+}) |> 
+  rbindlist(idcol = 'Sample') |>
+  melt() |>
+  mutate(module=gsub('(.+)_filtered_UCell', '\\1', variable)) |>
+  select(-variable) |>
+  mutate(module=factor(module, levels=c(label_order$fine)),
+         cell_labels.fine = factor(cell_labels.fine, levels = label_order$fine))
+
+figures[['module_scores_kit_fine']] <-
+  plotdata |> filter(
+    as.character(cell_labels.fine) == as.character(module)
+  ) |> 
+  filter(!module %in% c('B', 'T', 'Monocyte')) |> 
+  merge(metadata, by='Sample') |>
+  ggplot(aes(x=Kit, y=module, fill=value, label=round(value, 2))) +
+  geom_tile() +
+    geom_text() +
+  scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
+    theme_minimal() +
+  labs(x='Kit', y='Marker module', fill='Average\nscore') +
+    facet_wrap(~ Individual + Replicate) +
+    theme(axis.text.x = element_text(angle=45, hjust=1))
+figures[['module_scores_kit_fine']]
+```
+
+
+# Confusion matrices
+
+## Coarse
+
+```{r}
+signature.names <- paste0(names(celltype_markers), "_filtered_UCell")
+plotdata <- lapply(objs, function(x){
+  x@meta.data |>
+    select(cell_labels.coarse, all_of(signature.names)) |>
+    group_by(cell_labels.coarse) |>
+    summarize(across(everything(),\(x) mean(x, na.rm = TRUE)))
+}) |> 
+  rbindlist(idcol = 'Sample') |>
+  melt() |>
+  mutate(module=gsub('(.+)_filtered_UCell', '\\1', variable)) |>
+  select(-variable) |>
+  mutate(module=factor(module, levels=c(label_order$fine)),
+         cell_labels.coarse = factor(cell_labels.coarse, levels = label_order$coarse))
+
+confusion_plot <- function(plotdata, sample){
+  plotdata |> 
+    filter(Sample == sample) |>
+  ggplot(aes(x=cell_labels.coarse, y=module, fill=value, label=round(value, 2))) +
+  geom_tile() +
+    geom_text() +
+  scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(x='Cell label', y='Marker module', fill='Average\nscore')
+}
+for (kit in unique(metadata$Kit)) {
+  plots <- list()
+  for (sample in metadata$Sample[metadata$Kit==kit]) {
+    ind <- metadata$Individual[metadata$Sample==sample]
+    rep <- metadata$Replicate[metadata$Sample==sample]
+    plots[[sample]] <- confusion_plot(plotdata, sample) +
+      ggtitle(paste0(ind,rep))
+  }
+  figures[['confusion_mat_coarse']][[kit]] <- 
+    plots[[1]] + plots[[2]] + plots[[3]] + plots[[4]] +
+    plot_layout(guides = 'collect', axes='keep')
+}
+figures[['confusion_mat_coarse']][[kit]]
+```
+
+
+## Fine
+
+```{r}
+signature.names <- paste0(names(celltype_markers), "_filtered_UCell")
+plotdata <- lapply(objs, function(x){
+  x@meta.data |>
+    select(cell_labels.fine, all_of(signature.names)) |>
+    group_by(cell_labels.fine) |>
+    summarize(across(everything(),\(x) mean(x, na.rm = TRUE)))
+}) |> 
+  rbindlist(idcol = 'Sample') |>
+  melt() |>
+  mutate(module=gsub('(.+)_filtered_UCell', '\\1', variable)) |>
+  select(-variable) |>
+  mutate(module=factor(module, levels=c(label_order$fine)),
+         cell_labels.fine = factor(cell_labels.fine, levels = label_order$fine))
+
+confusion_plot <- function(plotdata, sample){
+  plotdata |> 
+    filter(Sample == sample) |>
+  ggplot(aes(x=cell_labels.fine, y=module, fill=value, label=round(value, 2))) +
+  geom_tile() +
+    geom_text() +
+  scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(x='Cell label', y='Marker module', fill='Average\nscore')
+}
+for (kit in unique(metadata$Kit)) {
+  plots <- list()
+  for (sample in metadata$Sample[metadata$Kit==kit]) {
+    ind <- metadata$Individual[metadata$Sample==sample]
+    rep <- metadata$Replicate[metadata$Sample==sample]
+    plots[[sample]] <- confusion_plot(plotdata, sample) +
+      ggtitle(paste0(ind,rep))
+  }
+  figures[['confusion_mat_fine']][[kit]] <- 
+    plots[[1]] + plots[[2]] + plots[[3]] + plots[[4]] +
+    plot_layout(guides = 'collect', axes='keep')
+}
+figures[['confusion_mat_fine']][[kit]]
+```
+
+
+# Save objs
+
+```{r, eval=TRUE}
+saveRDS(objs, here('rds/07_post_module_scoring.rds'), compress=FALSE)
+```
+
+# Render report
+
+```{r, eval=TRUE}
+## This only works if all the variables called in the format file 
+## are in the current environment. Check the format file to tweak
+## aesthetics 
+rmarkdown::render(here('processing_scripts/07-celltype_resolution.format.Rmd'),
+                  output_file = '07-marker_detection.html',
+                  output_dir = here('reports'))
+```

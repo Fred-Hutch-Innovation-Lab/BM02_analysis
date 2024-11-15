@@ -84,7 +84,7 @@ merge(lapply(detected_genes_sample_level, length) %>%
   geom_col(position='stack') +
   scale_fill_manual(values = c('bad_genes' = 'goldenrod', 'good_genes' = 'darkgreen'),
                     labels = c('Low detection', 'Good')) +
-  facet_wrap(~ Kit, ncol=6) +
+  facet_wrap(~ Kit, ncol=8, scales='free_x') +
   labs(x = 'Kit', y='Genes detected', shape='Sample', fill = 'Status') ->
   figures[['usable_genes_sample']]
 figures[['usable_genes_sample']]
@@ -121,7 +121,7 @@ figures[['usable_genes_kit']]
 
 ```{r}
 ## Excluding probe-based flex
-shared_genes <- Reduce(intersect, detected_genes_kit_level[c("Fluent", "GEMX3P", "NextGEM3P", "Parse_V3", "Scale")])
+shared_genes <- Reduce(intersect, detected_genes_kit_level[c("Fluent_v4", 'Fluent_v5', 'BD', "GEMX3P", "NextGEM3P", "Parse_V3", "Scale")])
 c("## Set of genes present in all 3' kits (not flex as it is probe based) in at least 10 cells in at least 2 samples",
                   shared_genes) |>
   write.table(here('rds/gene_whitelist.txt'), quote = FALSE, row.names = FALSE, col.names = FALSE)
@@ -141,17 +141,29 @@ lapply(unique_genes_kit, length)
 
 # Set overlap
 
-```{r, fig.width=12, fig.height=6}
+```{r, fig.width=18, fig.height=6}
+kits <- levels(metadata$Kit)[levels(metadata$Kit) != 'Flex']
+intersections <- lapply(1:length(kits), function(x) kits[-x])
+intersections <- c(
+  levels(metadata$Kit),
+  list(list('Fluent_v4', 'Fluent_v5')),
+  list(list('GEMX3P', 'NextGEM3P')),
+  intersections,
+  list(kits),
+  list(levels(metadata$Kit))
+)
 upset(fromList(detected_genes_kit_level), 
       sets=levels(metadata$Kit),
-      nsets=6,
-      nintersects = NA, 
+      # nsets=8,
+      # nintersects = 140, 
       keep.order = TRUE,
+      intersections = intersections,
       order.by='degree',
+      # cutoff=100,
       decreasing = FALSE,
       mainbar.y.label='Gene count',
       number.angles = 0,
-      empty.intersections=TRUE) ->
+      empty.intersections=FALSE) ->
   figures[['gene_overlap_upset']]
 figures[['gene_overlap_upset']]
 ```
@@ -243,7 +255,7 @@ plotdata <- lapply(gene_exp_summary, function(x) {
 plotdata |>
   ggplot(aes(x=paste0(Individual, Replicate), y=y, fill=group)) +
   geom_col(position='stack') +
-    facet_wrap(~ Kit, nrow=1) +
+    facet_wrap(~ Kit, nrow=1, scales='free_x') +
    labs(y='Portion of total reads', x='Sample', fill='Gene family', 
    caption = 'Only showing genes from shared gene pool') ->
   figures[['Expression_barchart_shared']]
@@ -262,7 +274,7 @@ plotdata <- lapply(gene_exp_summary, function(x) {
 plotdata |>
   ggplot(aes(x=paste0(Individual, Replicate), y=y, fill=group)) +
   geom_col(position='stack') +
-    facet_wrap(~ Kit, nrow=1) +
+    facet_wrap(~ Kit, nrow=1, scales='free_x') +
    labs(y='Portion of total reads', x='Sample', fill='Gene family', 
    caption = 'Only showing genes not found in all kits.\nThese genes are not necessarily unique to a kit, just not found in all kits') ->
   figures[['Expression_barchart_unique']]
