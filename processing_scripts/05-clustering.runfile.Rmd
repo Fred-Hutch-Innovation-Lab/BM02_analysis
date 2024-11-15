@@ -25,6 +25,7 @@ library(gridExtra)  ## arrange plots
 library(janitor) ## Tabyl, adorn_rounding
 library(ggrastr) ## Rasterize images for smaller size
 library(DT)     ## Datatables
+library(igraph) ## leiden clustering
 rbindlist <- data.table::rbindlist
 set.seed(33)
 ```
@@ -195,8 +196,9 @@ GroupSingletons <- function(ids, snn, min.size = 9, clusters.to.merge, group.sin
 }
 ```
 
+#### Old loop
 
-```{r}
+```{r, eval=FALSE}
 clusterSweepLeiden <- function(obj, resolutions, graph='RNA_snn', ndim=20) {
   pca <- obj@reductions$pca@cell.embeddings[,1:ndim]
   i_graph <- PrepareGraph(obj@graphs[[graph]])
@@ -226,47 +228,53 @@ clusterSweepLeiden <- function(obj, resolutions, graph='RNA_snn', ndim=20) {
 
 ```
 
-
 ```{r, eval=FALSE}
 # tmp <- clusterSweepLeiden(objs$Flex_F1A, resolutions = c(0.001, 0.001, 0.01, 0.1, 1))
 leiden_sweep_res <- list()
 # leiden_sweep_res <- lapply(objs, clusterSweepLeiden, resolutions = seq(0.0001, 0.001, 0.0001))
-for (smple in metadata$Sample[metadata$Kit=='GEMX3P']) {
-  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = 10^seq(-4, -1, 0.05))
+# for (smple in metadata$Sample[metadata$Kit=='GEMX3P']) {
+#   leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = 10^seq(-4, -1, 0.05))
+# }
+# for (smple in metadata$Sample[metadata$Kit=='Flex']) {
+#   leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
+# }
+# for (smple in metadata$Sample[metadata$Kit=='Parse_V3']) {
+#   leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
+# }
+# for (smple in metadata$Sample[metadata$Kit=='Scale']) {
+#   leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
+# }
+# leiden_sweep_res[['Scale_F5A']] <- clusterSweepLeiden(objs[['Scale_F5A']], resolutions = seq(0.0001, 0.1, 0.0001))
+# 
+# for (smple in metadata$Sample[metadata$Kit=='NextGEM3P']) {
+#   leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = 10^seq(-3.5, -1, 0.05))
+# }
+for (smple in metadata$Sample[metadata$Kit=='Fluent_v4']) {
+  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.001, 0.01, 0.0001))
 }
-for (smple in metadata$Sample[metadata$Kit=='Fluent']) {
-  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
+for (smple in metadata$Sample[metadata$Kit=='Fluent_v5']) {
+  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0005, 0.01, 0.0001))
 }
-for (smple in metadata$Sample[metadata$Kit=='Flex']) {
-  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
-}
-for (smple in metadata$Sample[metadata$Kit=='Parse_V3']) {
-  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
-}
-for (smple in metadata$Sample[metadata$Kit=='Scale']) {
-  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.0001, 0.01, 0.0001))
-}
-leiden_sweep_res[['Scale_F5A']] <- clusterSweepLeiden(objs[['Scale_F5A']], resolutions = seq(0.0001, 0.1, 0.0001))
-
-for (smple in metadata$Sample[metadata$Kit=='NextGEM3P']) {
-  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = 10^seq(-3.5, -1, 0.05))
+# for (smple in c('FB_2_F1A','FB_2_F1B','FB_2_F5A','FB_2_F5B' )) {
+#   leiden_sweep_res[[smple]] <- NULL
+# }
+for (smple in metadata$Sample[metadata$Kit=='BD']) {
+  leiden_sweep_res[[smple]] <- clusterSweepLeiden(objs[[smple]], resolutions = seq(0.005, 0.1, 0.0001))
 }
 saveRDS(leiden_sweep_res, here('rds/leiden_sweep_res.rds'), compress = FALSE)
 ```
 
-```{r}
+```{r, eval=FALSE}
+leiden_sweep_res <- readRDS(here('rds/leiden_sweep_res.rds'))
+```
+
+```{r, eval=FALSE}
 lapply(leiden_sweep_res, function(x) {
   unname(unlist(lapply(x, function(y) y$nb_clusters)))
 })
 ```
 
-
-```{r}
-leiden_sweep_res <- readRDS(here('rds/leiden_sweep_res.rds'))
-```
-
-
-```{r}
+```{r, eval=FALSE}
 optimal_resolution <- list()
 for (smple in names(leiden_sweep_res)) {
   optimal_resolution[[smple]] <- lapply(leiden_sweep_res[[smple]], function(x){
@@ -278,14 +286,14 @@ for (smple in names(leiden_sweep_res)) {
 }
 optimal_resolution <- lapply(optimal_resolution, function(x){
   x |>
-    filter(nclus >= 20) |>
+    filter(nclus >= 30) |>
     slice_max(sil)
 }) |> 
   rbindlist(idcol='sample')
 optimal_resolution
 ```
 
-```{r}
+```{r, eval=FALSE}
 for (smple in metadata$Sample) {
   res <- optimal_resolution$res[optimal_resolution$sample==smple]
   clus <- leiden_sweep_res[[smple]][[res]]$membership
@@ -296,12 +304,91 @@ for (smple in metadata$Sample) {
 }
 ```
 
+#### Target K
+
+```{r tune_leiden_resolution_function}
+tune_leiden_resolution <- function(
+  obj,          # A data frame or matrix of PC loadings
+  ndim=20,
+  graph_name='RNA_snn',
+  k=30,          # Target number of clusters
+  start_resolution = 0.0001, # Initial resolution value
+  initial_step = 0.0001,     # Initial step size for adjusting resolution
+  max_iterations = 400,    # Maximum iterations to prevent infinite loops
+  tolerance = 0         # Tolerance around target cluster number
+) {
+  current_resolution <- start_resolution
+  step_size <- initial_step
+  num_clusters <- 0
+  iterations <- 0
+  best_resolution <- current_resolution
+  closest_difference <- Inf
+  
+  pca <- obj@reductions$pca@cell.embeddings[,1:ndim]
+  graph <- PrepareGraph(obj@graphs[[graph_name]])
+  
+  while (iterations < max_iterations) {
+    # Perform Leiden clustering with the current resolution
+    clusters <- cluster_leiden(graph, resolution_parameter = current_resolution)
+    ids <- clusters$membership
+    names(ids) <- Cells(obj)
+    ids <- GroupSingletons(ids, obj@graphs[[graph_name]])
+    ids <- relevel_clusters(ids)
+    names(ids) <- Cells(obj)
+    clusters$membership <- ids
+    num_clusters <- length(unique(clusters$membership))
+    
+    # Check if the current result is within the tolerance range
+    difference <- abs(num_clusters - k)
+    if (difference <= tolerance) {
+      cat("Target number of clusters achieved within tolerance.\n")
+      return(list(clusters = clusters, resolution = current_resolution))
+    }
+    
+    # Update best resolution if the current attempt is closer to the target
+    if (difference < closest_difference) {
+      closest_difference <- difference
+      best_resolution <- current_resolution
+    }
+    
+    # Determine whether to increase or decrease resolution
+    if (num_clusters < k) {
+      if (num_clusters < k / 2) {
+        step_size <- step_size * 1.5  # Increase step size to speed up convergence
+      }
+      current_resolution <- current_resolution + step_size
+    } else {
+      current_resolution <- current_resolution - step_size
+      step_size <- step_size / 2  # Decrease step size to refine the search
+    }
+    
+    # Increment iteration count
+    iterations <- iterations + 1
+  }
+  # Return the best result if max iterations are reached
+  cat("Max iterations reached. Returning the closest found result.\n")
+  clusters <- cluster_leiden(graph, resolution_parameter = best_resolution)
+  return(list(clusters = clusters, resolution = best_resolution))
+}
+```
+
+```{r}
+res_30k <- lapply(objs, tune_leiden_resolution)
+```
+
+```{r}
+for (smple in metadata$Sample) {
+  objs[[smple]] <- AddMetaData(objs[[smple]], metadata = res_30k[[smple]]$clusters$membership, col.name = 'clusters')
+  Idents(objs[[smple]]) <- 'clusters'
+}
+```
+
 ```{r}
 lapply(objs, DimPlot, label=TRUE)
 ```
 
 
-## Kmeans
+## Kmeans (deprecated)
 
 ```{r, eval=FALSE}
 library(scran)
@@ -1074,7 +1161,7 @@ cell_labels <- c(
       "CD4+ T", #10
       "CD8+ T",
       "CD8+ T",
-      "Non-classical",
+      "Non-classical monocyte",
       "CD4+ T",
       "Dendritic", #15
       "Megakaryocyte",
