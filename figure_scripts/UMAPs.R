@@ -59,6 +59,42 @@ main <- function() {
       
   }
   
+  my_dimplot_blog <- function(obj, reduction='umap', dims=c(1,2), group.by, colors = cell_colors$fine){
+    dimdata <- obj@reductions[[reduction]]@cell.embeddings[,dims]
+    dimdata[,1] <- scale(dimdata[,1])
+    dimdata[,2] <- scale(dimdata[,2])
+    plotdata <- merge(dimdata, obj@meta.data, by='row.names')
+    plotdata[[group.by]] <- factor(plotdata[[group.by]], levels=names(colors))
+    ggplot(plotdata, aes(x=.data[[paste0(reduction, '_', dims[1])]],
+                         y=.data[[paste0(reduction, '_', dims[2])]],
+                         color=.data[[group.by]])) +
+      geom_point(size=0.1, show.legend = TRUE) +
+      scale_color_manual(values = colors, breaks = names(colors), drop=FALSE,
+                         labels = c(
+                           'T (unresolved)',
+                           'CD8+ T',
+                           'CD4+ T',
+                           'B naive',
+                           'B memory',
+                           'Monocyte (unresolved)',
+                           'Classical monocyte',
+                           'Non-classical monocyte',
+                           'NK',
+                           'Megakaryocyte',
+                           'Dendritic',
+                           'pDC',
+                           'Unknown'
+                         )) +
+      labs(x=paste0(reduction, '_', dims[1]), y=paste0(reduction, '_', dims[2]), color='Cell type') +
+      theme_classic() +
+      theme(axis.text = element_blank(), 
+            axis.title = element_blank(),
+            axis.ticks = element_blank()) +
+      guides(colour = guide_legend(override.aes = list(size=3))) +
+      ggtitle(gsub('.+_(.+)$', '\\1', obj@project.name))
+    
+  }
+  
   extras <- c("#CCEBC5",  "#FB8072",  "#FCCDE5", "#4DAF4A")
   for (kit in unique(metadata$Kit)) {
     samples <- metadata$Sample[metadata$Kit==kit]
@@ -86,6 +122,18 @@ main <- function() {
            path= here('figures/UMAPs'), filename=paste0(kit, '_coarse_labels.png'), device = 'png', 
            width = unit(10, 'in'), height = unit(8, 'in'), )
   }
+  samples <- metadata$Sample[metadata$Kit=='Scale']
+  ps <- lapply(samples, function(sample){
+    my_dimplot_blog(fig_objs[[sample]], group.by = 'cell_labels.fine', colors = cell_colors$fine)
+  })
+  
+ blogfig <- ps[[1]] + ps[[2]] + ps[[3]] + ps[[4]] + 
+    plot_layout(ncol = 2, guides='collect') + 
+    plot_annotation(title = kit, 
+                    theme = theme(plot.title = element_text(size = 24, hjust = 0.5, face='bold')))
+  ggsave(plot = blogfig,
+         path= here('figures/blog'), filename=paste0(kit, '_fine_labels.png'), device = 'png', 
+         width = unit(10, 'in'), height = unit(8, 'in'), )
   return(umap_figures)
 }
 

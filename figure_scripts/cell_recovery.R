@@ -6,11 +6,12 @@ library(readxl)
 library(data.table)
 library(ggbreak)
 
+fig_objs <- readRDS(here('rds/02-objs_post_cell_filtering.rds'))
+kit_order <- read.table(here('config/kit_order.txt'))$V1
+metadata <- read.csv(here('config/metadata.csv')) %>%
+  mutate(Kit = factor(Kit, levels = kit_order))
+
 main <- function() {
-  fig_objs <- readRDS(here('rds/02-objs_post_cell_filtering.rds'))
-  kit_order <- read.table(here('config/kit_order.txt'))$V1
-  metadata <- read.csv(here('config/metadata.csv')) %>%
-    mutate(Kit = factor(Kit, levels = kit_order))
   
   cell_recovery_figures <- list()
   
@@ -30,7 +31,7 @@ main <- function() {
     'GEMX3P' = 20000/(1300*22.3),
     'Fluent' = .5,
     'Parse_V3' = 100000/(4*(520*14*12)),
-    'Scale' = NA
+    'Scale' = .25
   ) |> reshape2::melt() |>
     rename(Kit = L1)
   
