@@ -1,0 +1,5 @@
+Sample  File  Kit Individual  Replicate  Sensitivity
+FBv5_F1A FB003-F1A_S1  Fluent_v5  F1  A  5
+FBv5_F1B FB003-F1B_S2  Fluent_v5  F1  B    5
+FBv5_F5A FB003-F5A_S3  Fluent_v5  F5  A    5
+FBv5_F5B FB003-F5B_S4  Fluent_v5  F5  B    5

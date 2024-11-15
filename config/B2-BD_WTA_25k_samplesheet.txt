@@ -1,0 +1,5 @@
+Sample  File  Kit Individual  Replicate
+BD_F1  F1  BD  F1  A
+BD_F2  F2  BD  F2  A
+BD_F4  F4  BD  F4  A
+BD_F5  F5  BD  F5  A
