@@ -168,8 +168,8 @@ objs <- lapply(objs, function(obj) {
     reference = pbmc3k,
     refdata = list(
       pbmc3k_seurat_annotations = "seurat_annotations"
-    ),
-    new.reduction.name = 'ref.umap'
+    )#,
+    # new.reduction.name = 'ref.umap'
   )
   obj
 })
@@ -193,7 +193,9 @@ pbmcsca <- UpdateSeuratObject(pbmcsca) %>%
   NormalizeData() %>%
   FindVariableFeatures() %>%
   ScaleData() %>%
-  RunPCA()
+  RunPCA() |> 
+  RunUMAP(dims=1:20, return.model = TRUE)
+DimPlot(pbmcsca, group.by='CellType')
 ```
 
 ```{r}
@@ -213,7 +215,11 @@ objs <- lapply(objs, function(obj) {
     refdata = list(
       pbmcsca_seurat_annotations = "CellType"
     ),
-    new.reduction.name = 'pbmcsca.umap'
+    reduction.model = "umap"
+    # projectumap.args = list(
+    #   # reference.reduction = 'umap',
+    #   # new.reduction.name = 'pbmcsca.umap'
+    # )
   )
   obj
 })
@@ -404,7 +410,7 @@ figures$marker_dotplots_hpca$NextGEM3P_F1A
 
 # Annotation cluster overlap
 
-```{r}
+```{r, eval=FALSE}
 tmp <- function(obj, ref1, ref2) {
   tabyl(obj@meta.data, .data[[ref1]], .data[[ref2]]) %>%
   # as.data.frame() %>%
