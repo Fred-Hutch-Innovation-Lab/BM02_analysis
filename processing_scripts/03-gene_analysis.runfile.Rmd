@@ -121,7 +121,7 @@ figures[['usable_genes_kit']]
 
 ```{r}
 ## Excluding probe-based flex
-shared_genes <- Reduce(intersect, detected_genes_kit_level[c("Fluent_v4", 'Fluent_v5', 'BD', "GEMX3P", "NextGEM3P", "Parse_V3", "Scale")])
+shared_genes <- Reduce(intersect, detected_genes_kit_level[c("Fluent_v4", 'Fluent_V', "GEMX3P", "NextGEM3P", "Parse_V3", "Scale")])
 c("## Set of genes present in all 3' kits (not flex as it is probe based) in at least 10 cells in at least 2 samples",
                   shared_genes) |>
   write.table(here('rds/gene_whitelist.txt'), quote = FALSE, row.names = FALSE, col.names = FALSE)
@@ -146,7 +146,7 @@ kits <- levels(metadata$Kit)[levels(metadata$Kit) != 'Flex']
 intersections <- lapply(1:length(kits), function(x) kits[-x])
 intersections <- c(
   levels(metadata$Kit),
-  list(list('Fluent_v4', 'Fluent_v5')),
+  list(list('Fluent_v4', 'Fluent_V')),
   list(list('GEMX3P', 'NextGEM3P')),
   intersections,
   list(kits),

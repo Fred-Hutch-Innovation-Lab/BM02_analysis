@@ -27,21 +27,41 @@ Aesthetics and image quality can be improved for final versions of images.
 Clustering resolution for each sample was selected by optimizing for the silhouette score for a span of resolution values that
 produced between 10 and 30 clusters.The Leiden algorithm implemented by iGraph was used for clustering.
 
+Also looking at UMAP generation through 2 approaches: one with all genes, and one with
+TCR, RB, and MT blacklisted from dimensional reduction. This may improve the overlap of samples,
+but if it doesn't, we can just default to allowing all genes.
+
+## Blacklisted {.tabset}
+
 ```{r, eval=TRUE, results='asis'}
 out <- NULL
 for (kit in unique(metadata$Kit)) {
-  chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
-  out = c(out, knit_expand(text = chunktext))
-  for (sample in metadata$Sample[metadata$Kit == kit]) {
-    ind <- metadata$Individual[metadata$Sample==sample]
-    rep <- metadata$Replicate[metadata$Sample==sample]
-    chunktext <- '\n### {{ind}}{{rep}} {.unlist}
+    chunktext <- '\n### {{kit}} {.tabset .unlist}\n
     \n```{r, fig.width=6.5, fig.height=5}\n
-    DimPlot(objs[["{{sample}}"]], raster = TRUE, raster.dpi = c(512, 512))
+    DimPlot(kit_level_objs[["{{kit}}"]], reduction="UMAP_blacklisted",
+            group.by="orig.ident",
+            raster = FALSE, raster.dpi = c(512, 512))
     \n```\n
     '
     out = c(out, knit_expand(text = chunktext))
-  }
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+## All genes {.tabset}
+
+```{r, eval=TRUE, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+    chunktext <- '\n### {{kit}} {.tabset .unlist}\n
+    \n```{r, fig.width=6.5, fig.height=5}\n
+    DimPlot(kit_level_objs[["{{kit}}"]], reduction="UMAP_allgenes",
+            group.by="orig.ident",
+            raster = FALSE, raster.dpi = c(512, 512))
+    \n```\n
+    '
+    out = c(out, knit_expand(text = chunktext))
 }
 
 cat(knit_child(text = out, quiet = TRUE), sep = '\n')
@@ -54,18 +74,18 @@ Celltype gene markers from literature. **If you have more, please let me know so
 ```{r, eval=TRUE, results='asis'}
 out <- NULL
 for (kit in unique(metadata$Kit)) {
-  chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
-  out = c(out, knit_expand(text = chunktext))
-  for (sample in metadata$Sample[metadata$Kit == kit]) {
-    ind <- metadata$Individual[metadata$Sample==sample]
-    rep <- metadata$Replicate[metadata$Sample==sample]
-    chunktext <- '\n### {{ind}}{{rep}} {.unlist}
+  # chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
+  # out = c(out, knit_expand(text = chunktext))
+  # for (sample in metadata$Sample[metadata$Kit == kit]) {
+  #   ind <- metadata$Individual[metadata$Sample==sample]
+  #   rep <- metadata$Replicate[metadata$Sample==sample]
+  chunktext <- '\n## {{kit}} {.tabset .unlist}\n
     \n```{r, fig.width=40, fig.height=11}\n
-    figures$marker_dotplots[[paste0("{{sample}}")]]
+    figures$marker_dotplots[["{{kit}}"]]
     \n```\n
     '
     out = c(out, knit_expand(text = chunktext))
-  }
+  # }
 }
 
 cat(knit_child(text = out, quiet = TRUE), sep = '\n')
@@ -78,18 +98,18 @@ Summarizing top annotations from all references used (see previous report for mo
 ```{r, eval=TRUE, results='asis'}
 out <- NULL
 for (kit in unique(metadata$Kit)) {
-  chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
-  out = c(out, knit_expand(text = chunktext))
-  for (sample in metadata$Sample[metadata$Kit == kit]) {
-    ind <- metadata$Individual[metadata$Sample==sample]
-    rep <- metadata$Replicate[metadata$Sample==sample]
-    chunktext <- '\n### {{ind}}{{rep}} {.unlist}
+  # chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
+  # out = c(out, knit_expand(text = chunktext))
+  # for (sample in metadata$Sample[metadata$Kit == kit]) {
+    # ind <- metadata$Individual[metadata$Sample==sample]
+    # rep <- metadata$Replicate[metadata$Sample==sample]
+    chunktext <- '\n## {{kit}} {.tabset .unlist}\n
       \n```{r, fig.width=12, fig.height=7}\n
-      figures[["annotation_DT"]][["{{sample}}"]]
+      figures[["annotation_DT"]][["{{kit}}"]]
       \n```\n
       '
       out = c(out, knit_expand(text = chunktext))
-  }
+  # }
 }
 
 
@@ -105,35 +125,28 @@ My first pass at cell annotation, manually aggregating calls from the reference 
 ```{r, eval=TRUE, results='asis'}
 out <- NULL
 for (kit in unique(metadata$Kit)) {
-  chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
-  out = c(out, knit_expand(text = chunktext))
-  for (sample in metadata$Sample[metadata$Kit == kit]) {
-    ind <- metadata$Individual[metadata$Sample==sample]
-    rep <- metadata$Replicate[metadata$Sample==sample]
-    chunktext <- '\n### {{ind}}{{rep}} {.unlist}
-      \n```{r, fig.width=15, fig.height=5}\n
-      grid.arrange(
-        DimPlot(objs[["{{sample}}"]], group.by = "cell_labels.fine", raster = TRUE, raster.dpi = c(512, 512), label=TRUE),
-        DimPlot(objs[["{{sample}}"]], group.by = "cell_labels.coarse", raster = TRUE, raster.dpi = c(512, 512), label=TRUE),
-        nrow=1
-      )
-      d1 <- objs[["{{sample}}"]]@meta.data$cell_labels.fine |> 
+    chunktext <- '\n## {{kit}} {.unlist}\n
+      \n```{r, fig.width=8, fig.height=5}\n
+        DimPlot(kit_level_objs[["{{kit}}"]],
+                group.by = "cell_labels.fine",
+                raster = TRUE, raster.dpi = c(512, 512),
+                label=TRUE)
+        \n```\n
+        \n```{r, fig.width=11, fig.height=5}\n
+        DimPlot(kit_level_objs[["{{kit}}"]],
+                group.by = "annotations",
+                raster = TRUE, raster.dpi = c(512, 512),
+                label=TRUE)
+      \n```\n
+      \n```{r}\n
+      kit_level_objs[["{{kit}}"]]@meta.data$cell_labels.fine |> 
         tabyl() |> 
         arrange(desc(n)) |>
         adorn_rounding(digits=2) |>
         knitr::kable(col.names=c("Cell label", "Count", "Proportion"))
-      d2 <- objs[["{{sample}}"]]@meta.data$cell_labels.coarse |> 
-        tabyl() |> 
-        arrange(desc(n)) |>
-        adorn_rounding(digits=2) |>
-        knitr::kable(col.names=c("Cell label", "Count", "Proportion"))
-      knitr::kables(
-        list(d1, d2)
-      )
       \n```\n
       '
       out = c(out, knit_expand(text = chunktext))
-  }
 }
 cat(knit_child(text = out, quiet = TRUE), sep = '\n')
 ```

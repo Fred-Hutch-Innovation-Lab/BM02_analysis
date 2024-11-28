@@ -296,12 +296,20 @@ objs <- lapply(objs, function(x) {
 
 # Save RDS
 
-```{r}
+```{r, eval=FALSE}
 saveRDS(objs, here('rds/01-soup_channels.rds'), compress=TRUE)
+objs <- readRDS(here('rds/01-soup_channels.rds'))
 ```
 
-```{r}
+## Append individual reruns
+
+```{r, eval=TRUE}
+objs_rerun <- objs
 objs <- readRDS(here('rds/01-soup_channels.rds'))
+for (x in names(objs_rerun)) {
+  objs[[x]] <- objs_rerun[[x]]
+}
+saveRDS(objs, here('rds/01-soup_channels.rds'), compress=FALSE)
 ```
 
 # Summarize contamination
