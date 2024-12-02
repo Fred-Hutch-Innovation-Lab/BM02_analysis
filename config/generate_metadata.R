@@ -5,13 +5,13 @@ rbindlist <- data.table::rbindlist
 
 config <- read_yaml(here('config/config.yaml'))
 data_dirs <- list(
-  "B2-FLEX_10k"="B2-FLEX_10k/full_data",
-  "B2-FluentV4_25k"="B2-FluentV4_25k/OutPut_25K",
-  "B2-FluentV5_25k"="B2-FluentV5_25k",
-  "B2-GEMX3P_25k"="B2-GEMX3P_25k",
-  "B2-NextGEM3P_25k"="B2-NextGEM3P_25k",
-  "B2-Parse_25k"="B2-Parse_25k/OutPut_25K_V.1.2.1/COMBINED/",
-  "B2-Scale_25k"="B2-Scale_25k"#,
+  "flex"="flex/full_data_runs",
+  "fluent_v4"="fluent_v4/downsampled_runs",
+  "fluent_V"="fluent_V/downsampled_runs",
+  "gemx_3p"="gemx_3p/downsampled_runs",
+  "nextgem_3p"="nextgem_3p/downsampled_runs",
+  "parse_v3"="parse_v3/downsampled_runs/COMBINED/",
+  "scale"="scale/downsampled_runs/ScaleRNA_out_w_cell_calling"#,
   # "B2-BD_WTA_25k"="B2-BD_WTA_25k"
 )
 samplesheets <- lapply(names(data_dirs), function(x) {

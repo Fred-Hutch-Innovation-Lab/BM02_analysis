@@ -1,17 +1,17 @@
 Data directories:
-3’ GEM-X data (downsampled)
-/fh/fast/_IRC/FHIL/grp/BM_Paper_Final_Data/B2-GEMX3P_25k
-Fluent (downsampled):
-/fh/fast/_IRC/FHIL/grp/BM_Paper_Final_Data/B2-Fluent_25k/OutPut_25K/
-Parse (downsampled):
-/fh/fast/_IRC/FHIL/grp/BM02_ParseV3/WT/COMBINED/
+/fh/fast/_IRC/FHIL/grp/BM_paper/fastqs
 
-10X BM1, subsampled for 5K mean reads per cell (for the VDJ).
-/fh/fast/_IRC/FHIL/grp/BM_Paper_Final_Data/B1-GEMX5P
-/fh/fast/_IRC/FHIL/grp/BM_Paper_Final_Data/B1-NextGEM5P
+Counts matrices:
+/fh/fast/_IRC/FHIL/grp/BM_paper/processing
 
-BD data the rerun 
-/fh/fast/_IRC/FHIL/grp/BD02_2024/Final/F4_RanwithF2ABseq
+Data storage cirro:
+Fluent_V:
+illumina run: 241106_VH00738_294_2225K7CNX
+full fastqs: FB003-F{1,5}{A,B}
 
-Scale 
-/fh/fast/_IRC/FHIL/grp/BM02_Scale_2024
+Fluent_v4:
+illumina run: 240422_VH00738_224_2222TV5NX
+
+Scale:
+illumina run 2 (resequencing): 240828_A00613_0737_BHVVYWDMXY
+

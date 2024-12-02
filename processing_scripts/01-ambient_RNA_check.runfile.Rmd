@@ -19,6 +19,7 @@ library(reshape2)   ## DF manipulation
 library(data.table) ## rbindlist
 # library(FHIL.SC.utils) ## Custom functions
 set.seed(33)
+Sys.sleep(86400)
 ```
 
 ```{r}
@@ -74,21 +75,21 @@ metadata
 objs <- list()
 ```
 
-## B2-FLEX
+## flex
 
 ```{r}
-kit <- 'B2-FLEX_10k'
+kit <- 'flex'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
-  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'count/sample_filtered_feature_bc_matrix.h5')
+  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], 'per_sample_outs', file, 'count/sample_filtered_feature_bc_matrix.h5')
   filtered_counts <- Read10X_h5(filtered_counts)
   
-  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], file, 'count/sample_raw_feature_bc_matrix.h5')
+  unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], 'per_sample_outs', file, 'count/sample_raw_feature_bc_matrix.h5')
   unfiltered_counts <- Read10X_h5(unfiltered_counts)
   unfiltered_counts <- unfiltered_counts[rownames(filtered_counts),]
   
-  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], 'clusters.csv')
+  clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], 'count/analysis_csv/clustering/gene_expression_kmeans_10_clusters/clusters.csv')
   clusters <- read.csv(clusters, header=TRUE)
   clusters <- setNames(as.list(clusters$Cluster), clusters$Barcode)
   
@@ -99,10 +100,10 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-Fluentv4
+## fluent_v4
 
 ```{r}
-kit <- 'B2-FluentV4_25k'
+kit <- 'fluent_v4'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
@@ -128,10 +129,10 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-Fluentv5
+## fluent_V
 
 ```{r}
-kit <- 'B2-FluentV5_25k'
+kit <- 'fluent_V'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
@@ -157,10 +158,10 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-GEMX3P
+## gemx_3p
 
 ```{r}
-kit <- 'B2-GEMX3P_25k'
+kit <- 'gemx_3p'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
@@ -181,10 +182,10 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-NextGEM3P
+## nextgem_3p
 
 ```{r}
-kit <- 'B2-NextGEM3P_25k'
+kit <- 'nextgem_3p'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
@@ -205,10 +206,10 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-Parse
+## parse_v3
 
 ```{r}
-kit <- 'B2-Parse_25k'
+kit <- 'parse_v3'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
@@ -227,26 +228,26 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-Scale
+## scale
 
 ```{r}
-kit <- 'B2-Scale_25k'
+kit <- 'scale'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
   
   filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
-                               'ScaleRNA_out_w_cell_calling', 'samples',
+                               'samples',
                                paste0(file, '.downsampled.filtered.matrix'))
   filtered_counts <- Read10X(filtered_counts)
   
   unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
-                                 'ScaleRNA_out_w_cell_calling', 'samples',
+                                 'samples',
                                  paste0(file, '.downsampled.unfiltered.matrix'))
   unfiltered_counts <- Read10X(unfiltered_counts)
   
   clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
-                        'ScaleRNA_out_w_cell_calling', 'cellTyping',
+                        'cellTyping',
                         paste0(file, '.downsampled'),
                         paste0(file, '.downsampled_seurat_clustering_results.csv'))
   
@@ -257,10 +258,10 @@ for (i in 1:nrow(samplesheets[[kit]])){
 }
 ```
 
-## B2-BD
+## bd
 
-```{r}
-kit <- 'B2-BD_WTA_25k'
+```{r, eval=FALSE}
+kit <- 'bd'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
@@ -363,7 +364,7 @@ for (obj in names(objs)){
 ```
 
 ```{r}
-saveRDS(objs, here('rds/01_raw_objs.rds'), compress=FALSE)
+saveRDS(objs, here('rds/01_raw_objs_rerun.rds'), compress=FALSE)
 ```
 
 # Render report
