@@ -19,18 +19,21 @@ main <- function(figures_list, filtering_stage = 'after', outdir='qc_vln_plots')
       rasterize(geom_jitter(alpha=0.1, size=.1), dpi=300) +
       geom_violin(draw_quantiles = 0.5) +
       # theme_bw() +
-      facet_wrap(~ Kit, nrow = 1) +
+      facet_wrap(~ Kit, nrow = 1, scales='free_x') +
       labs(x='Sample', y = ylab, caption=caption) #+
     # coord_flip()
   }
   
   if (filtering_stage == 'after') {
-    fig_objs <- readRDS(here('rds/02-filtered_objs.rds'))
+    fig_objs <- readRDS(here('rds/02-objs_post_cell_filtering.rds'))
     caption <- 'QC metrics per cell on data after filtering by global thresholds'
   } else if (filtering_stage == 'before') {
-    fig_objs <- readRDS(here('rds/01_raw_objs_10x.rds'))
+    fig_objs <- readRDS(here('rds/01_raw_objs.rds'))
     caption <- 'QC metrics per cell on data output from pipelines without additional filtering'
   }
+  
+  ## Remove BD
+  
   metadata <- read.csv(here('config/metadata.csv'))
   
   labels <- data.frame(

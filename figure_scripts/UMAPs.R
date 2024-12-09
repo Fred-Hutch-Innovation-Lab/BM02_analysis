@@ -6,134 +6,70 @@ library(patchwork)  ## arrange plots
 
 
 main <- function() {
-  fig_objs <- readRDS(here('rds/05_objs_post_clustering.rds'))
+  fig_objs <- readRDS('rds/05_merged_objs_post_clustering.rds')
+  fig_objs <- lapply(fig_objs, function(x){
+    x$individual <- gsub('.+_([^_]+)$', '\\1', x$orig.ident)
+    x
+  })
   kit_order <- read.table(here('config/kit_order.txt'))$V1
   metadata <- read.csv(here('config/metadata.csv')) %>%
     mutate(Kit = factor(Kit, levels = kit_order))
-    
+  
+  ## returns color_palette obj
+  source(here('config/color_palette.R'))
+  
   umap_figures <- list()
   
-  cell_colors <- list(coarse=c(     
-    "T" = "blue",
-    "B" = "red",
-    "Monocyte" = "purple",
-    "NK" = "#4DAF4A",
-    "Megakaryocyte" = "#A65628",
-    "Dendritic" = "orange",
-    "pDC" = "gold",
-    'Unknown' = 'grey'
-    ), fine = c(
-    'T' = "blue",
-    'CD8+ T' = "#377EB8",
-    'CD4+ T' = "#80B1D3",
-    'B naive' = "#FB8072",
-    'B memory' = "#E41A1C",
-    'Monocyte' = "purple",
-    'Classical monocyte' = "#BC80BD",
-    'Non-classical monocyte' = "#984EA3",
-    'NK' = "#4DAF4A",
-    'Megakaryocyte' = "#A65628",
-    'Dendritic' =  "orange", 
-    'pDC' = "gold", 
-    'Unknown' = 'grey'
-    )
-  ) 
-  my_dimplot <- function(obj, reduction='umap', dims=c(1,2), group.by, colors = cell_colors$fine){
+  my_dimplot <- function(obj,
+                         reduction='UMAP_allgenes',
+                         key='UMAPallgenes_', 
+                         dims=c(1,2),
+                         group.by, 
+                         colors = color_palette$cell_colors,
+                         color_label='Cell type', 
+                         alpha=1,
+                         shuffle=TRUE){
     dimdata <- obj@reductions[[reduction]]@cell.embeddings[,dims]
     dimdata[,1] <- scale(dimdata[,1])
     dimdata[,2] <- scale(dimdata[,2])
     plotdata <- merge(dimdata, obj@meta.data, by='row.names')
     plotdata[[group.by]] <- factor(plotdata[[group.by]], levels=names(colors))
-    ggplot(plotdata, aes(x=.data[[paste0(reduction, '_', dims[1])]],
-                         y=.data[[paste0(reduction, '_', dims[2])]],
+    if (shuffle) {
+      plotdata <- plotdata[sample(x = 1:nrow(x = plotdata)), ]
+    }
+    ggplot(plotdata, aes(x=.data[[paste0(key, dims[1])]],
+                         y=.data[[paste0(key, dims[2])]],
                          color=.data[[group.by]])) +
-      geom_point(size=0.1, show.legend = TRUE) +
-      scale_color_manual(values = colors, breaks = names(colors), drop=FALSE) +
-      labs(x=paste0(reduction, '_', dims[1]), y=paste0(reduction, '_', dims[2]), color='Cell type') +
+      geom_point(size=0.1, alpha=alpha, show.legend = TRUE) +
+      scale_color_manual(values = colors, breaks = names(colors), drop=TRUE) +
+      labs(x=paste0(reduction, '_', dims[1]), y=paste0(reduction, '_', dims[2]), color=color_label) +
       theme_classic() +
       theme(axis.text = element_blank(), 
             axis.title = element_blank(),
             axis.ticks = element_blank()) +
-      guides(colour = guide_legend(override.aes = list(size=3))) +
-      ggtitle(gsub('.+_(.+)$', '\\1', obj@project.name))
+      guides(colour = guide_legend(override.aes = list(size=3))) #+
+      # ggtitle(gsub('.+_(.+)$', '\\1', obj@\))
       
   }
   
-  my_dimplot_blog <- function(obj, reduction='umap', dims=c(1,2), group.by, colors = cell_colors$fine){
-    dimdata <- obj@reductions[[reduction]]@cell.embeddings[,dims]
-    dimdata[,1] <- scale(dimdata[,1])
-    dimdata[,2] <- scale(dimdata[,2])
-    plotdata <- merge(dimdata, obj@meta.data, by='row.names')
-    plotdata[[group.by]] <- factor(plotdata[[group.by]], levels=names(colors))
-    ggplot(plotdata, aes(x=.data[[paste0(reduction, '_', dims[1])]],
-                         y=.data[[paste0(reduction, '_', dims[2])]],
-                         color=.data[[group.by]])) +
-      geom_point(size=0.1, show.legend = TRUE) +
-      scale_color_manual(values = colors, breaks = names(colors), drop=FALSE,
-                         labels = c(
-                           'T (unresolved)',
-                           'CD8+ T',
-                           'CD4+ T',
-                           'B naive',
-                           'B memory',
-                           'Monocyte (unresolved)',
-                           'Classical monocyte',
-                           'Non-classical monocyte',
-                           'NK',
-                           'Megakaryocyte',
-                           'Dendritic',
-                           'pDC',
-                           'Unknown'
-                         )) +
-      labs(x=paste0(reduction, '_', dims[1]), y=paste0(reduction, '_', dims[2]), color='Cell type') +
-      theme_classic() +
-      theme(axis.text = element_blank(), 
-            axis.title = element_blank(),
-            axis.ticks = element_blank()) +
-      guides(colour = guide_legend(override.aes = list(size=3))) +
-      ggtitle(gsub('.+_(.+)$', '\\1', obj@project.name))
-    
-  }
   
-  extras <- c("#CCEBC5",  "#FB8072",  "#FCCDE5", "#4DAF4A")
   for (kit in unique(metadata$Kit)) {
-    samples <- metadata$Sample[metadata$Kit==kit]
-    ps <- lapply(samples, function(sample){
-      my_dimplot(fig_objs[[sample]], group.by = 'cell_labels.fine')
-    })
-    umap_figures[[paste0(kit, '_fine')]] <- ps[[1]] + ps[[2]] + ps[[3]] + ps[[4]] + 
-      plot_layout(guides='collect')+ 
-      plot_annotation(title = kit,
-                      theme = theme(plot.title = element_text(size = 24, hjust = 0.5, face='bold')))
+    umap_figures[[paste0(kit, '_fine')]] <- my_dimplot(fig_objs[[kit]], group.by = 'cell_labels.fine') +
+      ggtitle(kit)
     ggsave(plot = umap_figures[[paste0(kit, '_fine')]],
            path= here('figures/UMAPs'), filename=paste0(kit, '_fine_labels.png'), device = 'png', 
-           width = unit(10, 'in'), height = unit(8, 'in'), )
+           width = unit(6, 'in'), height = unit(4, 'in'), )
   }
-  for (kit in unique(metadata$Kit)) {
-    samples <- metadata$Sample[metadata$Kit==kit]
-    ps <- lapply(samples, function(sample){
-      my_dimplot(fig_objs[[sample]], group.by = 'cell_labels.coarse', colors = cell_colors$coarse)
-    })
-    umap_figures[[paste0(kit, '_coarse')]] <- ps[[1]] + ps[[2]] + ps[[3]] + ps[[4]] + 
-      plot_layout(ncol = 2, guides='collect') + 
-      plot_annotation(title = kit, 
-                      theme = theme(plot.title = element_text(size = 24, hjust = 0.5, face='bold')))
-    ggsave(plot = umap_figures[[paste0(kit, '_coarse')]],
-           path= here('figures/UMAPs'), filename=paste0(kit, '_coarse_labels.png'), device = 'png', 
-           width = unit(10, 'in'), height = unit(8, 'in'), )
-  }
-  samples <- metadata$Sample[metadata$Kit=='Scale']
-  ps <- lapply(samples, function(sample){
-    my_dimplot_blog(fig_objs[[sample]], group.by = 'cell_labels.fine', colors = cell_colors$fine)
-  })
   
- blogfig <- ps[[1]] + ps[[2]] + ps[[3]] + ps[[4]] + 
-    plot_layout(ncol = 2, guides='collect') + 
-    plot_annotation(title = kit, 
-                    theme = theme(plot.title = element_text(size = 24, hjust = 0.5, face='bold')))
-  ggsave(plot = blogfig,
-         path= here('figures/blog'), filename=paste0(kit, '_fine_labels.png'), device = 'png', 
-         width = unit(10, 'in'), height = unit(8, 'in'), )
+  for (kit in unique(metadata$Kit)) {
+    umap_figures[[paste0(kit, '_fine')]] <- 
+      my_dimplot(fig_objs[[kit]], group.by = 'cell_labels.fine') +
+      my_dimplot(fig_objs[[kit]], group.by = 'individual', 
+                 colors = color_palette$samples, color_label='Sample', alpha=0.5)
+    ggsave(plot = umap_figures[[paste0(kit, '_fine')]],
+           path= here('figures/UMAPs'), filename=paste0(kit, '_sample_&_label.png'), device = 'png', 
+           width = unit(12, 'in'), height = unit(4, 'in'), )
+  }
   return(umap_figures)
 }
 

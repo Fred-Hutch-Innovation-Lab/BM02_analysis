@@ -267,11 +267,21 @@ tune_leiden_resolution <- function(
 ```{r}
 kit_level_objs <- lapply(kit_level_objs,
                          FindNeighbors, 
-                         dims=1:20, reduction='PCA_blacklisted',
+                         dims=1:20, reduction='PCA_allgenes',
                          compute.SNN=TRUE, #return.neighbor=TRUE, 
                          graph.name=c('RNA_nn', 'RNA_snn'))
- res_30k_kit_level <- lapply(kit_level_objs, tune_leiden_resolution, reduction='PCA_blacklisted')
 ```
+
+
+```{r, eval=FALSE}
+res_30k_kit_level <- lapply(kit_level_objs, tune_leiden_resolution, reduction='PCA_allgenes')
+saveRDS(res_30k_kit_level, here('rds/leiden_sweep_res.rds'), compress=FALSE)
+```
+
+```{r}
+res_30k_kit_level <- readRDS(here('rds/leiden_sweep_res.rds'))
+```
+
 
 ```{r}
 # for (smple in metadata$Sample) {
@@ -393,6 +403,8 @@ parse_marker_table <- function(celltype_dataframe) {
     filter(expression_level == 'Increased' & tissue == 'PBMC') %>%
     filter(confidence == 'high' | 
              (celltype == 'Dendritic' & confidence == 'med') |
+             (celltype == 'Erythrocyte' & confidence == 'med') |
+             (celltype == 'Granulocyte' & confidence == 'med') |
              # celltype == 'HSPC' | 
              # celltype == 'Lymphocyte progenitor' |
              (celltype %in% c('B naive', 'B memory') & confidence == 'med')) %>%
@@ -400,6 +412,7 @@ parse_marker_table <- function(celltype_dataframe) {
                            'B', 'B naive', 'B memory',
                            'Monocyte', 'Non-classical monocyte', 'Classical monocyte',
                            'NK', 'Dendritic', 'pDC', 'Neutrophil',  
+                           'Erythrocyte', 'Granulocyte',
                            'Megakaryocyte', 'Lymphocyte progenitor', 'HSPC'
                            )) %>%
     select(gene_symbol, celltype) %>%
@@ -423,7 +436,7 @@ prune_marker_list <- function(input_list) {
   }
   
   wrap_name <- function(name) {
-    wrapped_name <- strwrap(name, width = 10, simplify = TRUE)
+    wrapped_name <- strwrap(name, width = 13, simplify = TRUE)
     wrapped_name <- paste(wrapped_name, collapse = "\n")
     return(wrapped_name)
   }
@@ -441,54 +454,56 @@ figures$marker_dotplots <- lapply(kit_level_objs, function(x) {
   z <- DotPlot(x, celltype_markers, group.by = 'clusters') + 
     theme_grey() +
     geom_stripes()
-  z$data$feature.groups <- factor(z$data$feature.groups, levels =c(
-  'B', 'B naive', 'B memory', 'Megakaryocyte',
-  'T', "CD4+ T &\nT", 'CD4+ T', 'CD8+ T',
-  "CD8+ T &\nNK", 'NK', "CD8+ T &\nNK & pDC",
-  'pDC', 'Dendritic', "Non-classical\nmonocyte", 
-  "Classical\nmonocyte", "Neutrophil",
-  'Lymphocyte\nprogenitor', 'HSPC'))
+  z$data$feature.groups <- factor(z$data$feature.groups,
+                                  levels=gtools::mixedsort(as.character(unique(z$data$feature.groups))))
+  # z$data$feature.groups <- factor(z$data$feature.groups, levels =c(
+  # 'B', 'B naive', 'B memory', 'Megakaryocyte',
+  # 'T', "CD4+ T &\nT", 'CD4+ T', 'CD8+ T',
+  # "CD8+ T &\nNK", 'NK', "CD8+ T &\nNK & pDC",
+  # 'pDC', 'Dendritic', "Non-classical\nmonocyte", 
+  # "Classical\nmonocyte", "Neutrophil", 'Erythrocyte',
+  # 'Lymphocyte\nprogenitor', 'HSPC'))
   z
 })
-figures$marker_dotplots$Flex
+figures$marker_dotplots$NextGEM3P
 ```
 
 # Final labels
 
 ## Flex
 
-```{r}
+```{r, fig.width=12, fig.height=6}
 kit <- 'Flex'
 cell_labels <- c(
-      'NK', #0
-      'CD8+ T',
-      'CD4+ T',
+      'CD4+ T', #0
       'CD4+ T',
       'CD8+ T',
+      'Classical monocyte',
+      'NK',
       'B naive', #5
       'Classical monocyte',
       'CD4+ T',
       'CD4+ T',
-      'CD8+ T',
-      'Classical monocyte', #10
-      'CD4+ T',
-      'B memory',
+      'B memory', 
+      'CD8+ T',#10
       'CD8+ T',
       'CD8+ T',
-      'Non-classical monocyte', #15
+      'CD8+ T',
+      'CD8+ T',
+      'CD4+ T', #15
+      'Non-classical monocyte',
       'CD8+ T',
       'CD4+ T',
-      'CD4+ T',
-      'CD4+ T',
-      'Dendritic', #20
-      'Classical monocyte',
+      'T',
+      'NK', #20
+      'Dendritic',
       'Megakaryocyte',
-      'NK',
+      'Non-classical monocyte',
       'pDC',
-      'Unknown', #25
-      'CD4+ T',
-      'Classical monocyte',
+      'T', #25
       'Unknown',
+      'Granulocyte',
+      'Classical monocyte',
       'NK'
     )
 kit_level_objs[[kit]]$cell_labels.fine <- 
@@ -511,38 +526,38 @@ DimPlot(kit_level_objs[[kit]], group.by = 'cell_labels.fine', label=TRUE)
 
 ## Fluent_v4
 
-```{r}
+```{r, fig.width=10, fig.height=6}
 kit <- 'Fluent_v4'
 cell_labels <- c(
-      'CD4+ T', #0
-      'NK',
+      'NK', #0
       'CD8+ T',
       'CD4+ T',
       'CD8+ T',
-      'CD8+ T', #5
+      'CD4+ T',
+      'B naive', #5
+      'CD8+ T',
+      'CD8+ T',
+      'B memory',
+      'CD8+ T',
+      'Classical monocyte', #10
       'CD4+ T',
       'CD4+ T',
-      'B naive',
-      'CD8+ T',
-      'B memory', #10
-      'Classical monocyte',
-      'CD8+ T',
       'CD4+ T',
       'T',
-      'CD8+ T', #15
+      'T', #15
+      'Monocyte',
       'Non-classical monocyte',
       'T',
       'CD4+ T',
-      'CD4+ T',
       'Classical monocyte', #20
+      'CD8+ T',
+      'CD4+ T',
       'Classical monocyte',
       'Dendritic',
-      'CD4+ T',
+      'CD4+ T', #25
+      'CD8+ T',
       'Megakaryocyte',
-      'pDC', #25
-      'T',
-      'T',
-      'T',
+      'pDC',
       'T'
     )
 kit_level_objs[[kit]]$cell_labels.fine <- 
@@ -570,34 +585,34 @@ kit <- 'Fluent_V'
 cell_labels <- c(
       'CD4+ T', #0
       'B naive',
-      'CD4+ T',
       'NK',
       'CD8+ T',
-      'B memory', #5
+      'B memory',
+      'CD4+ T', #5
       'CD8+ T',
       'CD4+ T',
-      'CD4+ T',
       'CD8+ T',
+      'CD4+ T',
       'CD4+ T', #10
+      'CD4+ T',
+      'CD8+ T',
       'CD8+ T',
       'CD4+ T',
-      'T',
-      'CD4+ T',
-      'CD4+ T', #15
-      'Classical monocyte',
+      'CD8+ T', #15
       'Non-classical monocyte',
-      'CD8+ T',
       'Classical monocyte',
+      'Classical monocyte',
+      'CD4+ T',
       'CD4+ T', #20
+      'CD4+ T',
+      'Dendritic',
       'Non-classical monocyte',
-      'Dendritic',
       'pDC',
-      'Megakaryocyte',
-      'CD4+ T', #25
-      'Unknown',
+      'Megakaryocyte', #25
+      'CD4+ T',
+      'Erythrocyte',
       'Dendritic',
-      'Unknown',
-      'NK'
+      'CD4+ T'
     )
 kit_level_objs[[kit]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -623,35 +638,35 @@ DimPlot(kit_level_objs[[kit]], group.by = 'cell_labels.fine', label=TRUE)
 kit <- 'NextGEM3P'
 cell_labels <- c(
       'CD4+ T', #0
-      'Classical monocyte',
       'NK',
+      'CD4+ T',
+      'CD8+ T',
+      'Classical monocyte',
+      'B naive', #5
       'CD8+ T',
       'CD4+ T',
-      'Classical monocyte', #5
       'CD4+ T',
-      'B naive',
-      'CD8+ T',
-      'CD8+ T',
-      'CD4+ T', #10
       'B memory',
+      'CD8+ T', #10
       'CD4+ T',
+      'CD4+ T',
+      'Classical monocyte',
       'CD8+ T',
-      'CD4+ T',
       'CD4+ T', #15
-      'T',
+      'Classical monocyte',
       'CD8+ T',
-      'CD4+ T',
+      'CD8+ T',
       'Non-classical monocyte',
       'CD4+ T', #20
+      'CD4+ T',
       'Dendritic',
       'Megakaryocyte',
-      'Non-classical monocyte',
-      'T',
+      'CD8+ T',
       'NK', #25
       'pDC',
+      'CD8+ T',
       'Classical monocyte',
-      'Unknown',
-      'Unknown'
+      'Erythrocyte'
     )
 kit_level_objs[[kit]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -670,9 +685,25 @@ kit_level_objs[[kit]]$annotations <-
 DimPlot(kit_level_objs[[kit]], group.by = 'annotations', label=TRUE)
 DimPlot(kit_level_objs[[kit]], group.by = 'cell_labels.fine', label=TRUE)
 ```
+
+```{r, fig.height=10, fig.width=10}
+DotPlot(kit_level_objs$GEMX3P, features=c(#'CSF1R',
+'CLC',
+'CPA3',
+'GATA2',
+'HDC',
+'HPGDS',
+'IL3RA',
+'IL5RA',
+'MS4A3'
+), group.by = 'clusters') +
+  theme(axis.text.x=element_text(angle=90))
+```
+
+
 ## GEMX
 
-```{r}
+```{r, fig.width=12, fig.height=5}
 kit <- 'GEMX3P'
 cell_labels <- c(
       'CD4+ T', #0
@@ -680,30 +711,30 @@ cell_labels <- c(
       'CD4+ T',
       'Classical monocyte',
       'Classical monocyte',
-      'CD8+ T', #5
-      'CD4+ T',
+      'CD4+ T', #5
       'NK',
       'B naive',
       'CD8+ T',
-      'B memory', #10
-      'T',
+      'CD8+ T',
+      'CD8+ T', #10
+      'B memory',
       'CD4+ T',
       'CD8+ T',
       'CD8+ T',
-      'T', #15
-      'CD4+ T',
-      'Megakaryocyte',
+      'CD8+ T', #15
       'Non-classical monocyte',
-      'Classical monocyte',
-      'B', #20
+      'CD4+ T',
+      'Monocyte',
+      'CD8+ T',
+      'B naive', #20
       'Dendritic',
-      'T',
-      'Non-classical monocyte',
-      'T',
-      'T', #25
-      'Unknown',
+      'Megakaryocyte',
+      'Megakaryocyte',
+      'CD8+ T',
+      'Erythrocyte', #25
       'pDC',
-      'Classical monocyte',
+      'Monocyte',
+      'Granulocyte',
       'Unknown'
     )
 kit_level_objs[[kit]]$cell_labels.fine <- 
@@ -726,38 +757,38 @@ DimPlot(kit_level_objs[[kit]], group.by = 'cell_labels.fine', label=TRUE)
 
 ## Parse
 
-```{r}
-kit <- 'Parse_V3'
+```{r, fig.width=10, fig.height=6}
+kit <- 'Parse_v3'
 cell_labels <- c(
-      'Classical monocyte', #0
-      'CD4+ T',
+      'CD4+ T', #0
+      'NK',
       'CD4+ T',
       'CD4+ T',
       'Classical monocyte',
-      'NK', #5
-      'CD8+ T',
+      'CD8+ T', #5
+      'CD4+ T',
       'B naive',
       'B memory',
       'CD8+ T',
-      'CD4+ T', #10
+      'Classical monocyte', #10
+      'CD4+ T',
       'CD8+ T',
       'CD8+ T',
       'Non-classical monocyte',
-      'CD8+ T',
-      'CD4+ T', #15
-      'CD4+ T',
-      'CD8+ T',
-      'CD4+ T',
+      'CD8+ T', #15
       'Classical monocyte',
+      'CD4+ T',
+      'CD4+ T',
+      'CD8+ T',
       'CD4+ T', #20
-      'CD4+ T',
-      'CD4+ T',
       'CD8+ T',
-      'NK',
-      'Dendritic', #25
-      'CD8+ T',
+      'Classical monocyte',
+      'CD4+ T',
+      'Dendritic',
+      'CD8+ T', #25
       'CD8+ T',
       'pDC',
+      'NK',
       'Unknown'
     )
 kit_level_objs[[kit]]$cell_labels.fine <- 
@@ -780,39 +811,39 @@ DimPlot(kit_level_objs[[kit]], group.by = 'cell_labels.fine', label=TRUE)
 
 ## Scale
 
-```{r}
+```{r, fig.width=10, fig.height=6}
 kit <- 'Scale'
 cell_labels <- c(
       'CD4+ T', #0
+      'Classical monocyte',
       'B naive',
       'NK',
-      'Classical monocyte',
       'B memory',
-      'CD4+ T', #5
+      'Classical monocyte', #5
+      'CD4+ T',
+      'CD8+ T',
+      'CD4+ T',
       'Classical monocyte',
-      'CD8+ T',
-      'CD4+ T',
-      'CD4+ T',
-      'Classical monocyte', #10
-      'CD4+ T',
+      'CD4+ T', #10
       'CD8+ T',
       'CD8+ T',
       'CD4+ T',
-      'CD8+ T', #15
+      'CD4+ T',
+      'Non-classical monocyte', #15
+      'CD8+ T',
       'CD8+ T',
       'CD8+ T',
       'CD4+ T',
-      'Non-classical monocyte',
       'CD4+ T', #20
       'CD8+ T',
+      'CD4+ T',
       'Dendritic',
-      'Non-classical monocyte',
-      'T',
-      'Monocyte', #25
-      'NK',
+      'CD8+ T',
+      'Classical monocyte', #25
       'B',
-      'pDC',
-      'Unknown'
+      'CD4+ T',
+      'NK',
+      'pDC'
     )
 kit_level_objs[[kit]]$cell_labels.fine <- 
   plyr::mapvalues(
@@ -834,7 +865,7 @@ DimPlot(kit_level_objs[[kit]], group.by = 'cell_labels.fine', label=TRUE)
 
 # Save objs
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 saveRDS(kit_level_objs, here('rds/05_merged_objs_post_clustering.rds'), compress=FALSE)
 ```
 

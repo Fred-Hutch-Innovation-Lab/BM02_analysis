@@ -36,6 +36,29 @@ metadata$Kit <- factor(metadata$Kit, levels = kit_order)
 figures <- list()
 ```
 
+```{r, eval=FALSE}
+names(objs) <-
+  names(objs) %>%
+    case_when(
+      grepl('FBv4', .) ~ gsub('FBv4', 'Fluent_v4', .),
+      grepl('FBv5', .) ~ gsub('FBv5', 'Fluent_V', .),
+      grepl('PA_V3', .) ~ gsub('PA_V3', 'Parse_v3', .),
+      .default = .
+    )
+names(objs) <-
+  names(objs) %>%
+    case_when(
+      grepl('FBv4', .) ~ gsub('FBv4', 'Fluent_v4', .),
+      grepl('FBv5', .) ~ gsub('FBv5', 'Fluent_V', .),
+      grepl('PA_V3', .) ~ gsub('PA_V3', 'Parse_v3', .),
+      .default = .
+    )
+objs <- objs[names(objs)[!grepl('BD', names(objs))]]
+names(objs)
+
+```
+
+
 ## Rename cells
 
 ```{r}

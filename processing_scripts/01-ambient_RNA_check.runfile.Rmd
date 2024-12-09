@@ -19,7 +19,6 @@ library(reshape2)   ## DF manipulation
 library(data.table) ## rbindlist
 # library(FHIL.SC.utils) ## Custom functions
 set.seed(33)
-Sys.sleep(86400)
 ```
 
 ```{r}
@@ -298,13 +297,17 @@ objs <- lapply(objs, function(x) {
 # Save RDS
 
 ```{r, eval=FALSE}
-saveRDS(objs, here('rds/01-soup_channels.rds'), compress=TRUE)
+saveRDS(objs, here('rds/01-soup_channels.rds'), compress=FALSE)
+```
+
+
+```{r, eval=TRUE}
 objs <- readRDS(here('rds/01-soup_channels.rds'))
 ```
 
 ## Append individual reruns
 
-```{r, eval=TRUE}
+```{r, eval=FALSE}
 objs_rerun <- objs
 objs <- readRDS(here('rds/01-soup_channels.rds'))
 for (x in names(objs_rerun)) {
@@ -361,10 +364,13 @@ objs <- lapply(objs, CreateSeuratObject)
 for (obj in names(objs)){
   Project(objs[[obj]]) <- obj
 }
+for (obj in names(objs)){
+  objs[[obj]]$orig.ident <- obj
+}
 ```
 
 ```{r}
-saveRDS(objs, here('rds/01_raw_objs_rerun.rds'), compress=FALSE)
+saveRDS(objs, here('rds/01_raw_objs.rds'), compress=TRUE)
 ```
 
 # Render report

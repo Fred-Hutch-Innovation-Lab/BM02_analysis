@@ -32,6 +32,9 @@ Cell counts by method in reference:
 pbmcsca$Method |> table()
 ```
 
+For each celltype manually annotated in the datasets, how strong were the 
+prediction scores for that celltype in those cells?
+
 ```{r}
 figures[['annotation_scores_kit_fine']]
 ```
@@ -39,13 +42,13 @@ figures[['annotation_scores_kit_fine']]
 # Annotation confusion matrix {.tabset}
 
 For all celltype labels, how specific are the annotations? Is it harder to resolve
-some celltypes from others?
+some celltypes from others using annotation mapping?
 
 ```{r, eval=TRUE, results='asis'}
 out <- NULL
 for (kit in unique(metadata$Kit)) {
   chunktext <- '\n## {{kit}} {.unlist}\n
-  \n```{r, fig.width=15, fig.height=11}\n
+  \n```{r, fig.width=11, fig.height=9}\n
   figures[["annotation_confusion_mat_fine"]][["{{kit}}"]]
   \n```\n
   '
@@ -67,7 +70,8 @@ in 10+ cells of 2+ samples in all kits (besides Flex).
 **If you have more, please let me know so we can expand the database**. 
 
 ```{r}
-celltype_markers
+# celltype_markers
+celltype_markers_modules
 ```
 
 # Gene signatures {.tabset}
@@ -77,18 +81,18 @@ Details for expression of every gene in the module for each sample
 ```{r, eval=TRUE, results='asis'}
 out <- NULL
 for (kit in unique(metadata$Kit)) {
-  chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
-  out = c(out, knit_expand(text = chunktext))
-  for (sample in metadata$Sample[metadata$Kit == kit]) {
-    ind <- metadata$Individual[metadata$Sample==sample]
-    rep <- metadata$Replicate[metadata$Sample==sample]
-    chunktext <- '\n### {{ind}}{{rep}} {.unlist}
+  # chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
+  # out = c(out, knit_expand(text = chunktext))
+  # for (sample in metadata$Sample[metadata$Kit == kit]) {
+  #   ind <- metadata$Individual[metadata$Sample==sample]
+  #   rep <- metadata$Replicate[metadata$Sample==sample]
+    chunktext <- '\n## {{kit}} {.tabset .unlist}\n
     \n```{r, fig.width=27, fig.height=6}\n
-    figures$marker_dotplots[[paste0("{{sample}}")]]
+    figures$marker_dotplots[[paste0("{{kit}}")]]
     \n```\n
     '
     out = c(out, knit_expand(text = chunktext))
-  }
+  # }
 }
 
 cat(knit_child(text = out, quiet = TRUE), sep = '\n')
@@ -101,49 +105,47 @@ Module scoring performed by [UCell](https://doi.org/10.1016/j.csbj.2021.06.043).
 Within celltypes from each kit, how did they score with the modules? 
 Comparing the ability to distinguish celltypes across kits.
 
-For Flex, genes missing from the probeset were not included in the metric calculation
-as they would artificially deflate scores. 
+Using a shared set of genes present in every kit (including Flex).
+<!-- ## Coarse -->
 
-## Coarse
+<!-- ```{r} -->
+<!-- figures[['module_scores_kit_coarse']] -->
+<!-- ``` -->
 
-```{r}
-figures[['module_scores_kit_coarse']]
-```
-
-## Fine
+<!-- ## Fine -->
 
 ```{r}
 figures[['module_scores_kit_fine']]
 ```
 
-# Confusion matrices 
+# Confusion matrices {.tabset}
 
 For all celltype labels and modules, how specific are the modules? Is it harder to resolve
 some celltypes from others?
 
-## Coarse {.tabset}
+<!-- ## Coarse {.tabset} -->
+
+<!-- ```{r, eval=TRUE, results='asis'} -->
+<!-- out <- NULL -->
+<!-- for (kit in unique(metadata$Kit)) { -->
+<!--   chunktext <- '\n### {{kit}} {.unlist}\n -->
+<!--   \n```{r, fig.width=12, fig.height=11}\n -->
+<!--   figures[["confusion_mat_coarse"]][["{{kit}}"]] -->
+<!--   \n```\n -->
+<!--   ' -->
+<!--   out = c(out, knit_expand(text = chunktext)) -->
+<!-- } -->
+
+<!-- cat(knit_child(text = out, quiet = TRUE), sep = '\n') -->
+<!-- ``` -->
+
+<!-- ## Fine {.tabset} -->
 
 ```{r, eval=TRUE, results='asis'}
 out <- NULL
 for (kit in unique(metadata$Kit)) {
-  chunktext <- '\n### {{kit}} {.unlist}\n
-  \n```{r, fig.width=12, fig.height=11}\n
-  figures[["confusion_mat_coarse"]][["{{kit}}"]]
-  \n```\n
-  '
-  out = c(out, knit_expand(text = chunktext))
-}
-
-cat(knit_child(text = out, quiet = TRUE), sep = '\n')
-```
-
-## Fine {.tabset}
-
-```{r, eval=TRUE, results='asis'}
-out <- NULL
-for (kit in unique(metadata$Kit)) {
-  chunktext <- '\n### {{kit}} {.unlist}\n
-  \n```{r, fig.width=14, fig.height=11}\n
+  chunktext <- '\n## {{kit}} {.unlist}\n
+  \n```{r, fig.width=11, fig.height=9}\n
   figures[["confusion_mat_fine"]][["{{kit}}"]]
   \n```\n
   '

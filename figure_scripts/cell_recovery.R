@@ -19,8 +19,9 @@ main <- function() {
     'Flex' = 10000,
     'NextGEM3P' = 10000,
     'GEMX3P' = 20000,
-    'Fluent' = 20000,
-    'Parse_V3' = 25000,
+    'Fluent_v4' = 20000,
+    'Fluent_V' = 20000,
+    'Parse_v3' = 25000,
     'Scale' = 125000 /4
   ) |> reshape2::melt() |>
     rename(Kit = L1)
@@ -29,31 +30,41 @@ main <- function() {
     'Flex' = 10000/16871,
     'NextGEM3P' = 10000/(1100*15),
     'GEMX3P' = 20000/(1300*22.3),
-    'Fluent' = .5,
-    'Parse_V3' = 100000/(4*(520*14*12)),
+    'Fluent_v4' = .5,
+    'Fluent_V' = .5,
+    'Parse_v3' = 100000/(4*(520*14*12)),
     'Scale' = .25
   ) |> reshape2::melt() |>
     rename(Kit = L1)
   
-  pipeline_data <- read_xlsx(here('data/pipeline_summary_statistics/downsampled_data.xlsx'), skip = 1) %>%
-    filter(!METRICS %in% c('Last updated')) %>%
-    column_to_rownames('METRICS') %>%
-    t() %>% 
-    as.data.frame() %>%
-    rownames_to_column('Sample') %>%
-    as.data.table() %>%
-    select('Sample', '# cells loaded', '#Cells') %>%
-    melt(id.vars='Sample') %>%
+  pipeline_data <- read_xlsx(here('data/pipeline_summary_statistics/downsampled_data.xlsx'), skip = 1, .name_repair = 'minimal', col_names = TRUE) %>%
+    filter(METRICS %in% c('# cells loaded', '# Cells recovered')) %>%
+    as.data.table() |>
+    melt(id.vars='METRICS') |>
+    # column_to_rownames('METRICS') %>%
+    # t() %>% 
+    # as.data.frame()
+  # rows <- pipeline_data[2:nrow(pipeline_data),1]
+  # cols <- pipeline_data[1,2:ncol(pipeline_data)]
+  # pipeline_data <- pipeline_data[2:nrow(pipeline_data),2:ncol(pipeline_data)]
+  # colnames(pipeline_data) <- cols
+  # rownames(pipeline_data) <- rows
+    # rowid_to_column(1) %>%
+    
+    # rownames_to_column('Sample') %>%
+    # as.data.table() %>%
+    # select('Sample', '# cells loaded', '# Cells recovered') %>%
+    # melt(id.vars='Sample') %>%
     mutate(value = as.numeric(value)) %>%
-    mutate(variable = case_when(
-      variable == '# cells loaded' & grepl('Scale', Sample) ~ '# cells barcoded',
-      .default = variable
+    mutate(METRICS = case_when(
+      METRICS == '# cells loaded' & grepl('Scale', variable) ~ '# cells barcoded',
+      .default = METRICS
     ))
-  colnames(pipeline_data) <- c('Sample', 'class', 'Freq')
+  colnames(pipeline_data) <- c('class', 'Sample', 'Freq')
   scale_used_cells <- 125000
   pipeline_data <- rbind(pipeline_data,
-    data.frame(Sample = metadata$Sample[metadata$Kit=='Scale'], 
-             class = '# cells loaded', 
+    data.frame(class = '# cells loaded', 
+               Sample = metadata$Sample[metadata$Kit=='Scale'], 
              Freq = scale_used_cells
   ))
     
@@ -73,7 +84,7 @@ main <- function() {
   plotdata <- do.call(rbind, list(pipeline_data, doublets, bad_cells)) %>%
     merge(metadata, by='Sample') %>%
     arrange(Sample, class) %>%
-    mutate(class = factor(class, levels = c('# cells barcoded', '# cells loaded', '#Cells', 'after_qc_filtering', 'after_doublet_filtering'))) %>%
+    mutate(class = factor(class, levels = c('# cells barcoded', '# cells loaded', '# Cells recovered', 'after_qc_filtering', 'after_doublet_filtering'))) %>%
     group_by(Sample) %>%
     arrange(Sample, class) %>%
     mutate(Freq=as.numeric(Freq),

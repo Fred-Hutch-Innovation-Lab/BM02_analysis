@@ -2,9 +2,10 @@ library(tidyverse)  ## General R logic
 library(here)       ## Easier specification of file locations
 library(yaml)       ## parses config yaml
 library(Seurat)
+library(UpSetR)
 
 main <- function(figures_list) {
-  fig_objs <- readRDS(here('rds/02-filtered_objs.rds'))
+  fig_objs <- readRDS(here('rds/02-objs_post_cell_filtering.rds'))
   metadata <- read.csv(here('config/metadata.csv'))
   
   # Sample levels -----
@@ -19,7 +20,7 @@ main <- function(figures_list) {
     detected_genes
   })
   
-  
+  figures_list <- list()
   figures_list[['usable_genes_sample']] <-
     lapply(detected_genes_sample_level, length) %>%
     stack() %>%
@@ -29,7 +30,9 @@ main <- function(figures_list) {
     geom_point(aes(shape=paste0(Individual, Replicate))) +
     # facet_wrap(~ Kit, scales='free_x') + 
     labs(x = 'Kit', y='Genes detected', shape='Sample', caption = 'Genes detected in at least 10 cells')
-  ggsave(plot=figures_list[['usable_genes_sample']], here('figures/usable_genes_sample.png'), width = unit(7, 'in'), height = unit(5, 'in'))
+  ggsave(plot=figures_list[['usable_genes_sample']], 
+         here('figures/gene_recovery/usable_genes_sample.png'), 
+         width = unit(7, 'in'), height = unit(5, 'in'))
   
    # Kit level ----
   detected_genes_kit_level <- lapply(unique(metadata$Kit), function(kit) {
@@ -51,15 +54,45 @@ main <- function(figures_list) {
     # geom_point(aes(shape=paste0(Individual, Replicate))) +
     # facet_wrap(~ Kit, scales='free_x') + 
     labs(x = 'Kit', y='Genes detected', caption = 'Genes detected in at least 10 cells in 3+ samples')
-  ggsave(plot=figures_list[['usable_genes_kit']], here('figures/usable_genes_kit.png'), width = unit(7, 'in'), height = unit(6, 'in'))
+  ggsave(plot=figures_list[['usable_genes_kit']],
+         here('figures/gene_recovery/usable_genes_kit.png'),
+         width = unit(7, 'in'), height = unit(6, 'in'))
   
   # Euler plot ---- 
   figures_list[['gene_overlap']] <-
     plot(eulerr::euler(detected_genes_kit_level, shape='ellipse'))
-  # png(filename = here('figures/usable_genes_set_overlap.png'), width = unit(4, 'in'), height = unit(4, 'in'))
-  ggplot2::ggsave(plot=figures_list[['gene_overlap']], filename = here('figures/usable_genes_set_overlap.png'), width = unit(4, 'in'), height = unit(4, 'in'))
-  # dev.off()
-  # ggsave()
+  ggplot2::ggsave(plot=figures_list[['gene_overlap']], 
+                  filename = here('figures/gene_recovery/usable_genes_set_overlap.png'),
+                  width = unit(4, 'in'), height = unit(4, 'in'))
+  
+  # Upset plot ----
+  kits <- levels(metadata$Kit)[levels(metadata$Kit) != 'Flex']
+  intersections <- lapply(1:length(kits), function(x) kits[-x])
+  intersections <- c(
+    levels(metadata$Kit),
+    list(list('Fluent_v4', 'Fluent_V')),
+    list(list('GEMX3P', 'NextGEM3P')),
+    intersections,
+    list(kits),
+    list(levels(metadata$Kit))
+  )
+  upset(fromList(detected_genes_kit_level), 
+        sets=levels(metadata$Kit),
+        # nsets=8,
+        # nintersects = 140, 
+        keep.order = TRUE,
+        intersections = intersections,
+        order.by='degree',
+        # cutoff=100,
+        decreasing = FALSE,
+        mainbar.y.label='Gene count',
+        number.angles = 0,
+        empty.intersections=FALSE) ->
+    figures_list[['gene_overlap_upset']]
+  figures_list[['gene_overlap_upset']]
+  ggplot2::ggsave(plot=figures_list[['gene_overlap_upset']], 
+                  filename = here('figures/gene_recovery/usable_genes_set_overlap.png'),
+                  width = unit(12, 'in'), height = unit(5, 'in'))
   
   return(figures_list)
 }

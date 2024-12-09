@@ -19,8 +19,8 @@ library(reshape2)   ## DF manipulation
 # library(ggraph)     ## To render clustree
 # library(ggforestplot) ## Striped lines for dotplots
 # library(SingleCellExperiment)
-library(gridExtra)  ## arrange plots
-# library(janitor) ## Tabyl, adorn_rounding
+# library(gridExtra)  ## arrange plots
+library(janitor) ## Tabyl, adorn_rounding
 # library(ggrastr) ## Rasterize images for smaller size
 library(DT)     ## Datatables
 rbindlist <- data.table::rbindlist
@@ -44,6 +44,7 @@ coarse_mapping <- c(
    'Megakaryocyte' = 'Megakaryocyte',
    'Dendritic' = 'Dendritic',
    'pDC' = 'pDC',
+   'Granulocyte' = 'Granulocyte',
    'Unknown' = 'Unknown'
 )
 ```
@@ -53,10 +54,33 @@ coarse_mapping <- c(
 
 ```{r}
 objs <- readRDS(here('rds/05_merged_objs_post_clustering.rds'))
-objs <- objs[names(objs)[!grepl('BD', names(objs))]]
-metadata <- read.csv(here('config/metadata.csv'))
+kit_order <- read.table(here('config/kit_order.txt'))$V1
+metadata <- read.csv(here('config/metadata.csv')) %>%
+  mutate(Kit = factor(Kit, levels = kit_order))
 figures <- list()
 ```
+
+```{r, eval=FALSE}
+lapply(objs, function(x) x@project.name)
+for (obj in names(objs)){
+  Project(objs[[obj]]) <- obj
+}
+lapply(objs, function(x) x@project.name)
+```
+
+```{r}
+objs <- lapply(objs, function(x) {
+  x@meta.data <- x@meta.data |>
+    mutate(orig.ident = case_when(
+      grepl('FBv4', orig.ident) ~ gsub('FBv4', 'Fluent_v4', orig.ident),
+      grepl('FBv5', orig.ident) ~ gsub('FBv5', 'Fluent_V', orig.ident),
+      grepl('PA_V3', orig.ident) ~ gsub('PA_V3', 'Parse_v3', orig.ident),
+      .default = orig.ident
+    )) 
+  x
+})
+```
+
 
 # Generate scCoda data
 
@@ -72,15 +96,25 @@ comp_table <-  lapply(objs, function(x) {
   x@meta.data |> 
     tabyl(orig.ident, cell_labels.coarse) |>
     melt()
-  }) |> rbindlist(idcol = 'Kit') 
-comp_table <- data.table::dcast.data.table(comp_table,
-                               orig.ident ~ variable, 
-                               value.var = 'value') %>%
-  mutate_all(~replace(., is.na(.), 0)) %>%
-  rename('orig.ident' = 'Sample')
-comp_table <- merge(comp_table, metadata, by='Sample')
+  }) |> rbindlist() |>
+  rename('Sample'='orig.ident') |>
+  mutate(Sample = case_when(
+    grepl('FBv4', Sample) ~ gsub('FBv4', 'Fluent_v4', Sample),
+    grepl('FBv5', Sample) ~ gsub('FBv5', 'Fluent_V', Sample),
+    grepl('PA_V3', Sample) ~ gsub('PA_V3', 'Parse_v3', Sample),
+    .default = Sample
+  )) |>
+  merge(metadata, by='Sample', all=TRUE) %>%
+  select(-c('Sensitivity', 'File'))
+comp_table_sccoda <- comp_table |>
+  mutate(Kit = as.character(Kit)) |>
+  data.table::dcast.data.table(
+    Kit + Sample + Individual + Replicate ~ variable, 
+    value.var = 'value') %>%
+  mutate_all(~replace(., is.na(.), 0)) 
+# comp_table <- merge(comp_table, metadata, by='Sample')
 
-write.table(x = comp_table, file = here('rds/composition_table_coarse.txt'),
+write.table(x = comp_table_sccoda, file = here('rds/composition_table_coarse.txt'),
             quote = FALSE, row.names = FALSE, col.names = TRUE, sep = '\t')
 ```
 
@@ -88,7 +122,7 @@ write.table(x = comp_table, file = here('rds/composition_table_coarse.txt'),
 
 ```{r, fig.height=4, warning=FALSE, fig.width=15}
 comp_table |> 
-  melt(measure.vars=unique(coarse_mapping)) |> 
+  # melt(measure.vars=unique(coarse_mapping)) |> 
   group_by(Sample) |> 
   mutate(percent = 100*value / sum(value)) |>
   ggplot(aes(x = Kit, y = percent,
