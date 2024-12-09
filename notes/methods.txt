@@ -6,6 +6,24 @@ Each sample was then filtered with loose global thresholds refelcting normal exp
 Cells with greater than 30000 unique transcripts, greater than 10000 unique genes, greater than 15% mitochondrial reads, or greater than 50% ribosomal reads were removed. 
 Cells with less than 1000 unique transcripts or less than 200 unique genes were removed. 
 
+Processed data was merged at the kit level. Variable features were identified at the kit level using Seurat's 
+FindVariableFeatures. Genes with patterns matching B-cell receptor, T-cell receptor, Ig constant, mitochondrial, and ribosomal gene symbols were excluded from variable features to minimize signal caused by invididual differences in the
+merged dataset and identify shared clusters across samples. Each kit's final variable feature list had 2000 genes.
+
+Filtered variable feature lists were used to perform principal component analysis using Seurat's RunPCA. The first 20
+PCs were used to build a shared nearest neighbor graphs. The SNNs were passed to the Leiden algorithm implemented by iGraph to perform unsupervised clustering on each kit [citation needed].
+Resolutions were selected to force 30 clusters, with singletons (cells in a cluster by themselves) collapsed to their nearest cluster using the Seurat approach. 
+
+Cells were annotated on a per-cell basis using SingleR [] using several bulk-RNA reference datasets 
+[Mabbott et al. 2013][Novershtern et al. 2011][Monaco et al. 2019]
+Cells were also annotated using Seurat’s reference integration method with the dataset from [Stoeckius et al. 2017].
+
+Clusters were then labelled by manually reviewing the majority annotations across the reference dataset mappings
+and confirming the calls using cannonnical marker genes pulled from literature reviews and queried and confirmed
+in the cellxgene database []. These cluster level labels are used as the final cell-type labels.
+
+UMAPs were generated using the SNN with Seurat's RunUMAP function with default arguments. 
+
 [TODO] Gene filtering?
 
 1.
