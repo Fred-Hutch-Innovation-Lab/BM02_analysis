@@ -14,7 +14,11 @@ source(here('config/color_palette.R'))
     mutate(Kit = factor(Kit, levels = kit_order))
 
   comp_table |> 
-    melt(id.vars = c('Kit', 'Sample', 'Individual', 'Replicate')) |> #measure.vars=unique(coarse_mapping)) |> 
+    reshape2::melt(id.vars = c('Kit', 'Sample', 'Individual', 'Replicate')) |> #measure.vars=unique(coarse_mapping)) |> 
+    mutate(variable = factor(variable, levels = c(
+      'T', 'Monocyte', 'B', 'NK', 'Dendritic', 'Megakaryocyte', 'pDC', 
+      'Granulocyte', 'Erythrocyte', 'Unknown'
+    ))) |>
     group_by(Sample) |> 
     mutate(percent = 100*value / sum(value),
            Kit = factor(Kit, levels=kit_order)) |>
