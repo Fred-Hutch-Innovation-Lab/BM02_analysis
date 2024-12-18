@@ -1,0 +1,171 @@
+---
+title: 'BM02 summary'
+author: |
+  | Derrik Gratz
+  | Fred Hutch Innovation Lab
+date: '`r Sys.Date()`'
+output: 
+  rmdformats::robobook:
+    fig_width: 9
+    toc_depth: 3
+    css: "../config/robobook.css"
+---
+
+```{r, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE,
+                      fig.width = 9, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+```
+
+```{r, eval=FALSE}
+## how to render this script
+rmarkdown::render(here('figure_scripts/report.Rmd'),
+                  output_file = 'BM02_QC_summary.html',
+                  output_dir = here('reports'))
+```
+
+
+```{r source_fig_scripts, include=FALSE}
+# source(here('figures/figure_scripts/QC_vlnplots.R'))
+# source(here('figures/figure_scripts/cell_recovery.R'))
+# source(here('figures/figure_scripts/genes_per_cell.R'))
+```
+
+# Pipeline summaries
+
+```{r, fig.height=8}
+source(here('figure_scripts/pipeline_metrics_table.R'))
+qc_metrics_table
+# knitr::include_graphics(here('figures/metrics_table.png'))
+```
+
+
+***
+
+# Saturation curves
+
+```{r}
+knitr::include_graphics(here('figures/saturation_curves.png'))
+# qc_figures[['nCount_RNA_vln']]
+```
+
+***
+
+# Filtering thresholds
+
+Outputs from processing pipelines were filtered by global thresholds to eliminate extreme values.
+
+```{r}
+cutoffs <- list(nCount_RNA.max = 30000,
+                    nCount_RNA.min = 1000,
+                    nFeature_RNA.max = 10000,
+                    nFeature_RNA.min = 200,
+                    # log10GenesPerUMI.max = Inf,
+                    # log10GenesPerUMI.min = 0.80,
+                    mtRatio.max = 0.15,
+                    mtRatio.min = 0,
+                    rbRatio.max = 0.5,
+                    rbRatio.min = 0)
+stack(cutoffs) %>%
+  separate(ind, c('metric', 'direction'), '\\.') %>%
+  dcast(metric~direction, value.var = 'values') %>%
+  mutate(max = as.character(max), 
+         min = as.character(min)) %>%
+  knitr::kable()
+```
+
+***
+
+# Cell recovery {.tabset}
+
+Low quality cells are those removed by QC filtering thresholds. Multiplets are cells that passed QC filtering and were labeled doublets by the [scDblFinder](https://f1000research.com/articles/10-979/v2) algorithm. 
+
+## Counts
+
+```{r, fig.width = 9, fig.height = 4}
+knitr::include_graphics(here('figures/cell_recovery_counts.png'))
+# cell_recovery_figures[['cell_recovery_counts']]
+```
+
+***
+
+## Proportions
+
+```{r, fig.width = 9, fig.height = 4}
+knitr::include_graphics(here('figures/cell_recovery_portions.png'))
+# cell_recovery_figures[['cell_recovery_portions']]
+```
+
+***
+
+# QC Metrics {.tabset}
+
+Showing distribution of QC metrics on filtered (passed QC thresholds, called singlet) cells.
+
+## Gene counts
+
+```{r}
+knitr::include_graphics(here('figures/qc_vln_plots_after_filtering/nFeature_RNA_vln.png'))
+# qc_figures[['nFeature_RNA_vln']]
+```
+
+***
+
+## UMI counts
+
+```{r}
+knitr::include_graphics(here('figures/qc_vln_plots_after_filtering/nCount_RNA_vln.png'))
+# qc_figures[['nCount_RNA_vln']]
+```
+
+***
+
+## Mitochondrial reads
+
+```{r}
+knitr::include_graphics(here('figures/qc_vln_plots_after_filtering/mtRatio_vln.png'))
+# qc_figures[['mtRatio_vln']]
+```
+
+***
+
+## Ribosomal reads
+
+```{r}
+knitr::include_graphics(here('figures/qc_vln_plots_after_filtering/rbRatio_vln.png'))
+# qc_figures[['rbRatio_vln']]
+```
+
+***
+
+# Gene recovery
+
+## Functional gene counts {.tabset}
+
+Slightly more stringent than just detecting a gene: detecting it in at least 10 cells / sample. At the kit level,
+counting genes in at least 10 cells in at least 3 samples.
+
+### Sample
+
+```{r}
+knitr::include_graphics(here('figures/usable_genes_sample.png'))
+# figures[['usable_genes_sample']]
+```
+
+### Kit
+
+```{r, dpi=150}
+knitr::include_graphics(here('figures/usable_genes_kit.png'))
+# figures[['usable_genes_kit']]
+```
+
+## Gene set overlap
+
+Using the same functional definition as above (>=10 cells/sample, >=3 samples), a visualization of the set overlap: are there genes present in some kits and not others?
+
+```{r}
+knitr::include_graphics(here('figures/usable_genes_set_overlap.png'))
+# figures[['gene_overlap']]
+```
+

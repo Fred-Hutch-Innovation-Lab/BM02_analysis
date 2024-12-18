@@ -1,0 +1,171 @@
+---
+title: 'BM02 Data filtering'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: 
+  rmdformats::robobook:
+    fig_width: 9
+    toc_depth: 3
+    css: "../config/robobook.css"
+---
+
+```{r, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+```
+
+# Filtering thresholds
+
+Filtering cells by consistent global thresholds.
+
+```{r}
+stack(global_cutoffs) %>%
+  separate(ind, c('metric', 'direction'), '\\.') %>%
+  dcast(metric~direction, value.var = 'values') %>%
+  knitr::kable(digits=2)
+```
+
+# Filtering Metrics
+
+Looking at individual metrics and how many cells would be removed when filtering by global thresholds.
+
+## nFeature
+
+:::: {class='fluid-row'}
+
+::: {class='col-md-6'}
+
+```{r, fig.height=9, fig.width=4}
+figures[['nFeature_vln_facet']]
+```
+
+:::
+
+::: {class='col-md-6'}
+
+```{r, fig.height=9, fig.width=6}
+figures[['filtering_likert_nFeature_RNA']]
+```
+
+:::
+
+::::
+
+## nCount
+
+:::: {class='fluid-row'}
+
+::: {class='col-md-6'}
+
+```{r, fig.height=9, fig.width=4}
+figures[['nCount_vln_facet']]
+```
+
+:::
+
+::: {class='col-md-6'}
+
+```{r, fig.height=9, fig.width=6}
+figures[['filtering_likert_nCount_RNA']]
+```
+
+:::
+
+::::
+
+## mito
+
+:::: {class='fluid-row'}
+
+::: {class='col-md-6'}
+
+```{r, fig.height=9, fig.width=4}
+figures[['mtRatio_vln_facet']]
+```
+
+:::
+
+::: {class='col-md-6'}
+
+```{r, fig.height=9, fig.width=6}
+figures[['filtering_likert_mtRatio']]
+```
+
+:::
+
+::::
+
+## ribo
+
+:::: {class='fluid-row'}
+
+::: {class='col-md-6'}
+
+```{r, fig.height=9, fig.width=4}
+figures[['rbRatio_vln_facet']]
+```
+
+:::
+
+::: {class='col-md-6'}
+
+```{r, fig.height=9, fig.width=6}
+figures[['filtering_likert_rbRatio']]
+```
+
+:::
+
+::::
+
+# Doublets
+
+Doublets called by the `scDblFinder` algorithm.
+
+```{r}
+figures[['doublet_portion_boxchart']]
+```
+
+# Filtering overlap {.tabset}
+
+Of the possible filtering metrics, is there some redundancy? 
+Are some thresholds dominating the filtering?
+And are doublets sufficiently removed by threshold filtering? 
+It looks like `scDblFinder` is labeling many additional cells beyond those with 
+high UMI/gene counts, likely due to heterotypic expression profiles. 
+The doublet finding algorithm could also be viewed as too conservative or lacking accuracy & eliminating real data. 
+
+```{r}
+chunk_text <- '
+\n## {{kit}} {.unlist}
+\n\n```{r, fig.width=14, fig.height=4.5}
+samples <- metadata$Sample[metadata$Kit == "{{kit}}"]
+gridExtra::grid.arrange(grobs = euler_plots[samples], nrow = 1)
+\n```\n'
+```
+
+```{r, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  out = c(out, knit_expand(text = chunk_text))
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+# Cell recovery {.tabset}
+
+What portion of the capture is removed by QC filtering, identified as doublets, etc.
+
+## Counts
+
+```{r, fig.width=12}
+figures[['cell_recovery_count_barchart']]
+```
+
+## Proportions
+
+```{r, fig.width=12}
+figures[['cell_recovery_portion_barchart']]
+```

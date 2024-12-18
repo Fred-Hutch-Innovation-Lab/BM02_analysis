@@ -63,8 +63,8 @@ runSoupX <- function(tod,
 # Load config
 
 ```{r}
-source(here('config/wt/generate_metadata.R'))
-metadata <- read.csv(here('config/wt/metadata.csv'))
+source(here('config/generate_metadata.R'))
+metadata <- read.csv(here('config/metadata.csv'))
 metadata
 ```
 
@@ -370,7 +370,7 @@ for (obj in names(objs)){
 ```
 
 ```{r}
-saveRDS(objs, here('rds/wt/01_raw_objs.rds'), compress=TRUE)
+saveRDS(objs, here('rds/01_raw_objs.rds'), compress=TRUE)
 ```
 
 # Render report
@@ -379,8 +379,8 @@ saveRDS(objs, here('rds/wt/01_raw_objs.rds'), compress=TRUE)
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/wt/01-ambient_RNA_check.format.Rmd'),
+rmarkdown::render(here('processing_scripts/01-ambient_RNA_check.format.Rmd'),
                   output_file = '01_soupx.html',
-                  output_dir = here('reports/wt'))
+                  output_dir = here('reports'))
 ```
 

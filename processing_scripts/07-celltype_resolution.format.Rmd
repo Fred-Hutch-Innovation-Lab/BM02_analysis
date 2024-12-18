@@ -1,0 +1,156 @@
+---
+title: 'BM02 celltype resolution'
+author: |
+  | FHIL
+  | Derrik Gratz
+date: '`r Sys.Date()`'
+output: 
+  rmdformats::robobook:
+    fig_width: 9
+    toc_depth: 3
+    css: "../config/robobook.css"
+---
+
+```{r, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+```
+
+The goal is to see how strongly a celltype can be detected in the sample/kit.
+
+# Annotation score average
+
+Showing average annotation score for each cell class in the pbmcsca reference.
+This could be a little biased as many of the cells in this reference are from 
+10x kits. 
+
+Cell counts by method in reference:
+
+```{r}
+pbmcsca$Method |> table()
+```
+
+For each celltype manually annotated in the datasets, how strong were the 
+prediction scores for that celltype in those cells?
+
+```{r}
+figures[['annotation_scores_kit_fine']]
+```
+
+# Annotation confusion matrix {.tabset}
+
+For all celltype labels, how specific are the annotations? Is it harder to resolve
+some celltypes from others using annotation mapping?
+
+```{r, eval=TRUE, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  chunktext <- '\n## {{kit}} {.unlist}\n
+  \n```{r, fig.width=11, fig.height=9}\n
+  figures[["annotation_confusion_mat_fine"]][["{{kit}}"]]
+  \n```\n
+  '
+  out = c(out, knit_expand(text = chunktext))
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+# Module definitions
+
+To avoid potential bias with the reference dataset being largely 10x or droplet-based
+samples, we can try to use 'objective' gene lists. However, there is no universally
+agreed upon lists. 
+
+Here, I've aggregated marker genes retrieved from literature, queried against [cellxgene](https://cellxgene.cziscience.com/gene-expression), and present
+in 10+ cells of 2+ samples in all kits (besides Flex). 
+
+**If you have more, please let me know so we can expand the database**. 
+
+```{r}
+# celltype_markers
+celltype_markers_modules
+```
+
+# Gene signatures {.tabset}
+
+Details for expression of every gene in the module for each sample
+
+```{r, eval=TRUE, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  # chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
+  # out = c(out, knit_expand(text = chunktext))
+  # for (sample in metadata$Sample[metadata$Kit == kit]) {
+  #   ind <- metadata$Individual[metadata$Sample==sample]
+  #   rep <- metadata$Replicate[metadata$Sample==sample]
+    chunktext <- '\n## {{kit}} {.tabset .unlist}\n
+    \n```{r, fig.width=27, fig.height=6}\n
+    figures$marker_dotplots[[paste0("{{kit}}")]]
+    \n```\n
+    '
+    out = c(out, knit_expand(text = chunktext))
+  # }
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+# Module Dotplots
+
+Module scoring performed by [UCell](https://doi.org/10.1016/j.csbj.2021.06.043).
+
+Within celltypes from each kit, how did they score with the modules? 
+Comparing the ability to distinguish celltypes across kits.
+
+Using a shared set of genes present in every kit (including Flex).
+<!-- ## Coarse -->
+
+<!-- ```{r} -->
+<!-- figures[['module_scores_kit_coarse']] -->
+<!-- ``` -->
+
+<!-- ## Fine -->
+
+```{r}
+figures[['module_scores_kit_fine']]
+```
+
+# Confusion matrices {.tabset}
+
+For all celltype labels and modules, how specific are the modules? Is it harder to resolve
+some celltypes from others?
+
+<!-- ## Coarse {.tabset} -->
+
+<!-- ```{r, eval=TRUE, results='asis'} -->
+<!-- out <- NULL -->
+<!-- for (kit in unique(metadata$Kit)) { -->
+<!--   chunktext <- '\n### {{kit}} {.unlist}\n -->
+<!--   \n```{r, fig.width=12, fig.height=11}\n -->
+<!--   figures[["confusion_mat_coarse"]][["{{kit}}"]] -->
+<!--   \n```\n -->
+<!--   ' -->
+<!--   out = c(out, knit_expand(text = chunktext)) -->
+<!-- } -->
+
+<!-- cat(knit_child(text = out, quiet = TRUE), sep = '\n') -->
+<!-- ``` -->
+
+<!-- ## Fine {.tabset} -->
+
+```{r, eval=TRUE, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  chunktext <- '\n## {{kit}} {.unlist}\n
+  \n```{r, fig.width=11, fig.height=9}\n
+  figures[["confusion_mat_fine"]][["{{kit}}"]]
+  \n```\n
+  '
+  out = c(out, knit_expand(text = chunktext))
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```

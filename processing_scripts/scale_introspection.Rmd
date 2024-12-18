@@ -37,7 +37,7 @@ info <- INFO |>
 ```
 
 ```{r}
-objs <- readRDS(here('rds/wt/05_merged_objs_post_clustering.rds'))
+objs <- readRDS(here('rds/05_merged_objs_post_clustering.rds'))
 ```
 
 ```{r}

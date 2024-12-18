@@ -27,9 +27,9 @@ set.seed(33)
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/wt/02-objs_post_cell_filtering.rds'))
-kit_order <- unname(unlist(read.table(here('config/wt/kit_order.txt'))))
-metadata <- read.csv(here('config/wt/metadata.csv'))
+objs <- readRDS(here('rds/02-objs_post_cell_filtering.rds'))
+kit_order <- unname(unlist(read.table(here('config/kit_order.txt'))))
+metadata <- read.csv(here('config/metadata.csv'))
 metadata$Kit <- factor(metadata$Kit, levels = kit_order)
 figures <- list()
 ```
@@ -124,7 +124,7 @@ figures[['usable_genes_kit']]
 shared_genes <- Reduce(intersect, detected_genes_kit_level[c("Fluent_v4", 'Fluent_V', "GEMX3P", "NextGEM3P", "Parse_V3", "Scale")])
 c("## Set of genes present in all 3' kits (not flex as it is probe based) in at least 10 cells in at least 2 samples",
                   shared_genes) |>
-  write.table(here('rds/wt/gene_whitelist.txt'), quote = FALSE, row.names = FALSE, col.names = FALSE)
+  write.table(here('rds/gene_whitelist.txt'), quote = FALSE, row.names = FALSE, col.names = FALSE)
 length(shared_genes)
 ```
 
@@ -317,7 +317,7 @@ objs <- lapply(objs, NormalizeData)
 ```
 
 ```{r}
-saveRDS(objs, here('rds/wt/03-objs_post_gene_filtering.rds'), compress=FALSE)
+saveRDS(objs, here('rds/03-objs_post_gene_filtering.rds'), compress=FALSE)
 ```
 
 # Render report
@@ -326,8 +326,8 @@ saveRDS(objs, here('rds/wt/03-objs_post_gene_filtering.rds'), compress=FALSE)
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/wt/03-gene_analysis.format.Rmd'),
+rmarkdown::render(here('processing_scripts/03-gene_analysis.format.Rmd'),
                   output_file = '03-gene_analysis.html',
-                  output_dir = here('reports/wt'))
+                  output_dir = here('reports'))
 ```
 

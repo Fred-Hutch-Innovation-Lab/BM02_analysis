@@ -29,9 +29,9 @@ set.seed(33)
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/wt/01_raw_objs.rds'))
-kit_order <- unname(unlist(read.table(here('config/wt/kit_order.txt'))))
-metadata <- read.csv(here('config/wt/metadata.csv'))
+objs <- readRDS(here('rds/01_raw_objs.rds'))
+kit_order <- unname(unlist(read.table(here('config/kit_order.txt'))))
+metadata <- read.csv(here('config/metadata.csv'))
 metadata$Kit <- factor(metadata$Kit, levels = kit_order)
 figures <- list()
 ```
@@ -489,7 +489,7 @@ lapply(objs_filt, function(x) {x@misc$filtering_receipts})
 ```
 
 ```{r}
-saveRDS(objs_filt, here('rds/wt/02-objs_post_cell_filtering.rds'), compress=FALSE)
+saveRDS(objs_filt, here('rds/02-objs_post_cell_filtering.rds'), compress=FALSE)
 ```
 
 # Render report
@@ -498,7 +498,7 @@ saveRDS(objs_filt, here('rds/wt/02-objs_post_cell_filtering.rds'), compress=FALS
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/wt/02-cell_filtering.format.Rmd'),
+rmarkdown::render(here('processing_scripts/02-cell_filtering.format.Rmd'),
                   output_file = '02-cell_filtering.html',
-                  output_dir = here('reports/wt/'))
+                  output_dir = here('reports'))
 ```

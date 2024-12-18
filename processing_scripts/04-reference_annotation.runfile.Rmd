@@ -32,8 +32,8 @@ set.seed(33)
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/wt/03-objs_post_gene_filtering.rds'))
-metadata <- read.csv(here('config/wt/metadata.csv'))
+objs <- readRDS(here('rds/03-objs_post_gene_filtering.rds'))
+metadata <- read.csv(here('config/metadata.csv'))
 figures <- list()
 ```
 
@@ -430,7 +430,7 @@ ggplot(tmp1, aes(x=renamed.predicted.pbmc3k_seurat_annotations, y=renamed.Mona.m
 # Save objs
 
 ```{r}
-saveRDS(objs, here('rds/wt/04_objs_post_annotation.rds'), compress=FALSE)
+saveRDS(objs, here('rds/04_objs_post_annotation.rds'), compress=FALSE)
 ```
 
 # Render report
@@ -439,7 +439,7 @@ saveRDS(objs, here('rds/wt/04_objs_post_annotation.rds'), compress=FALSE)
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/wt/04-reference_annotation.format.Rmd'),
+rmarkdown::render(here('processing_scripts/04-reference_annotation.format.Rmd'),
                   output_file = '04-annotation.html',
-                  output_dir = here('reports/wt'))
+                  output_dir = here('reports'))
 ```

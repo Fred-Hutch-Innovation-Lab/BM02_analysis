@@ -32,8 +32,8 @@ set.seed(33)
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/wt/07_post_module_scoring.rds'))
-metadata <- read.csv(here('config/wt/metadata.csv'))
+objs <- readRDS(here('rds/07_post_module_scoring.rds'))
+metadata <- read.csv(here('config/metadata.csv'))
 figures <- list()
 ```
 
@@ -43,7 +43,7 @@ figures <- list()
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/wt/08-dge.format.rmd'),
+rmarkdown::render(here('processing_scripts/08-dge.format.rmd'),
                   output_file = '08-dge.html',
-                  output_dir = here('reports/wt/'))
+                  output_dir = here('reports'))
 ```

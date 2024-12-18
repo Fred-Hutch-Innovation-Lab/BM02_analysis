@@ -60,8 +60,8 @@ label_order <- list(
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/05_merged_objs_post_clustering.rds'))
-metadata <- read.csv(here('config/metadata.csv'))
+objs <- readRDS(here('rds/wt/05_merged_objs_post_clustering.rds'))
+metadata <- read.csv(here('config/wt/metadata.csv'))
 figures <- list()
 ```
 
@@ -75,7 +75,7 @@ pbmcsca <- UpdateSeuratObject(pbmcsca)
 
 ```{r}
 celltype_markers <- read.csv('/fh/fast/_IRC/FHIL/grp/FHIL_knowledgebase/biology/celltype_markers.csv')
-shared_genes <- read.table(here('rds/gene_whitelist.txt'))$V1
+shared_genes <- read.table(here('rds/wt/gene_whitelist.txt'))$V1
 
 parse_marker_table <- function(celltype_dataframe) {
   celltype_dataframe %>%
@@ -404,7 +404,7 @@ figures[['confusion_mat_fine']][[kit]]
 # Save objs
 
 ```{r, eval=TRUE}
-saveRDS(objs, here('rds/07_post_module_scoring.rds'), compress=FALSE)
+saveRDS(objs, here('rds/wt/07_post_module_scoring.rds'), compress=FALSE)
 ```
 
 # Render report
@@ -415,5 +415,5 @@ saveRDS(objs, here('rds/07_post_module_scoring.rds'), compress=FALSE)
 ## aesthetics 
 rmarkdown::render(here('processing_scripts/wt/07-celltype_resolution.format.Rmd'),
                   output_file = '07-marker_detection.html',
-                  output_dir = here('reports'))
+                  output_dir = here('reports/wt'))
 ```

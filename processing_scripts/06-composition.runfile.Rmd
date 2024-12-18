@@ -53,9 +53,9 @@ coarse_mapping <- c(
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/wt/05_merged_objs_post_clustering.rds'))
-kit_order <- read.table(here('config/wt/kit_order.txt'))$V1
-metadata <- read.csv(here('config/wt/metadata.csv')) %>%
+objs <- readRDS(here('rds/05_merged_objs_post_clustering.rds'))
+kit_order <- read.table(here('config/kit_order.txt'))$V1
+metadata <- read.csv(here('config/metadata.csv')) %>%
   mutate(Kit = factor(Kit, levels = kit_order))
 figures <- list()
 ```
@@ -100,7 +100,7 @@ comp_table_sccoda <- comp_table |>
   mutate_all(~replace(., is.na(.), 0)) 
 # comp_table <- merge(comp_table, metadata, by='Sample')
 
-write.table(x = comp_table_sccoda, file = here('rds/wt/composition_table_coarse.txt'),
+write.table(x = comp_table_sccoda, file = here('rds/composition_table_coarse.txt'),
             quote = FALSE, row.names = FALSE, col.names = TRUE, sep = '\t')
 ```
 
@@ -153,7 +153,7 @@ comp_table |>
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/wt/06-composition.format.Rmd'),
+rmarkdown::render(here('processing_scripts/06-composition.format.Rmd'),
                   output_file = '06-composition.html',
-                  output_dir = here('reports/wt'))
+                  output_dir = here('reports'))
 ```

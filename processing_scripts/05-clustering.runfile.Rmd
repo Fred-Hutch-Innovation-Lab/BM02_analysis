@@ -44,8 +44,8 @@ add_suffix_to_duplicates <- function(vec) {
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/wt/04_objs_post_annotation.rds'))
-metadata <- read.csv(here('config/wt/metadata.csv'))
+objs <- readRDS(here('rds/04_objs_post_annotation.rds'))
+metadata <- read.csv(here('config/metadata.csv'))
 figures <- list()
 ```
 
@@ -275,11 +275,11 @@ kit_level_objs <- lapply(kit_level_objs,
 
 ```{r, eval=TRUE}
 res_30k_kit_level <- lapply(kit_level_objs, tune_leiden_resolution, reduction='PCA_allgenes')
-saveRDS(res_30k_kit_level, here('rds/wt/leiden_sweep_res.rds'), compress=FALSE)
+saveRDS(res_30k_kit_level, here('rds/leiden_sweep_res.rds'), compress=FALSE)
 ```
 
 ```{r}
-res_30k_kit_level <- readRDS(here('rds/wt/leiden_sweep_res.rds'))
+res_30k_kit_level <- readRDS(here('rds/leiden_sweep_res.rds'))
 ```
 
 
@@ -874,7 +874,7 @@ DimPlot(kit_level_objs[[kit]], group.by = 'cell_labels.fine', label=TRUE)
 # Save objs
 
 ```{r, eval=TRUE}
-saveRDS(kit_level_objs, here('rds/wt/05_merged_objs_post_clustering.rds'), compress=FALSE)
+saveRDS(kit_level_objs, here('rds/05_merged_objs_post_clustering.rds'), compress=FALSE)
 ```
 
 # Render report
@@ -883,7 +883,7 @@ saveRDS(kit_level_objs, here('rds/wt/05_merged_objs_post_clustering.rds'), compr
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/wt/05-clustering.format.Rmd'),
+rmarkdown::render(here('processing_scripts/05-clustering.format.Rmd'),
                   output_file = '05-clustering.html',
-                  output_dir = here('reports/wt'))
+                  output_dir = here('reports'))
 ```
