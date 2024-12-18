@@ -14,16 +14,6 @@ create_color_palette <- function() {
       Flex =      "#D55E00",  #rgb(213,  94,   0, maxColorValue = 255)   # Vermillion
       BD = 'black'
   ), cell_colors = list(
-  #   coarse=c(     
-  #   "T" = "blue",
-  #   "B" = "red",
-  #   "Monocyte" = "purple",
-  #   "NK" = "#4DAF4A",
-  #   "Megakaryocyte" = "#A65628",
-  #   "Dendritic" = "orange",
-  #   "pDC" = "gold",
-  #   'Unknown' = 'grey'
-  # ), fine = c(
     'T' = "blue",
     'CD8+ T' = "#377EB8",
     'CD4+ T' = "#80B1D3",

@@ -883,7 +883,7 @@ saveRDS(kit_level_objs, here('rds/05_merged_objs_post_clustering.rds'), compress
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/05-clustering.format.Rmd'),
+rmarkdown::render(here('processing_scripts/wt/05-clustering.format.Rmd'),
                   output_file = '05-clustering.html',
                   output_dir = here('reports'))
 ```

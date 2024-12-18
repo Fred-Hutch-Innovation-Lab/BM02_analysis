@@ -43,7 +43,7 @@ figures <- list()
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/08-dge.format.rmd'),
+rmarkdown::render(here('processing_scripts/wt/08-dge.format.rmd'),
                   output_file = '08-dge.html',
                   output_dir = here('reports'))
 ```

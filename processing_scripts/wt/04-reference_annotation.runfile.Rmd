@@ -439,7 +439,7 @@ saveRDS(objs, here('rds/04_objs_post_annotation.rds'), compress=FALSE)
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/04-reference_annotation.format.Rmd'),
+rmarkdown::render(here('processing_scripts/wt/04-reference_annotation.format.Rmd'),
                   output_file = '04-annotation.html',
                   output_dir = here('reports'))
 ```

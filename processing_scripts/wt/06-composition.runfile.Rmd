@@ -153,7 +153,7 @@ comp_table |>
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/06-composition.format.Rmd'),
+rmarkdown::render(here('processing_scripts/wt/06-composition.format.Rmd'),
                   output_file = '06-composition.html',
                   output_dir = here('reports'))
 ```

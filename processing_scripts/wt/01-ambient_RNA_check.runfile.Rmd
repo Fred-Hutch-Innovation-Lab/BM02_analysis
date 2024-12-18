@@ -234,25 +234,26 @@ kit <- 'scale'
 for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
+  print(paste(sample, file))
   
   filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
                                'samples',
                                paste0(file, '.downsampled.filtered.matrix'))
   filtered_counts <- Read10X(filtered_counts)
-  
+
   unfiltered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
                                  'samples',
                                  paste0(file, '.downsampled.unfiltered.matrix'))
   unfiltered_counts <- Read10X(unfiltered_counts)
-  
+
   clusters <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
                         'cellTyping',
                         paste0(file, '.downsampled'),
                         paste0(file, '.downsampled_seurat_clustering_results.csv'))
-  
+
   clusters <- read.csv(clusters)
   clusters <- setNames(as.list(clusters$seurat_clusters), gsub('(.+)_F.+', '\\1', clusters$cellBarcode))
-  
+
   objs[[sample]] <- list(tod = unfiltered_counts, toc = filtered_counts, clusters = clusters)
 }
 ```
@@ -296,7 +297,7 @@ objs <- lapply(objs, function(x) {
 
 # Save RDS
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 saveRDS(objs, here('rds/01-soup_channels.rds'), compress=FALSE)
 ```
 
@@ -370,7 +371,7 @@ for (obj in names(objs)){
 ```
 
 ```{r}
-saveRDS(objs, here('rds/01_raw_objs.rds'), compress=TRUE)
+saveRDS(objs, here('rds/01_raw_objs.rds'), compress=FALSE)
 ```
 
 # Render report
@@ -379,7 +380,7 @@ saveRDS(objs, here('rds/01_raw_objs.rds'), compress=TRUE)
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/01-ambient_RNA_check.format.Rmd'),
+rmarkdown::render(here('processing_scripts/wt/01-ambient_RNA_check.format.Rmd'),
                   output_file = '01_soupx.html',
                   output_dir = here('reports'))
 ```

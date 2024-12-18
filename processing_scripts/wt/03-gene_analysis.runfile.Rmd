@@ -121,7 +121,7 @@ figures[['usable_genes_kit']]
 
 ```{r}
 ## Excluding probe-based flex
-shared_genes <- Reduce(intersect, detected_genes_kit_level[c("Fluent_v4", 'Fluent_V', "GEMX3P", "NextGEM3P", "Parse_V3", "Scale")])
+shared_genes <- Reduce(intersect, detected_genes_kit_level[c("Fluent_v4", 'Fluent_V', "GEMX3P", "NextGEM3P", "Parse_v3", "Scale")])
 c("## Set of genes present in all 3' kits (not flex as it is probe based) in at least 10 cells in at least 2 samples",
                   shared_genes) |>
   write.table(here('rds/gene_whitelist.txt'), quote = FALSE, row.names = FALSE, col.names = FALSE)
@@ -181,8 +181,8 @@ figures[['gene_overlap_euler']]
 aggregate_gene_expression <- function(obj, layer='data', genes = Features(obj, layer=layer)) {
   # genes <- obj@assays$RNA@features@.Data[,'data']
   # genes <- names(genes[genes])
-  exp <- obj@assays$RNA@layers[[layer]]
-  rownames(exp) <- genes
+  exp <- GetAssayData(obj, assay ='RNA', layer = layer)
+  # rownames(exp) <- genes
   portion_expressed <- rowSums(exp > 0) / ncol(exp)
   median_nonzero_expression <- apply(exp, 1, function(x) {
     non_zero_values <- x[x != 0]
@@ -207,6 +207,22 @@ gene_exp_summary <- lapply(objs, aggregate_gene_expression)
 # Define gene families
 
 ```{r}
+human = useMart(biomart="ensembl", dataset = "hsapiens_gene_ensembl", verbose = TRUE)
+info <- getBM(attributes = c("ensembl_gene_id",
+                             "external_gene_name",
+                             "gene_biotype",
+                             "transcript_length",
+                             "percentage_gene_gc_content",
+                             "chromosome_name"),
+              mart = human)
+info <- info |>
+  group_by(ensembl_gene_id, gene_biotype, external_gene_name) |>
+  summarize(med_transcript_length = median(transcript_length),
+            mean_transcript_length = mean(transcript_length))
+```
+
+
+```{r}
 ## crudely peep the top expressed families with a lazy definition
 gsub('(\\D+)\\d+$', '\\1', detected_genes_sample_level$Flex_F1A)  |>
   tabyl() |> 
@@ -216,28 +232,29 @@ gsub('(\\D+)\\d+$', '\\1', detected_genes_sample_level$Flex_F1A)  |>
 
 
 ```{r}
-gene_families <- list(
-  'mitochondrial' = '^MT-',
-  'ribosomal' = '^RP[SL]', 
-  'Unidentified' = c('^AC', '^LOC', 'orf', '^ENSG'),
-  'ZNF' = '^ZNF',
-  'long intergenic non-coding' = '^LINC',
-  'histones' = c('^HIST', '^H\\d')
-)
-find_group <- function(rowname, patterns=gene_families) {
-  matched_group <- purrr::keep(patterns, function(pat_vec) {
-    any(sapply(pat_vec, function(pat) grepl(pat, rowname)))
-  })
-  if (length(matched_group) > 0) {
-    return(paste0(names(matched_group), collapse = ','))
-  } else {
-    return("Other")
-  }
-}
-gene_exp_summary <- lapply(gene_exp_summary, function(x) {
-  x <- mutate(x, group = map_chr(rownames(x), find_group))
-  x$shared <-  rownames(x) %in% shared_genes
-  x
+# gene_families <- list(
+#   'mitochondrial' = '^MT-',
+#   'ribosomal' = '^RP[SL]', 
+#   'Unidentified' = c('^AC', '^LOC', 'orf', '^ENSG'),
+#   'ZNF' = '^ZNF',
+#   'long intergenic non-coding' = '^LINC',
+#   'histones' = c('^HIST', '^H\\d')
+# )
+# find_group <- function(rowname, patterns=gene_families) {
+#   matched_group <- purrr::keep(patterns, function(pat_vec) {
+#     any(sapply(pat_vec, function(pat) grepl(pat, rowname)))
+#   })
+#   if (length(matched_group) > 0) {
+#     return(paste0(names(matched_group), collapse = ','))
+#   } else {
+#     return("Other")
+#   }
+# }
+gene_exp_summary1 <- lapply(gene_exp_summary, function(x) {
+  # x <- mutate(x, group = map_chr(rownames(x), find_group))
+  merge(x, info, by.x='row.names', by.y='external_gene_name', all.x=TRUE) |>
+    dplyr::rename('gene' = 'Row.names') |>
+    mutate(shared = gene %in% shared_genes)
 })
 ```
 
@@ -304,7 +321,7 @@ figures[['unique_expression_grid']]
 # lapply(objs, function(x) {x@misc$filtering_receipts})
 
 objs <- lapply(objs, function(x){
-  x <- subset(x, features = detected_genes_kit_level[[metadata$Kit[metadata$Sample==x@project.name]]])
+  x <- subset(x, features = detected_genes_kit_level[[metadata$Kit[grepl(x@project.name, metadata$Sample)]]])
   x
 })
 

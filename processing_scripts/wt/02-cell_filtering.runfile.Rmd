@@ -498,7 +498,7 @@ saveRDS(objs_filt, here('rds/02-objs_post_cell_filtering.rds'), compress=FALSE)
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/02-cell_filtering.format.Rmd'),
+rmarkdown::render(here('processing_scripts/wt/02-cell_filtering.format.Rmd'),
                   output_file = '02-cell_filtering.html',
                   output_dir = here('reports'))
 ```
