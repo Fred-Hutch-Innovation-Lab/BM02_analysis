@@ -1,5 +1,0 @@
-Sample  File  Kit Individual  Replicate  Sensitivity
-Fluent_V_F1A B2-FBv5_F1A  Fluent_V  F1  A 3
-Fluent_V_F1B B2-FBv5_F1B  Fluent_V  F1  B 3
-Fluent_V_F5A B2-FBv5_F5A  Fluent_V  F5  A 3
-Fluent_V_F5B B2-FBv5_F5B  Fluent_V  F5  B 3

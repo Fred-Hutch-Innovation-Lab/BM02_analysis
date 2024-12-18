@@ -1,5 +1,0 @@
-Sample  File  Kit Individual  Replicate
-NextGEM3P_F1A NextGEM_F1A  NextGEM3P  F1  A
-NextGEM3P_F1B NextGEM_F1B  NextGEM3P  F1  B
-NextGEM3P_F5A NextGEM_F5A  NextGEM3P  F5  A
-NextGEM3P_F5B NextGEM_F5B  NextGEM3P  F5  B

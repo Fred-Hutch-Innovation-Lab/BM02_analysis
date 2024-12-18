@@ -1,5 +1,0 @@
-Sample  File  Kit Individual  Replicate Sensitivity
-Flex_F1A  B2-FL-F1A_BC01  Flex  F1  A 5
-Flex_F1B  B2-FL-F1B_BC02  Flex  F1  B 5
-Flex_F5A  B2-FL-F5A_BC03  Flex  F5  A 5
-Flex_F5B  B2-FL-F5B_BC04  Flex  F5  B 5
