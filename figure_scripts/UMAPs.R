@@ -65,7 +65,8 @@ main <- function() {
     umap_figures[[paste0(kit, '_fine')]] <- 
       my_dimplot(fig_objs[[kit]], group.by = 'cell_labels.fine') +
       my_dimplot(fig_objs[[kit]], group.by = 'individual', 
-                 colors = color_palette$samples, color_label='Sample', alpha=0.5)
+                 colors = color_palette$samples, color_label='Sample', alpha=0.5) +
+      ggtitle(kit)
     ggsave(plot = umap_figures[[paste0(kit, '_fine')]],
            path= here('figures/UMAPs'), filename=paste0(kit, '_sample_&_label.png'), device = 'png', 
            width = unit(12, 'in'), height = unit(4, 'in'), )
