@@ -23,7 +23,7 @@ Parse_v3_F1A,B2-PA-F1A,Parse_v3,F1,A,NA
 Parse_v3_F1B,B2-PA-F1B,Parse_v3,F1,B,NA
 Parse_v3_F5A,B2-PA-F5A,Parse_v3,F5,A,NA
 Parse_v3_F5B,B2-PA-F5B,Parse_v3,F5,B,NA
-Scale_F1A,F1A,Scale,F1,A,NA
-Scale_F5B*,F1B,Scale,F5,B,NA
-Scale_F5A,F5A,Scale,F5,A,NA
-Scale_F1B*,F5B,Scale,F1,B,NA
+Scale_F1A,F5A,Scale,F1,A,NA
+Scale_F1B,F1B,Scale,F1,B,NA
+Scale_F5A,F1A,Scale,F5,A,NA
+Scale_F5B,F5B,Scale,F5,B,NA
