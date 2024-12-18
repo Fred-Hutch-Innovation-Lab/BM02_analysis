@@ -68,20 +68,6 @@ for (obj in names(objs)){
 lapply(objs, function(x) x@project.name)
 ```
 
-```{r}
-objs <- lapply(objs, function(x) {
-  x@meta.data <- x@meta.data |>
-    mutate(orig.ident = case_when(
-      grepl('FBv4', orig.ident) ~ gsub('FBv4', 'Fluent_v4', orig.ident),
-      grepl('FBv5', orig.ident) ~ gsub('FBv5', 'Fluent_V', orig.ident),
-      grepl('PA_V3', orig.ident) ~ gsub('PA_V3', 'Parse_v3', orig.ident),
-      .default = orig.ident
-    )) 
-  x
-})
-```
-
-
 # Generate scCoda data
 
 ```{r, eval = TRUE}
@@ -97,13 +83,13 @@ comp_table <-  lapply(objs, function(x) {
     tabyl(orig.ident, cell_labels.coarse) |>
     melt()
   }) |> rbindlist() |>
-  rename('Sample'='orig.ident') |>
-  mutate(Sample = case_when(
-    grepl('FBv4', Sample) ~ gsub('FBv4', 'Fluent_v4', Sample),
-    grepl('FBv5', Sample) ~ gsub('FBv5', 'Fluent_V', Sample),
-    grepl('PA_V3', Sample) ~ gsub('PA_V3', 'Parse_v3', Sample),
-    .default = Sample
-  )) |>
+  dplyr::rename(Sample = 'orig.ident') |>
+  # mutate(Sample = case_when(
+  #   grepl('FBv4', Sample) ~ gsub('FBv4', 'Fluent_v4', Sample),
+  #   grepl('FBv5', Sample) ~ gsub('FBv5', 'Fluent_V', Sample),
+  #   grepl('PA_V3', Sample) ~ gsub('PA_V3', 'Parse_v3', Sample),
+  #   .default = Sample
+  # )) |>
   merge(metadata, by='Sample', all=TRUE) %>%
   select(-c('Sensitivity', 'File'))
 comp_table_sccoda <- comp_table |>

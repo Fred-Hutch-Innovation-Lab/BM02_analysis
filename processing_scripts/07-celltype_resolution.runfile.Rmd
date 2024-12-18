@@ -61,7 +61,6 @@ label_order <- list(
 
 ```{r}
 objs <- readRDS(here('rds/05_merged_objs_post_clustering.rds'))
-# objs <- objs[names(objs)[!grepl('BD', names(objs))]]z
 metadata <- read.csv(here('config/metadata.csv'))
 figures <- list()
 ```
@@ -124,7 +123,9 @@ celltype_markers_modules <- lapply(celltype_markers_modules, unique)
 # Check gene expression
 
 ```{r, fig.width=10}
-features <- celltype_markers_modules$`CD4+ T`
+features <- c('CD52', 'CTSS', 'FCN1', 'LYZ', 'TYROBP', 'AIF1', 'S100A12', 'S100A4', 'VCAN', 'PSAP', 'S100A8', 'S100A9', 'FTL')
+features %in% shared_genes
+features %in% flex_genes
 # VlnPlot(objs$Flex, features = features, group.by = 'cell_labels.fine')
 DotPlot(objs$Flex, features = features, group.by = 'cell_labels.fine')
 DotPlot(objs$Scale, features = features, group.by = 'cell_labels.fine')
@@ -305,13 +306,14 @@ figures$marker_dotplots$Flex +
 objs <- lapply(objs, function(x){
   markers <- filter_marker_genes(celltype_markers_modules, Features(x))
   AddModuleScore_UCell(x,
-               features=markers$B, name= '_filtered_UCell',
-               storeRanks=TRUE, ncores=4)
+               features=markers[c('T', 'B')], name= '_filtered_UCell',
+               storeRanks=TRUE, ncores=8)
 })
 objs <- lapply(objs, function(x){
   markers <- filter_marker_genes(celltype_markers_modules, Features(x))
   AddModuleScore_UCell(x,
-               features=markers, name= '_filtered_UCell', ncores=4)
+               features=markers[!names(markers) %in% c('T', 'B')],
+               name= '_filtered_UCell', ncores=8)
 })
 ```
 
@@ -321,41 +323,6 @@ VlnPlot(objs$Flex, features = signature.names, group.by = "cell_labels.fine")
 ```
 
 # Module dotplots
-
-## Coarse
-
-```{r, eval=FALSE}
-signature.names <- paste0(names(celltype_markers), "_filtered_UCell")
-plotdata <- lapply(objs, function(x){
-  x@meta.data |>
-    select(cell_labels.coarse, all_of(signature.names)) |>
-    group_by(cell_labels.coarse) |>
-    summarize(across(everything(),\(x) mean(x, na.rm = TRUE)))
-}) |> 
-  rbindlist(idcol = 'Kit') |>
-  melt() |>
-  mutate(module=gsub('(.+)_filtered_UCell', '\\1', variable)) |>
-  select(-variable) |>
-  mutate(module=factor(module, levels=c(label_order$fine)),
-         cell_labels.coarse = factor(cell_labels.coarse, levels = label_order$coarse))
-
-figures[['module_scores_kit_coarse']] <-
-  plotdata |> filter(
-    as.character(cell_labels.coarse) == as.character(module)
-  ) |> #merge(metadata, by='Sample') |>
-  ggplot(aes(x=Kit, y=module, fill=value, label=round(value, 2))) +
-  geom_tile() +
-    geom_text() +
-  scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
-    theme_minimal() +
-  labs(x='Kit', y='Marker module', fill='Average\nscore') +
-    # facet_wrap(~ Individual + Replicate) +
-    theme(axis.text.x = element_text(angle=45, hjust=1))
-figures[['module_scores_kit_coarse']]
-```
-
-
-## Fine
 
 ```{r, fig.width=8, fig.height=8}
 signature.names <- paste0(names(celltype_markers), "_filtered_UCell")
@@ -391,52 +358,6 @@ figures[['module_scores_kit_fine']]
 
 
 # Confusion matrices
-
-## Coarse
-
-```{r, eval=FALSE}
-signature.names <- paste0(names(celltype_markers), "_filtered_UCell")
-plotdata <- lapply(objs, function(x){
-  x@meta.data |>
-    select(cell_labels.coarse, all_of(signature.names)) |>
-    group_by(cell_labels.coarse) |>
-    summarize(across(everything(),\(x) mean(x, na.rm = TRUE)))
-}) |> 
-  rbindlist(idcol = 'Kit') |>
-  melt() |>
-  mutate(module=gsub('(.+)_filtered_UCell', '\\1', variable)) |>
-  select(-variable) |>
-  mutate(module=factor(module, levels=c(label_order$fine)),
-         cell_labels.coarse = factor(cell_labels.coarse, levels = label_order$coarse))
-
-confusion_plot <- function(plotdata, sample){
-  plotdata |> 
-    filter(Sample == sample) |>
-  ggplot(aes(x=cell_labels.coarse, y=module, fill=value, label=round(value, 2))) +
-  geom_tile() +
-    geom_text() +
-  scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle=45, hjust=1)) +
-  labs(x='Cell label', y='Marker module', fill='Average\nscore')
-}
-for (kit in unique(metadata$Kit)) {
-  plots <- list()
-  for (sample in metadata$Sample[metadata$Kit==kit]) {
-    ind <- metadata$Individual[metadata$Sample==sample]
-    rep <- metadata$Replicate[metadata$Sample==sample]
-    plots[[sample]] <- confusion_plot(plotdata, sample) +
-      ggtitle(paste0(ind,rep))
-  }
-  figures[['confusion_mat_coarse']][[kit]] <- 
-    plots[[1]] + plots[[2]] + plots[[3]] + plots[[4]] +
-    plot_layout(guides = 'collect', axes='keep')
-}
-figures[['confusion_mat_coarse']][[kit]]
-```
-
-
-## Fine
 
 ```{r}
 signature.names <- paste0(names(celltype_markers), "_filtered_UCell")
