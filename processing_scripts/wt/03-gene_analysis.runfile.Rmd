@@ -16,6 +16,7 @@ library(yaml)       ## parses config yaml
 library(Seurat)
 library(janitor)    ## TAY-BULLS
 library(UpSetR)
+library(biomaRt)
 # library(reshape2)   ## DF manipulation
 # library(clustree)   ## Resolution selection for clustering
 # library(ggraph)     ## To render clustree
@@ -214,37 +215,76 @@ gsub('(\\D+)\\d+$', '\\1', detected_genes_sample_level$Flex_F1A)  |>
   head()
 ```
 
+```{r}
+human = useMart(biomart="ensembl", dataset = "hsapiens_gene_ensembl", verbose = TRUE)
+info <- getBM(attributes = c(#"ensembl_gene_id",
+                             "external_gene_name",
+                             "gene_biotype",
+                             "transcript_length",
+                             # "percentage_gene_gc_content",
+                             "chromosome_name"),
+              mart = human) |>
+  filter(!is.na(external_gene_name) & external_gene_name != '') |>  
+  group_by(external_gene_name) |>
+  summarize(med_transcript_length = median(transcript_length),
+            # mean_transcript_length = mean(transcript_length), 
+            # ensembl_gene_id = paste0(ensembl_gene_id, collapse=', '), 
+            gene_biotype = paste0(unique(gene_biotype), collapse=', '))
+```
+
+
 
 ```{r}
 gene_families <- list(
   'mitochondrial' = '^MT-',
-  'ribosomal' = '^RP[SL]', 
-  'Unidentified' = c('^AC', '^LOC', 'orf', '^ENSG'),
-  'ZNF' = '^ZNF',
-  'long intergenic non-coding' = '^LINC',
-  'histones' = c('^HIST', '^H\\d')
+  'ribosomal' = '^RP[SL]',
+  'unidentified_protein_coding' = c('^AC', '^LOC', 'orf', '^ENSG')
+  # 'ZNF' = '^ZNF',
+  # 'long intergenic non-coding' = '^LINC',
+  # 'histones' = c('^HIST', '^H\\d')
 )
-find_group <- function(rowname, patterns=gene_families) {
+find_group <- function(gene, patterns=gene_families) {
   matched_group <- purrr::keep(patterns, function(pat_vec) {
-    any(sapply(pat_vec, function(pat) grepl(pat, rowname)))
+    any(sapply(pat_vec, function(pat) grepl(pat, gene)))
   })
   if (length(matched_group) > 0) {
     return(paste0(names(matched_group), collapse = ','))
   } else {
-    return("Other")
+    return("other_protein_coding")
   }
 }
+find_group_vectorized <- Vectorize(find_group)
 gene_exp_summary <- lapply(gene_exp_summary, function(x) {
-  x <- mutate(x, group = map_chr(rownames(x), find_group))
-  x$shared <-  rownames(x) %in% shared_genes
-  x
+  # x <- mutate(x, group = map_chr(rownames(x), find_group))
+  # x$shared <-  rownames(x) %in% shared_genes
+  # x
+  merge(x=x, y=info, by.x='row.names', by.y='external_gene_name', all.x=TRUE, all.y=FALSE) |>
+    dplyr::rename('gene' = 'Row.names') |>
+    mutate(shared = gene %in% shared_genes)
+})
+
+gene_exp_summary1 <- lapply(gene_exp_summary, function(x) {
+  x |>
+    mutate(group = case_when(
+      grepl(',', gene_biotype) ~ 'ambiguous',
+      gene_biotype == 'protein_coding' ~ find_group_vectorized(gene),
+      gene_biotype == 'lncRNA' ~ 'lncRNA',
+      grepl('^M[Tt]', gene_biotype) ~ 'mitochondrial',
+      gene_biotype == 'rRNA' ~ 'ribosomal',
+      grepl('RNA$', gene_biotype) ~ 'other_RNA',
+      grepl('pseudogene', gene_biotype) ~ 'pseudogene',
+      # grepl('IG', gene_biotype) ~ 'IG_gene',
+      # grepl('TR', gene_biotype) ~ 'TR_gene',
+      # !is.na(gene_biotype) ~ gene_biotype,
+      .default = 'other'
+    ))
 })
 ```
 
 # Unique genes
 
 ```{r, fig.width=10, fig.height=5}
-plotdata <- lapply(gene_exp_summary, function(x) {
+plotdata <- lapply(gene_exp_summary1, function(x) {
   x |>
     group_by(group, shared) |>
     summarize(y = sum(portion_of_total_reads))
@@ -263,7 +303,7 @@ figures[['Expression_barchart_shared']]
 ```
 
 ```{r, fig.width=10, fig.height=5}
-plotdata <- lapply(gene_exp_summary, function(x) {
+plotdata <- lapply(gene_exp_summary1, function(x) {
   x |>
     group_by(group, shared) |>
     summarize(y = sum(portion_of_total_reads))
@@ -281,7 +321,7 @@ plotdata |>
 figures[['Expression_barchart_unique']]
 ```
 
-```{r, fig.height=14, fig.width=16}
+```{r, eval=FALSE, fig.height=14, fig.width=16}
 lapply(gene_exp_summary, rownames_to_column, var='gene') |>
   data.table::rbindlist(idcol='Sample', ) |>
   filter(!shared) |>
@@ -317,6 +357,7 @@ objs <- lapply(objs, NormalizeData)
 ```
 
 ```{r}
+saveRDS(gene_exp_summary1, here('rds/wt/03-expression_summary.rds'), compress=FALSE)
 saveRDS(objs, here('rds/wt/03-objs_post_gene_filtering.rds'), compress=FALSE)
 ```
 

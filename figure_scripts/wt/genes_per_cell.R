@@ -5,9 +5,9 @@ library(Seurat)
 library(UpSetR)
 
 main <- function(figures_list) {
-  fig_objs <- readRDS(here('rds/02-objs_post_cell_filtering.rds'))
-  kit_order <- read.table(here('config/kit_order.txt'))$V1
-  metadata <- read.csv(here('config/metadata.csv')) %>%
+  fig_objs <- readRDS(here('rds/wt/02-objs_post_cell_filtering.rds'))
+  kit_order <- read.table(here('config/wt/kit_order.txt'))$V1
+  metadata <- read.csv(here('config/wt/metadata.csv')) %>%
     mutate(Kit = factor(Kit, levels = kit_order))
   
   # Sample levels -----
@@ -33,7 +33,7 @@ main <- function(figures_list) {
     # facet_wrap(~ Kit, scales='free_x') + 
     labs(x = 'Kit', y='Genes detected', shape='Sample', caption = 'Genes detected in at least 10 cells')
   ggsave(plot=figures_list[['usable_genes_sample']], 
-         here('figures/gene_recovery/usable_genes_sample.png'), 
+         here('figures/wt/gene_recovery/usable_genes_sample.png'), 
          width = unit(7, 'in'), height = unit(5, 'in'))
   
    # Kit level ----
@@ -57,14 +57,14 @@ main <- function(figures_list) {
     # facet_wrap(~ Kit, scales='free_x') + 
     labs(x = 'Kit', y='Genes detected', caption = 'Genes detected in at least 10 cells in 3+ samples')
   ggsave(plot=figures_list[['usable_genes_kit']],
-         here('figures/gene_recovery/usable_genes_kit.png'),
+         here('figures/wt/gene_recovery/usable_genes_kit.png'),
          width = unit(7, 'in'), height = unit(6, 'in'))
   
   # Euler plot ---- 
   figures_list[['gene_overlap']] <-
     plot(eulerr::euler(detected_genes_kit_level, shape='ellipse'))
   ggplot2::ggsave(plot=figures_list[['gene_overlap']], 
-                  filename = here('figures/gene_recovery/usable_genes_set_overlap.png'),
+                  filename = here('figures/wt/gene_recovery/usable_genes_set_overlap.png'),
                   width = unit(4, 'in'), height = unit(4, 'in'))
   
   # Upset plot ----
@@ -90,13 +90,10 @@ main <- function(figures_list) {
         mainbar.y.label='Gene count',
         number.angles = 0,
         empty.intersections=FALSE) ->
-    figures_list[['gene_overlap_upset']]
-  png(filename = here('figures/gene_recovery/usable_genes_set_overlap.png'), width = 9, height = 5, units = 'in', res=600)
-  figures_list[['gene_overlap_upset']]
+    figures[['gene_overlap_upset']]
+  png(here('figures/wt/gene_recovery/usable_genes_set_overlap.png'), width = 10, height = 6, units = 'in', res=300)
+  figures[['gene_overlap_upset']]
   dev.off()
-  # ggplot2::ggsave(plot=figures_list[['gene_overlap_upset']], 
-                  # filename = here('figures/gene_recovery/usable_genes_set_overlap.png'),
-                  # width = unit(12, 'in'), height = unit(5, 'in'))
   
   return(figures_list)
 }
