@@ -23,7 +23,8 @@ main <- function(figures_list, filtering_stage = 'after', outdir='qc_vln_plots')
       geom_violin(draw_quantiles = 0.5) +
       scale_fill_manual(values = color_palette$kits) +
       theme_bw() +
-      theme(text = element_text(size = 16),
+      theme(text = element_text(size = 20),
+            panel.spacing=unit(0, "lines"),
             axis.text.x = element_text(angle=45, vjust=0.5)) + 
       facet_wrap(~ Kit, nrow = 1, scales='free_x') +
       labs(x='Sample', y = ylab, caption=caption) #+
@@ -31,16 +32,16 @@ main <- function(figures_list, filtering_stage = 'after', outdir='qc_vln_plots')
   }
   
   if (filtering_stage == 'after') {
-    fig_objs <- readRDS(here('rds/02-objs_post_cell_filtering.rds'))
+    fig_objs <- readRDS(here('rds/wt/02-objs_post_cell_filtering.rds'))
     caption <- 'QC metrics per cell on data after filtering by global thresholds'
     caption <- NULL
   } else if (filtering_stage == 'before') {
-    fig_objs <- readRDS(here('rds/01_raw_objs.rds'))
+    fig_objs <- readRDS(here('rds/wt/01_raw_objs.rds'))
     caption <- 'QC metrics per cell on data output from pipelines without additional filtering'
   }
   
-  kit_order <- read.table(here('config/kit_order.txt'))$V1
-  metadata <- read.csv(here('config/metadata.csv')) %>%
+  kit_order <- read.table(here('config/wt/kit_order.txt'))$V1
+  metadata <- read.csv(here('config/wt/metadata.csv')) %>%
     mutate(Kit = factor(Kit, levels = kit_order))
   
   labels <- data.frame(
@@ -62,7 +63,7 @@ main <- function(figures_list, filtering_stage = 'after', outdir='qc_vln_plots')
     }
     filename <- paste0(c(metric, 'vln'), collapse='_')
     figures_list[[filename]] <- plt
-    ggsave(plt, filename = paste0(filename, '.png'), path = here(file.path('figures', outdir)),
+    ggsave(plt, filename = paste0(filename, '.png'), path = here(file.path('figures/wt', outdir)),
            device = 'png', 
            height = unit(7, 'in'), width = unit(17, 'in'))
   }
@@ -74,9 +75,9 @@ main <- function(figures_list, filtering_stage = 'after', outdir='qc_vln_plots')
   #           nrow=2, ncol=2, labels=c('A', 'B', 'C', 'D'))
   plt <- figures_list[[1]] + figures_list[[2]] + figures_list[[3]] + figures_list[[4]] +
     plot_layout(nrow=2, ncol=2, guides = 'collect', axes = 'collect_x', axis_titles = 'collect_x')
-  ggsave(plt, filename = 'QC_metrics_combined.png', path = here(file.path('figures', outdir)),
+  ggsave(plt, filename = 'QC_metrics_combined.png', path = here(file.path('figures/wt', outdir)),
          device = 'png', 
-         height = unit(12, 'in'), width = unit(21, 'in'))
+         height = unit(12, 'in'), width = unit(23, 'in'))
   return(figures_list)
 }
 
