@@ -3,7 +3,7 @@ library(here)       ## Easier specification of file locations
 library(yaml)
 rbindlist <- data.table::rbindlist
 
-config <- read_yaml(here('config/config.yaml'))
+config <- read_yaml(here('config/wt/config.yaml'))
 data_dirs <- list(
   "flex"="flex/full_data_runs",
   "fluent_v4"="fluent_v4/downsampled_runs",
@@ -15,10 +15,10 @@ data_dirs <- list(
   # "B2-BD_WTA_25k"="B2-BD_WTA_25k"
 )
 samplesheets <- lapply(names(data_dirs), function(x) {
-  read.table(here(file.path('config', paste0(x, '_samplesheet.txt'))), header = TRUE)
+  read.table(here(file.path('config/wt/', paste0(x, '_samplesheet.txt'))), header = TRUE)
 })
 names(samplesheets) <- names(data_dirs)
 metadata <- data.table::rbindlist(samplesheets, fill=TRUE)
 
-write.table(metadata, here('config/metadata.csv'), quote=FALSE, row.names = FALSE, sep = ',')
+write.table(metadata, here('config/wt/metadata.csv'), quote=FALSE, row.names = FALSE, sep = ',')
             
