@@ -61,8 +61,8 @@ runSoupX <- function(tod,
 # Load config
 
 ```{r}
-source(here('config/5p/wt/generate_metadata.R'))
-metadata <- read.csv(here('config/5p/wt/metadata.csv'))
+source(here('config/5p/generate_metadata.R'))
+metadata <- read.csv(here('config/5p/metadata.csv'))
 metadata
 ```
 

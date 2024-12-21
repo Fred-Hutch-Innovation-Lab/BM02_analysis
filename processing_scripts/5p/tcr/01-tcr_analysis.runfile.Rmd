@@ -24,8 +24,8 @@ set.seed(33)
 # Read TCR
 
 ```{r}
-source(here('config/5p/wt/generate_metadata.R'))
-metadata <- read.csv(here('config/5p/wt/metadata.csv'))
+source(here('config/5p/generate_metadata.R'))
+metadata <- read.csv(here('config/5p/metadata.csv'))
 ```
 
 ```{r}
