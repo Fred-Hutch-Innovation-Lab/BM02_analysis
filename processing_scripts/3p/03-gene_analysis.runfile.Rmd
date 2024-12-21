@@ -1,0 +1,374 @@
+---
+title: 'scRNA QC'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+
+library(tidyverse)  ## General R logic
+library(here)       ## Easier specification of file locations
+library(yaml)       ## parses config yaml
+library(Seurat)
+library(janitor)    ## TAY-BULLS
+library(UpSetR)
+library(biomaRt)
+# library(reshape2)   ## DF manipulation
+# library(clustree)   ## Resolution selection for clustering
+# library(ggraph)     ## To render clustree
+# library(scuttle)    ## various SC utilities
+# library(ggrastr)    ## rasterized point layers for reduced image size
+set.seed(33)
+```
+
+# Load data
+
+```{r}
+objs <- readRDS(here('rds/3p/02-objs_post_cell_filtering.rds'))
+kit_order <- unname(unlist(read.table(here('config/3p/kit_order.txt'))))
+metadata <- read.csv(here('config/3p/metadata.csv'))
+metadata$Kit <- factor(metadata$Kit, levels = kit_order)
+figures <- list()
+```
+
+## Data normalization 
+
+```{r}
+objs <- lapply(objs, NormalizeData)
+```
+
+# Gene detection
+
+```{r}
+## Looking for genes with non-zero expression in at least 10 cells
+## maybe this should be a percentage rather than a hard number
+detected_genes <- function(obj, min_cells, min_expression = 0, layer = 'counts') {
+  genes <- Features(obj, layer = layer)  
+  # genes <- genes %>% 
+  #   as.data.frame() %>%
+  #   # filter(.data[[layer]]) %>% 
+  #   rownames()
+  detected_genes <- rowSums(obj@assays$RNA[layer] > min_expression) > min_cells 
+  detected_genes <- genes[detected_genes]
+  detected_genes
+}
+```
+
+## Sample level
+
+### Lowly expressed genes
+
+```{r}
+detected_genes_sample_level <-  lapply(objs, detected_genes, min_cells=10)
+
+dropped_genes <- list()
+for (sample in metadata$Sample) {
+  dropped_genes[[sample]] <- setdiff(detected_genes(objs[[sample]], min_cells=0), detected_genes_sample_level[[sample]])
+}
+```
+
+```{r, fig.width=9}
+merge(lapply(detected_genes_sample_level, length) %>%
+        stack() %>%
+        dplyr::rename(good_genes = values, Sample = ind),
+      lapply(dropped_genes, length) %>%
+        stack() %>%
+        dplyr::rename(bad_genes = values, Sample = ind)) %>%
+  reshape2::melt() %>%
+  merge(metadata, by.y='Sample') %>%
+  mutate(variable = factor(variable, levels=c('bad_genes', 'good_genes'))) %>%
+  ggplot(aes(x=paste0(Individual, Replicate), y=value, fill=variable)) +
+  geom_col(position='stack') +
+  scale_fill_manual(values = c('bad_genes' = 'goldenrod', 'good_genes' = 'darkgreen'),
+                    labels = c('Low detection', 'Good')) +
+  facet_wrap(~ Kit, ncol=8, scales='free_x') +
+  labs(x = 'Kit', y='Genes detected', shape='Sample', fill = 'Status') ->
+  figures[['usable_genes_sample']]
+figures[['usable_genes_sample']]
+```
+
+
+## Kit level
+
+```{r}
+detected_genes_kit_level <- lapply(unique(metadata$Kit), function(kit) {
+  samples <- metadata$Sample[metadata$Kit == kit]
+  sets <- list()
+  for (sample in samples) {
+    sets <- list(sets, detected_genes_sample_level[[sample]])
+  }
+  result <- table(unlist(sets))
+  names(result[result >= 2])
+})
+names(detected_genes_kit_level) <- unique(metadata$Kit)
+```
+
+```{r, fig.width=9}
+figures[['usable_genes_kit']] <-
+lapply(detected_genes_kit_level, length) %>%
+  stack() %>%
+  ggplot(aes(x=ind, y=values)) +
+  geom_col() +
+  labs(x = 'Kit', y='Genes detected', caption = 'Genes detected in at least 10 cells in 2+ samples')
+figures[['usable_genes_kit']]
+```
+
+
+### shared genes
+
+```{r}
+## Excluding probe-based flex
+shared_genes <- Reduce(intersect, detected_genes_kit_level[c("Fluent_v4", 'Fluent_V', "GEMX3P", "NextGEM3P", "Parse_V3", "Scale")])
+c("## Set of genes present in all 3' kits (not flex as it is probe based) in at least 10 cells in at least 2 samples",
+                  shared_genes) |>
+  write.table(here('rds/3p/gene_whitelist.txt'), quote = FALSE, row.names = FALSE, col.names = FALSE)
+length(shared_genes)
+```
+
+### uniquely expressed genes
+
+```{r}
+unique_genes_kit <- list()
+kits <- unique(metadata$Kit)
+for (kit in kits) {
+  unique_genes_kit[[kit]] <- setdiff(detected_genes_kit_level[[kit]], shared_genes)
+}
+lapply(unique_genes_kit, length)
+```
+
+# Set overlap
+
+```{r, fig.width=18, fig.height=6}
+kits <- levels(metadata$Kit)[levels(metadata$Kit) != 'Flex']
+intersections <- lapply(1:length(kits), function(x) kits[-x])
+intersections <- c(
+  levels(metadata$Kit),
+  list(list('Fluent_v4', 'Fluent_V')),
+  list(list('GEMX3P', 'NextGEM3P')),
+  intersections,
+  list(kits),
+  list(levels(metadata$Kit))
+)
+upset(fromList(detected_genes_kit_level), 
+      sets=levels(metadata$Kit),
+      # nsets=8,
+      # nintersects = 140, 
+      keep.order = TRUE,
+      intersections = intersections,
+      order.by='degree',
+      # cutoff=100,
+      decreasing = FALSE,
+      mainbar.y.label='Gene count',
+      number.angles = 0,
+      empty.intersections=FALSE) ->
+  figures[['gene_overlap_upset']]
+figures[['gene_overlap_upset']]
+```
+
+
+```{r}
+figures[['gene_overlap_euler']] <-
+plot(eulerr::euler(detected_genes_kit_level, shape='ellipse'))
+figures[['gene_overlap_euler']]
+```
+
+# Aggregate expression summaries
+
+```{r}
+aggregate_gene_expression <- function(obj, layer='data', genes = Features(obj, layer=layer)) {
+  # genes <- obj@assays$RNA@features@.Data[,'data']
+  # genes <- names(genes[genes])
+  exp <- obj@assays$RNA@layers[[layer]]
+  rownames(exp) <- genes
+  portion_expressed <- rowSums(exp > 0) / ncol(exp)
+  median_nonzero_expression <- apply(exp, 1, function(x) {
+    non_zero_values <- x[x != 0]
+    if (length(non_zero_values) > 0) {
+      return(median(non_zero_values))
+    } else {
+      return(NA)
+    }
+  })
+  portion_of_total_reads <- rowSums(exp)
+  portion_of_total_reads <- portion_of_total_reads / sum(portion_of_total_reads)
+  res <- cbind(portion_expressed, median_nonzero_expression, portion_of_total_reads)
+  res <- res[rownames(res) %in% genes,]
+  return(as.data.frame(res))
+}
+```
+
+```{r}
+gene_exp_summary <- lapply(objs, aggregate_gene_expression)
+```
+
+# Define gene families
+
+```{r}
+## crudely peep the top expressed families with a lazy definition
+gsub('(\\D+)\\d+$', '\\1', detected_genes_sample_level$Flex_F1A)  |>
+  tabyl() |> 
+  arrange(desc(n)) |> 
+  head()
+```
+
+```{r}
+human = useMart(biomart="ensembl", dataset = "hsapiens_gene_ensembl", verbose = TRUE)
+info <- getBM(attributes = c(#"ensembl_gene_id",
+                             "external_gene_name",
+                             "gene_biotype",
+                             "transcript_length",
+                             # "percentage_gene_gc_content",
+                             "chromosome_name"),
+              mart = human) |>
+  filter(!is.na(external_gene_name) & external_gene_name != '') |>  
+  group_by(external_gene_name) |>
+  summarize(med_transcript_length = median(transcript_length),
+            # mean_transcript_length = mean(transcript_length), 
+            # ensembl_gene_id = paste0(ensembl_gene_id, collapse=', '), 
+            gene_biotype = paste0(unique(gene_biotype), collapse=', '))
+```
+
+
+
+```{r}
+gene_families <- list(
+  'mitochondrial' = '^MT-',
+  'ribosomal' = '^RP[SL]',
+  'unidentified_protein_coding' = c('^AC', '^LOC', 'orf', '^ENSG')
+  # 'ZNF' = '^ZNF',
+  # 'long intergenic non-coding' = '^LINC',
+  # 'histones' = c('^HIST', '^H\\d')
+)
+find_group <- function(gene, patterns=gene_families) {
+  matched_group <- purrr::keep(patterns, function(pat_vec) {
+    any(sapply(pat_vec, function(pat) grepl(pat, gene)))
+  })
+  if (length(matched_group) > 0) {
+    return(paste0(names(matched_group), collapse = ','))
+  } else {
+    return("other_protein_coding")
+  }
+}
+find_group_vectorized <- Vectorize(find_group)
+gene_exp_summary <- lapply(gene_exp_summary, function(x) {
+  # x <- mutate(x, group = map_chr(rownames(x), find_group))
+  # x$shared <-  rownames(x) %in% shared_genes
+  # x
+  merge(x=x, y=info, by.x='row.names', by.y='external_gene_name', all.x=TRUE, all.y=FALSE) |>
+    dplyr::rename('gene' = 'Row.names') |>
+    mutate(shared = gene %in% shared_genes)
+})
+
+gene_exp_summary1 <- lapply(gene_exp_summary, function(x) {
+  x |>
+    mutate(group = case_when(
+      grepl(',', gene_biotype) ~ 'ambiguous',
+      gene_biotype == 'protein_coding' ~ find_group_vectorized(gene),
+      gene_biotype == 'lncRNA' ~ 'lncRNA',
+      grepl('^M[Tt]', gene_biotype) ~ 'mitochondrial',
+      gene_biotype == 'rRNA' ~ 'ribosomal',
+      grepl('RNA$', gene_biotype) ~ 'other_RNA',
+      grepl('pseudogene', gene_biotype) ~ 'pseudogene',
+      # grepl('IG', gene_biotype) ~ 'IG_gene',
+      # grepl('TR', gene_biotype) ~ 'TR_gene',
+      # !is.na(gene_biotype) ~ gene_biotype,
+      .default = 'other'
+    ))
+})
+```
+
+# Unique genes
+
+```{r, fig.width=10, fig.height=5}
+plotdata <- lapply(gene_exp_summary1, function(x) {
+  x |>
+    group_by(group, shared) |>
+    summarize(y = sum(portion_of_total_reads))
+}) |>
+  data.table::rbindlist(idcol='Sample') |>
+   merge(metadata, by='Sample') |> 
+   filter(shared == TRUE)
+plotdata |>
+  ggplot(aes(x=paste0(Individual, Replicate), y=y, fill=group)) +
+  geom_col(position='stack') +
+    facet_wrap(~ Kit, nrow=1, scales='free_x') +
+   labs(y='Portion of total reads', x='Sample', fill='Gene family', 
+   caption = 'Only showing genes from shared gene pool') ->
+  figures[['Expression_barchart_shared']]
+figures[['Expression_barchart_shared']]
+```
+
+```{r, fig.width=10, fig.height=5}
+plotdata <- lapply(gene_exp_summary1, function(x) {
+  x |>
+    group_by(group, shared) |>
+    summarize(y = sum(portion_of_total_reads))
+}) |>
+  data.table::rbindlist(idcol='Sample') |>
+   merge(metadata, by='Sample') |> 
+   filter(shared == FALSE)
+plotdata |>
+  ggplot(aes(x=paste0(Individual, Replicate), y=y, fill=group)) +
+  geom_col(position='stack') +
+    facet_wrap(~ Kit, nrow=1, scales='free_x') +
+   labs(y='Portion of total reads', x='Sample', fill='Gene family', 
+   caption = 'Only showing genes not found in all kits.\nThese genes are not necessarily unique to a kit, just not found in all kits') ->
+  figures[['Expression_barchart_unique']]
+figures[['Expression_barchart_unique']]
+```
+
+```{r, eval=FALSE, fig.height=14, fig.width=16}
+lapply(gene_exp_summary, rownames_to_column, var='gene') |>
+  data.table::rbindlist(idcol='Sample', ) |>
+  filter(!shared) |>
+  # rownames_to_column('gene') |>
+  mutate(gene = ifelse((portion_expressed > 0.5 | median_nonzero_expression > 2) & group=='Other', gene, NA)) |>
+  merge(metadata, by='Sample') |>
+  ggplot(aes(x=portion_expressed, median_nonzero_expression, color=group, label=gene)) +
+  geom_point() +
+  ggrepel::geom_text_repel(color='black', max.overlaps = 15) +
+  facet_grid(Kit ~ paste0(Individual, Replicate)) +
+  labs(x='Portion of cells with expression', y='Median log-normalized expression in expressing cells', 
+       caption = 'Showing expression of cells not in global set.\nLabels are shown on highly expressed "other" category genes.') ->
+  figures[['unique_expression_grid']]
+figures[['unique_expression_grid']]
+```
+
+# Filter and save obj
+
+```{r}
+# lapply(objs, function(x) {x@misc$filtering_receipts})
+
+objs <- lapply(objs, function(x){
+  x <- subset(x, features = detected_genes_kit_level[[metadata$Kit[metadata$Sample==x@project.name]]])
+  x
+})
+
+objs <- lapply(objs, function(x) {
+  x@misc$filtering_receipts$after_gene_filtering <- dim(x)
+  x
+})
+lapply(objs, function(x) {x@misc$filtering_receipts})
+objs <- lapply(objs, NormalizeData)
+```
+
+```{r}
+saveRDS(gene_exp_summary1, here('rds/3p/03-expression_summary.rds'), compress=FALSE)
+saveRDS(objs, here('rds/3p/03-objs_post_gene_filtering.rds'), compress=FALSE)
+```
+
+# Render report
+
+```{r, eval=TRUE}
+## This only works if all the variables called in the format file 
+## are in the current environment. Check the format file to tweak
+## aesthetics 
+rmarkdown::render(here('processing_scripts/3p/03-gene_analysis.format.Rmd'),
+                  output_file = '03-gene_analysis.html',
+                  output_dir = here('reports/3p'))
+```
+
