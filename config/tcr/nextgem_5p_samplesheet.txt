@@ -1,0 +1,3 @@
+Sample  File  Kit Individual  Replicate
+NextGEM5P_F1  NextGEM_F1  NextGEM5P  F1  A
+NextGEM5P_F2  NextGEM_F2  NextGEM5P  F2  A
