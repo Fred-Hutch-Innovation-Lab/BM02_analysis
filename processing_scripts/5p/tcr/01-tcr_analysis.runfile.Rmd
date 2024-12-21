@@ -110,7 +110,7 @@ repload_parse <- function(file){
            D.name=paste0(TRA_D, ';', TRB_D),
            J.name=paste0(TRA_J, ';', TRB_J),
       .keep='unused') |>
-    rename('Clones' = clonotype_count) |> 
+    dplyr::rename('Clones' = clonotype_count) |> 
     mutate(
       Proportion = Clones / sum(Clones),
       CDR3.nt = NA,
@@ -177,7 +177,6 @@ for (i in 1:nrow(samplesheets[[kit]])){
   vdj_data <- read.csv(vdj_data)
   metric_summaries[[sample]] <- vdj_data
 }
-metric_summaries$NextGEM5P_F1 |> View()
 ```
 
 ## parse_v2
@@ -205,7 +204,7 @@ trimmed_metric_summaries_parse <- lapply(metric_summaries[metadata$Sample[metada
     'tcr_tcells_with_productive_pair'
   )) |>
     mutate(pct = 100 * combined / x$combined[x$statistic == 'tcr_number_of_cells']) |>
-    rename('Metric.Name' = statistic, 
+    dplyr::rename('Metric.Name' = statistic, 
            'Metric.Value' = combined) |>
     mutate(Metric.Name = case_when(
       Metric.Name == 'tcr_number_of_cells' ~ 'Total cells',
@@ -226,7 +225,7 @@ trimmed_metric_summaries_10x <- lapply(metric_summaries[metadata$Sample[metadata
     mutate(value = ifelse(Metric.Name != 'Estimated number of cells', 
                       round(Metric.Value / 100 * .$Metric.Value[.$Metric.Name == 'Estimated number of cells']),
                       Metric.Value)) |>
-    rename(pct = Metric.Value, Metric.Value = value) |>
+    dplyr::rename(pct = Metric.Value, Metric.Value = value) |>
     mutate(pct = ifelse(Metric.Name == 'Estimated number of cells',100, pct)) |>
     mutate(Metric.Name = case_when(
       Metric.Name == 'Estimated number of cells' ~ 'Total cells',
@@ -427,7 +426,7 @@ figures[['simpson index']]
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/5p/wt/01-tcr_analysis.format.Rmd'),
+rmarkdown::render(here('processing_scripts/5p/tcr/01-tcr_analysis.format.Rmd'),
                   output_file = '01-clone_qc.html',
-                  output_dir = here('reports/5p/wt/'))
+                  output_dir = here('reports/5p/tcr/'))
 ```

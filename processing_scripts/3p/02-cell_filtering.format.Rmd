@@ -6,7 +6,7 @@ output:
   rmdformats::robobook:
     fig_width: 9
     toc_depth: 3
-    css: '`r here("config/robobook.css")`'
+    css: '../../config/robobook.css'
 ---
 
 ```{r, include=FALSE}
