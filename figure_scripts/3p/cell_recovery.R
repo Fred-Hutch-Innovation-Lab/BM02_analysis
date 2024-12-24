@@ -10,77 +10,81 @@ fig_objs <- readRDS(here('rds/3p/02-objs_post_cell_filtering.rds'))
 source(here('config/kit_order.R'))
 metadata <- read.csv(here('config/3p/metadata.csv')) %>%
   mutate(Kit = factor(Kit, levels = kit_order_3p))
-
+cell_loading_data <- read.csv(here('data/3p/loaded_cells.csv')) |>
+  as.data.table() |>
+  melt(id='Sample')
 main <- function() {
   
   cell_recovery_figures <- list()
   
-  target_cells <- list(
-    'Flex' = 10000,
-    'NextGEM3P' = 10000,
-    'GEMX3P' = 20000,
-    'Fluent_v4' = 20000,
-    'Fluent_V' = 20000,
-    'Parse_v3' = 25000,
-    'Scale' = 125000 /4
-  ) |> reshape2::melt() |>
-    dplyr::rename(Kit = L1) |>
-    mutate(Kit = factor(Kit, levels=kit_order_3p))
+  # target_cells <- list(
+  #   'Flex' = 10000,
+  #   'NextGEM3P' = 10000,
+  #   'GEMX3P' = 20000,
+  #   'Fluent_v4' = 20000,
+  #   'Fluent_V' = 20000,
+  #   'Parse_v3' = 25000,
+  #   'Scale' = 125000 /4
+  # ) 
   
-  target_cells_fraction <- list(
-    'Flex' = 10000/16871,
-    'NextGEM3P' = 10000/(1100*15),
-    'GEMX3P' = 20000/(1300*22.3),
-    'Fluent_v4' = .5,
-    'Fluent_V' = .5,
-    'Parse_v3' = 100000/(4*(520*14*12)),
-    'Scale' = .25
-  ) |> reshape2::melt() |>
-    dplyr::rename(Kit = L1)  |>
-    mutate(Kit = factor(Kit, levels=kit_order_3p))
+  # target_cells_fraction <- list(
+  #   'Flex' = 10000/16871,
+  #   'NextGEM3P' = 10000/(1100*15),
+  #   'GEMX3P' = 20000/(1300*22.3),
+  #   'Fluent_v4' = .5,
+  #   'Fluent_V' = .5,
+  #   'Parse_v3' = 100000/(4*(520*14*12)),
+  #   'Scale' = .25
+  # ) 
   
-  pipeline_data <- read_xlsx(here('data/3p/pipeline_summary_statistics/downsampled_data.xlsx'), skip = 1, .name_repair = 'minimal', col_names = TRUE) %>%
-    filter(METRICS %in% c('# cells loaded', '# Cells recovered')) %>%
-    as.data.table() |>
-    melt(id.vars='METRICS') |>
-    mutate(value = as.numeric(value)) %>%
-    mutate(METRICS = case_when(
-      METRICS == '# cells loaded' & grepl('Scale', variable) ~ '# cells barcoded',
-      .default = METRICS
-    ))
-  colnames(pipeline_data) <- c('class', 'Sample', 'Freq')
-  scale_used_cells <- 125000
-  pipeline_data <- rbind(pipeline_data,
-    data.frame(class = '# cells loaded', 
-               Sample = metadata$Sample[metadata$Kit=='Scale'], 
-             Freq = scale_used_cells
-  ))
+  # pipeline_data <- read_xlsx(here('data/3p/pipeline_summary_statistics/downsampled_data.xlsx'), skip = 1, .name_repair = 'minimal', col_names = TRUE) %>%
+  #   filter(METRICS %in% c('# cells loaded', '# Cells recovered')) %>%
+  #   as.data.table() |>
+  #   melt(id.vars='METRICS') |>
+  #   mutate(value = as.numeric(value)) %>%
+  #   mutate(METRICS = case_when(
+  #     METRICS == '# cells loaded' & grepl('Scale', variable) ~ '# cells barcoded',
+  #     .default = METRICS
+  #   ))
+  # colnames(pipeline_data) <- c('variable', 'Sample', 'value')
+  # scale_used_cells <- 125000
+  # pipeline_data <- rbind(pipeline_data,
+  #   data.frame(variable = '# cells loaded', 
+  #              Sample = metadata$Sample[metadata$Kit=='Scale'], 
+  #            value = scale_used_cells
+  # ))
     
   doublets <- lapply(fig_objs, function(x) {
     x@misc$filtering_receipts$after_doublet_filtering[[2]]
   }) %>% stack()
-  colnames(doublets) <- c('Freq', 'Sample')
-  doublets$class <- 'after_doublet_filtering'
+  colnames(doublets) <- c('value', 'Sample')
+  doublets$variable <- 'after_doublet_filtering'
   
   bad_cells <- lapply(fig_objs, function(x) {
     x@misc$filtering_receipts$after_qc_filtering[[2]]
   }) %>% stack() 
-  colnames(bad_cells) <- c('Freq', 'Sample')
-  bad_cells$class <- 'after_qc_filtering'
+  colnames(bad_cells) <- c('value', 'Sample')
+  bad_cells$variable <- 'after_qc_filtering'
   
+  target_cells <- filter(cell_loading_data, variable == 'target_cells') |>
+    merge(metadata, by = 'Sample')
+  target_cells_fraction <- filter(cell_loading_data, variable == 'target_cells_fraction') |>
+    merge(metadata, by = 'Sample')
   
-  plotdata <- do.call(rbind, list(pipeline_data, doublets, bad_cells)) %>%
+  plotdata <- do.call(rbind, list(cell_loading_data, doublets, bad_cells)) %>%
+    filter(!variable %in% c('target_cells', 'target_cells_fraction')) |>
+    filter(!is.na(value)) |>
     merge(metadata, by='Sample') %>%
     mutate(Kit = factor(Kit, levels = kit_order_3p)) %>%
-    arrange(Sample, class) %>%
-    mutate(class = factor(class, levels = c('# cells barcoded', '# cells loaded', '# Cells recovered', 'after_qc_filtering', 'after_doublet_filtering'))) %>%
+    arrange(Sample, variable) %>%
+    mutate(variable = factor(variable, levels = c('cells_barcoded', 'cells_loaded', 'cells_recovered', 'after_qc_filtering', 'after_doublet_filtering'))) %>%
     group_by(Sample) %>%
-    arrange(Sample, class) %>%
-    mutate(Freq=as.numeric(Freq),
-             next_remaining = lead(Freq, default = 0),  # Next step's remaining count (or 0 for the last step)
-             difference = Freq - next_remaining         # Difference from the next entry
+    arrange(Sample, variable) %>%
+    mutate(value=as.numeric(value),
+             next_remaining = lead(value, default = 0),  # Next step's remaining count (or 0 for the last step)
+             difference = value - next_remaining         # Difference from the next entry
            )
-  ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
+  ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
     geom_col(position='stack') +
     geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
     facet_wrap(~Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function)) +
@@ -96,7 +100,7 @@ main <- function() {
          device = 'png', 
          height = unit(7, 'in'), width = unit(12, 'in'))
   
-  ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
+  ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
     geom_col(position='stack') +
     geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
     facet_wrap(~Kit, scales = 'free_x', nrow=1, labeller = labeller(Kit = label_function)) +
@@ -111,7 +115,7 @@ main <- function() {
          device = 'png',
          height = unit(7, 'in'), width = unit(12, 'in'))
   
-  ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
+  ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
     geom_col(position='stack') +
     geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
     facet_wrap(~Kit, scales = 'free', nrow=1, labeller = labeller(Kit = label_function)) +
@@ -128,9 +132,9 @@ main <- function() {
   
   plotdata %>% 
     group_by(Sample) %>%
-    filter(class != '# cells barcoded') %>%
+    filter(variable != 'cells_barcoded') %>%
     mutate(difference = 100 * difference / sum (difference)) %>%
-    ggplot(aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
+    ggplot(aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
     geom_col(position='stack') +
     theme_bw() +
     theme(text = element_text(size = 16),
