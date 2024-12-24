@@ -10,6 +10,7 @@ library(patchwork)
 main <- function(figures_list, filtering_stage = 'after', outdir='qc_vln_plots') {
   ## returns color_palette obj
   source(here('config/color_palette.R'))
+  source(here('config/kit_order.R'))
   
   QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', caption=NA) {
     plotdata <- lapply(objs, function(x){unname(x@meta.data[[metric]])}) %>%
@@ -19,14 +20,14 @@ main <- function(figures_list, filtering_stage = 'after', outdir='qc_vln_plots')
       summarize(med = median(value)) 
     
     ggplot(plotdata, aes(y=value, x=paste0(Individual, Replicate), fill = Kit)) +
-      rasterize(geom_jitter(alpha=0.1, size=.1), dpi=300) +
+      rasterize(geom_jitter(alpha=0.1, size=.1), dpi=100) +
       geom_violin(draw_quantiles = 0.5) +
-      scale_fill_manual(values = color_palette$kits) +
+      scale_fill_manual(values = color_palette$kits, labels = label_function) +
       theme_bw() +
       theme(text = element_text(size = 20),
             panel.spacing=unit(0, "lines"),
             axis.text.x = element_text(angle=45, vjust=0.5)) + 
-      facet_wrap(~ Kit, nrow = 1, scales='free_x') +
+      facet_wrap(~ Kit, nrow = 1, scales='free_x', labeller = labeller(Kit = label_function)) +
       labs(x='Sample', y = ylab, caption=caption) #+
     # coord_flip()
   }
@@ -40,9 +41,8 @@ main <- function(figures_list, filtering_stage = 'after', outdir='qc_vln_plots')
     caption <- 'QC metrics per cell on data output from pipelines without additional filtering'
   }
   
-  kit_order <- read.table(here('config/3p/kit_order.txt'))$V1
   metadata <- read.csv(here('config/3p/metadata.csv')) %>%
-    mutate(Kit = factor(Kit, levels = kit_order))
+    mutate(Kit = factor(Kit, levels = kit_order_3p))
   
   labels <- data.frame(
     metric = c('nFeature_RNA', 'nCount_RNA', 'rbRatio', 'mtRatio'),

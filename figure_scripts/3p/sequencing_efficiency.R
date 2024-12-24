@@ -3,7 +3,7 @@ library(here)       ## Easier specification of file locations
 library(yaml)    
 library(readxl)
 
-kit_order <- read.table(here('config/kit_order.txt'))$V1
+source(here('config/kit_order.R'))
 
 data <- read.csv(here('data/sequencing_efficiency.csv'), skip = 1) 
 
@@ -11,7 +11,7 @@ plotdata1 <- data |>
   filter(library == 'all') |>
   select(c(kit, expected_reads)) |>
   filter(kit != 'Parse_v2') |>
-  mutate(kit = factor(kit, levels = kit_order))
+  mutate(kit = factor(kit, levels = kit_order_3p))
   
 plotdata <- data |>
   filter(library == 'all') |>
@@ -24,7 +24,7 @@ plotdata <- data |>
   mutate(stage = factor(stage, 
                         levels = c('expected_reads', 'passing_filter_reads', 
                                    'reads_in_fastqs', 'reads_in_cells_and_mapped')),
-         kit = factor(kit, levels=kit_order)) |>
+         kit = factor(kit, levels=kit_order_3p)) |>
     filter(stage != 'expected_reads') |>
     group_by(kit) |> 
     arrange(kit, stage) |>
@@ -45,7 +45,7 @@ plotdata |>
         axis.ticks.x = element_blank(),
         panel.margin.x=unit(0, "lines")) + 
   labs(x='Kit', y='Reads', fill='Read fate', caption = 'Line indicates expected read recovery based on sequencer loading') 
-ggsave(here('figures/sequencing_efficiency/seq_eff_count.png'), device = 'png', 
+ggsave(here('figures/3p/sequencing_efficiency/seq_eff_count.png'), device = 'png', 
        width=unit(6.5, 'in'), height = unit(5, 'in'))
 
 plotdata |>
@@ -59,5 +59,5 @@ plotdata |>
   theme_bw() +
   scale_y_continuous(labels = scales::percent) +
   labs(x='Kit', y='% of reads', fill='Read fate') 
-ggsave(here('figures/sequencing_efficiency/seq_eff_prop.png'), device = 'png', 
+ggsave(here('figures/3p/sequencing_efficiency/seq_eff_prop.png'), device = 'png', 
        width=unit(6.5, 'in'), height = unit(5, 'in'))

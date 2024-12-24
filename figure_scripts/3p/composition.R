@@ -9,9 +9,9 @@ library(Seurat)
   # fig_objs <- readRDS(here('rds/05_objs_post_clustering.rds'))
 source(here('config/color_palette.R'))
   comp_table <- read.table(here('rds/3p/composition_table_coarse.txt'), sep = '\t', header = TRUE)
-  kit_order <- read.table(here('config/kit_order.txt'))$V1
+  source(here('config/kit_order.R'))
   metadata <- read.csv(here('config/3p/metadata.csv')) %>%
-    mutate(Kit = factor(Kit, levels = kit_order))
+    mutate(Kit = factor(Kit, levels = kit_order_3p))
 
   comp_table |> 
     reshape2::melt(id.vars = c('Kit', 'Sample', 'Individual', 'Replicate')) |> #measure.vars=unique(coarse_mapping)) |> 
@@ -21,7 +21,7 @@ source(here('config/color_palette.R'))
     ))) |>
     group_by(Sample) |> 
     mutate(percent = 100*value / sum(value),
-           Kit = factor(Kit, levels=kit_order)) |>
+           Kit = factor(Kit, levels=kit_order_3p)) |>
     mutate(percent = ifelse(percent == 0, NA, percent)) |>
     ggplot(aes(x = Kit, y = percent,
                group = Kit, color = Kit, shape = paste0(Individual, Replicate))) + 
@@ -35,7 +35,7 @@ source(here('config/color_palette.R'))
   ) +
     theme_bw() +
     scale_shape_manual(values = c(1:5))+ 
-    scale_color_manual(values=color_palette$kits) +
+    scale_color_manual(values=color_palette$kits, labels = label_function) +
     theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
     facet_grid(~ factor(variable), scales='free_y')
   ggsave(path= here('figures/3p/'), filename='composition_coarse_labels.png', device = 'png', 

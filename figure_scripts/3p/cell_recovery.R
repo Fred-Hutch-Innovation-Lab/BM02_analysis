@@ -7,9 +7,9 @@ library(data.table)
 library(ggbreak)
 
 fig_objs <- readRDS(here('rds/3p/02-objs_post_cell_filtering.rds'))
-kit_order <- read.table(here('config/kit_order.txt'))$V1
+source(here('config/kit_order.R'))
 metadata <- read.csv(here('config/3p/metadata.csv')) %>%
-  mutate(Kit = factor(Kit, levels = kit_order))
+  mutate(Kit = factor(Kit, levels = kit_order_3p))
 
 main <- function() {
   
@@ -25,7 +25,7 @@ main <- function() {
     'Scale' = 125000 /4
   ) |> reshape2::melt() |>
     dplyr::rename(Kit = L1) |>
-    mutate(Kit = factor(Kit, levels=kit_order))
+    mutate(Kit = factor(Kit, levels=kit_order_3p))
   
   target_cells_fraction <- list(
     'Flex' = 10000/16871,
@@ -37,26 +37,12 @@ main <- function() {
     'Scale' = .25
   ) |> reshape2::melt() |>
     dplyr::rename(Kit = L1)  |>
-    mutate(Kit = factor(Kit, levels=kit_order))
+    mutate(Kit = factor(Kit, levels=kit_order_3p))
   
   pipeline_data <- read_xlsx(here('data/3p/pipeline_summary_statistics/downsampled_data.xlsx'), skip = 1, .name_repair = 'minimal', col_names = TRUE) %>%
     filter(METRICS %in% c('# cells loaded', '# Cells recovered')) %>%
     as.data.table() |>
     melt(id.vars='METRICS') |>
-    # column_to_rownames('METRICS') %>%
-    # t() %>% 
-    # as.data.frame()
-  # rows <- pipeline_data[2:nrow(pipeline_data),1]
-  # cols <- pipeline_data[1,2:ncol(pipeline_data)]
-  # pipeline_data <- pipeline_data[2:nrow(pipeline_data),2:ncol(pipeline_data)]
-  # colnames(pipeline_data) <- cols
-  # rownames(pipeline_data) <- rows
-    # rowid_to_column(1) %>%
-    
-    # rownames_to_column('Sample') %>%
-    # as.data.table() %>%
-    # select('Sample', '# cells loaded', '# Cells recovered') %>%
-    # melt(id.vars='Sample') %>%
     mutate(value = as.numeric(value)) %>%
     mutate(METRICS = case_when(
       METRICS == '# cells loaded' & grepl('Scale', variable) ~ '# cells barcoded',
@@ -85,7 +71,7 @@ main <- function() {
   
   plotdata <- do.call(rbind, list(pipeline_data, doublets, bad_cells)) %>%
     merge(metadata, by='Sample') %>%
-    mutate(Kit = factor(Kit, levels = kit_order)) %>%
+    mutate(Kit = factor(Kit, levels = kit_order_3p)) %>%
     arrange(Sample, class) %>%
     mutate(class = factor(class, levels = c('# cells barcoded', '# cells loaded', '# Cells recovered', 'after_qc_filtering', 'after_doublet_filtering'))) %>%
     group_by(Sample) %>%
@@ -97,7 +83,7 @@ main <- function() {
   ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
     geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
-    facet_wrap(~Kit, nrow=1, scales='free_x') +
+    facet_wrap(~Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function)) +
     theme_bw() +
     theme(text = element_text(size = 16),
           axis.text.x = element_text(angle=45, vjust=0.5)) + 
@@ -113,7 +99,7 @@ main <- function() {
   ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
     geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
-    facet_wrap(~Kit, scales = 'free_x', nrow=1) +
+    facet_wrap(~Kit, scales = 'free_x', nrow=1, labeller = labeller(Kit = label_function)) +
     theme_bw() +
     theme(text = element_text(size = 16),
           axis.text.x = element_text(angle=45, vjust=0.5)) + 
@@ -128,7 +114,7 @@ main <- function() {
   ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
     geom_col(position='stack') +
     geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
-    facet_wrap(~Kit, scales = 'free', nrow=1) +
+    facet_wrap(~Kit, scales = 'free', nrow=1, labeller = labeller(Kit = label_function)) +
     theme_bw() +
     theme(text = element_text(size = 16),
           axis.text.x = element_text(angle=45, vjust=0.5)) + 
@@ -140,21 +126,6 @@ main <- function() {
          device = 'png', 
          height = unit(7, 'in'), width = unit(16, 'in'))
   
-  # plotdata %>% 
-  #   group_by(Sample) %>%
-  #   mutate(difference = 100 * difference / sum (difference)) %>%
-  #   ggplot(aes(x=paste0(Individual, Replicate), y=difference, fill=class)) +
-  #   geom_col(position='stack') +
-  #   geom_hline(data = target_cells_fraction, aes(yintercept = 100*value), lty='dashed', color='black') +
-  #   facet_wrap(~Kit, scales = 'free_x', nrow=1) +
-  #   scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'), 
-  #                     labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
-  #   labs(x='Sample', y='% of capture', fill='Classification', caption = 'Dashed lines indicate expected cell recovery') ->
-  #   cell_recovery_figures[['cell_recovery_portions']] 
-  # ggsave(filename = 'cell_recovery_portions.png', path = here('figures/3p/cell_recovery'),
-  #        device = 'png', 
-  #        height = unit(7, 'in'), width = unit(9, 'in')) 
-  
   plotdata %>% 
     group_by(Sample) %>%
     filter(class != '# cells barcoded') %>%
@@ -165,7 +136,7 @@ main <- function() {
     theme(text = element_text(size = 16),
           axis.text.x = element_text(angle=45, vjust=0.5)) + 
     geom_hline(data = target_cells_fraction, aes(yintercept = 100*value), lty='dashed', color='black') +
-    facet_wrap(~Kit, scales = 'free_x', nrow=1) +
+    facet_wrap(~Kit, scales = 'free_x', nrow=1, labeller = labeller(Kit = label_function)) +
     scale_fill_manual(values = c('#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
                       labels = c('Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
     labs(x='Sample', y='% of capture', fill='Classification', caption = 'Dashed lines indicate expected cell recovery') ->

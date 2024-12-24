@@ -6,17 +6,17 @@ library(patchwork)  ## arrange plots
 
 
 main <- function() {
-  fig_objs <- readRDS('rds/05_merged_objs_post_clustering.rds')
+  ## returns color_palette obj
+  source(here('config/color_palette.R'))
+  source(here('config/kit_order.R'))
+  
+  fig_objs <- readRDS('rds/3p/05_merged_objs_post_clustering.rds')
   fig_objs <- lapply(fig_objs, function(x){
     x$individual <- gsub('.+_([^_]+)$', '\\1', x$orig.ident)
     x
   })
-  kit_order <- read.table(here('config/kit_order.txt'))$V1
-  metadata <- read.csv(here('config/metadata.csv')) %>%
-    mutate(Kit = factor(Kit, levels = kit_order))
-  
-  ## returns color_palette obj
-  source(here('config/color_palette.R'))
+  metadata <- read.csv(here('config/3p/metadata.csv')) %>%
+    mutate(Kit = factor(Kit, levels = kit_order_3p))
   
   umap_figures <- list()
   
@@ -55,9 +55,9 @@ main <- function() {
   
   for (kit in unique(metadata$Kit)) {
     umap_figures[[paste0(kit, '_fine')]] <- my_dimplot(fig_objs[[kit]], group.by = 'cell_labels.fine') +
-      ggtitle(kit)
+      ggtitle(label_function(kit))
     ggsave(plot = umap_figures[[paste0(kit, '_fine')]],
-           path= here('figures/UMAPs'), filename=paste0(kit, '_fine_labels.png'), device = 'png', 
+           path= here('figures/3p/UMAPs'), filename=paste0(kit, '_fine_labels.png'), device = 'png', 
            width = unit(6, 'in'), height = unit(4, 'in'), )
   }
   
@@ -66,9 +66,9 @@ main <- function() {
       my_dimplot(fig_objs[[kit]], group.by = 'cell_labels.fine') +
       my_dimplot(fig_objs[[kit]], group.by = 'individual', 
                  colors = color_palette$samples, color_label='Sample', alpha=0.5) +
-      ggtitle(kit)
+      ggtitle(label_function(kit))
     ggsave(plot = umap_figures[[paste0(kit, '_fine')]],
-           path= here('figures/UMAPs'), filename=paste0(kit, '_sample_&_label.png'), device = 'png', 
+           path= here('figures/3p/UMAPs'), filename=paste0(kit, '_sample_&_label.png'), device = 'png', 
            width = unit(12, 'in'), height = unit(4, 'in'), )
   }
   return(umap_figures)

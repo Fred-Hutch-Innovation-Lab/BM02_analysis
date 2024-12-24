@@ -14,9 +14,9 @@ main <- function() {
   #   add_argument('--save_plot', help='Overwrite saved file?', default=FALSE) %>%
   #   parse_args()
   # 
-  kit_order <- read.table(here('config/kit_order.txt'))$V1
+  source(here('config/kit_order.R'))
   metadata <- read.csv(here('config/3p/metadata.csv')) %>%
-    mutate(Kit = factor(Kit, levels = kit_order))
+    mutate(Kit = factor(Kit, levels = kit_order_3p))
   
   objs <- readRDS(here('rds/3p/01-soup_channels.rds'))
   
@@ -35,7 +35,7 @@ main <- function() {
     geom_errorbar(aes(ymin=rho_low, ymax=rho_high), width=0.4) +
     facet_manual(~ Kit, scales='free_x',
                  design="#AABBCC#
-                 DDEEFFGG"
+                 DDEEFFGG", labeller = labeller(Kit = label_function)
                  # design=rbind(c(1,2,3, NA), c(4,5,6,7))
                  ) +
     # theme(axis.text.x = element_text(angle=45, vjust=1)) +

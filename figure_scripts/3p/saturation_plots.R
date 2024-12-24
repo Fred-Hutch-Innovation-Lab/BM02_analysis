@@ -2,70 +2,68 @@ library(tidyverse)  ## General R logic
 library(here)       ## Easier specification of file locations
 
 source(here('config/color_palette.R'))
+source(here('config/kit_order.R'))
 
-metadata <- read.csv(here('config/3p/metadata.csv'), stringsAsFactors = TRUE)
-sat_curves <- list()
-for (file in list.files(here('data/3p/saturation_curves'), pattern = '.csv$', full.names = TRUE)) {
-  sample <- gsub('.+/B2_(.+).csv', '\\1', file)
-  x <- read.csv(file)
-  x$Sample <- sample
-  if ('median_genes_per_cell' %in% colnames(x)) {
-    lookup <- c('genes' = 'median_genes_per_cell', 'reads' = 'reads_per_cell')
-    x <- rename(x, any_of(lookup)) |>
-      select(genes, reads, Sample) 
-  }
-  # rename_with(.fn = function(col) {
-    #   new_names <- col
-    #   for (z in names(substring_map)) {
-    #     if (grepl(pattern=z, x=col)) {
-    #       new_names <- substring_map[[z]]
-    #     }
-    #   }
-    #   return(new_names)
-    # })
-  sat_curves[[sample]] <- x
-}
-sat_curves <- data.table::rbindlist(sat_curves, use.names = TRUE)
-sat_curves <- sat_curves %>%
-  mutate(Sample = gsub('FBv4', 'FBv4', Sample)) %>%
-  mutate(Sample = gsub('FBv5', 'FBv5', Sample)) %>%
-  mutate(Sample = gsub('Parse', 'PA_V3', Sample)) %>%
-  mutate(Sample = gsub('NextGEM', 'NextGEM3P', Sample)) %>%
-  mutate(Sample = gsub('GEMX', 'GEMX3P', Sample)) %>%
-  mutate(Sample = gsub('FL', 'Flex', Sample))
+# 3P ----
+metadata <- read.csv(here('config/3p/metadata.csv')) %>%
+  mutate(Kit = factor(Kit, levels = kit_order_3p))
+sat_curves <- read.csv(here('data/3p/saturation_curves/manually_downsampled.csv')) |>
+  select(-Kit) |>
+  mutate(across(all_of(c('median_genes', 'median_umi', 'nreads')), as.numeric))
+zeroes <- data.frame(Sample=metadata$Sample, nreads=0, median_genes=0, median_umi=0)
+sat_curves <- rbind(sat_curves, zeroes)
+sat_curves <- merge(sat_curves, metadata, by='Sample', all=TRUE)
 
-sat_curves <- merge(sat_curves, metadata, by='Sample')
+samples <- c('Scale_F5A', 'Scale_F1A',
+             'NextGEM3P_F1A', 'NextGEM3P_F1B',
+             'GEMX3P_F1A', 'GEMX3P_F1B',
+             'Parse_v3_F5A', 'Parse_v3_F1B',
+             'Flex_F5A', 'Flex_F1B',
+             'Fluent_V_F1A', 'Fluent_V_F5B',
+             'Fluent_v4_F5A', 'Fluent_v4_F5B')
+polygon_data <- sat_curves %>%
+  filter(Sample %in% samples) %>%
+  mutate(Sample = factor(Sample, levels=samples)) %>%
+  mutate(sort_key = case_when(
+    Sample %in% c('Scale_F5A', 'NextGEM3P_F1A', 'GEMX3P_F1A', 'Parse_v3_F5A', 'Flex_F5A', 'Fluent_V_F1A', 'Fluent_v4_F5A') ~ nreads,
+    Sample %in% c('Scale_F1A', 'NextGEM3P_F1B', 'GEMX3P_F1B', 'Parse_v3_F1B', 'Flex_F1B', 'Fluent_V_F5B', 'Fluent_v4_F5B') ~ -nreads, 
+    TRUE ~ NA
+  )) %>%
+  arrange(Kit, Sample, sort_key) |>
+  filter(!is.na(median_genes))
 
-ggplot(sat_curves, aes(x=as.numeric(reads), y=as.numeric(genes),
-                       linetype = paste0(Individual, Replicate), color = Kit)) +
-  scale_color_manual(values = color_palette$kits) +
+ggplot(filter(sat_curves, !is.na(median_genes)),
+       aes(x=nreads, y=median_genes, linetype = paste0(Individual, Replicate), color = Kit)) +
   geom_line() +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function) +
+  geom_polygon(data = polygon_data, aes(x=nreads, y=median_genes, group=Kit, fill=Kit), alpha=0.1, inherit.aes = FALSE, show.legend=FALSE)+
   theme_bw() +
-  labs(x='Average reads per cell', y='Median genes per cell', linetype='Sample')
-ggsave('saturation_curves.png', path = here('figures'), width = unit(7, 'in'), height = unit(5, 'in'))
+  labs(x='Average reads per cell', y='Median genes per cell', linetype='Sample', color = 'Kit')
+ggsave('saturation_curves_genes.png', path = here('figures/3p'), width = unit(7, 'in'), height = unit(5, 'in'))
 
+samples <- c('Scale_F5A', 'Scale_F1A',
+             'NextGEM3P_F1A', 'NextGEM3P_F5B',
+             'GEMX3P_F1A', 'GEMX3P_F1B',
+             'Parse_v3_F5A', 'Parse_v3_F1B',
+             'Flex_F5A', 'Flex_F1B',
+             'Fluent_V_F1A', 'Fluent_V_F5B',
+             'Fluent_v4_F5A', 'Fluent_v4_F5B')
+polygon_data <- sat_curves %>%
+  filter(Sample %in% samples) %>%
+  mutate(Sample = factor(Sample, levels=samples)) %>%
+  mutate(sort_key = case_when(
+    Sample %in% c('Scale_F5A', 'NextGEM3P_F1A', 'GEMX3P_F1A', 'Parse_v3_F5A', 'Flex_F5A', 'Fluent_V_F1A', 'Fluent_v4_F5A') ~ nreads,
+    Sample %in% c('Scale_F1A', 'NextGEM3P_F5B', 'GEMX3P_F1B', 'Parse_v3_F1B', 'Flex_F1B', 'Fluent_V_F5B', 'Fluent_v4_F5B') ~ -nreads, 
+    TRUE ~ NA
+  )) %>%
+  arrange(Kit, Sample, sort_key) |>
+  filter(!is.na(median_genes))
 
-# 
-# samples <- c('Scale_F1A', 'FB_2_F5A', 'PA_V3_F5A', 
-#              'Scale_F5A', 'FB_2_F5B', 'PA_V3_F1B')
-# polygon_data <- sat_curves %>%
-#   filter(Kit %in% c('Parse_V3', 'Fluent', 'Scale')) %>%
-#   mutate(ID=paste0(Individual, Replicate)) %>%
-#   filter(Sample %in% samples) %>%
-#   mutate(Sample = factor(Sample, levels=samples)) %>%
-#   arrange(Kit, Sample, case_when(
-#     Sample %in% c('Scale_F1A', 'FB_2_F5A', 'PA_V3_F5A') ~ reads,
-#     Sample %in% c('Scale_F5A', 'FB_2_F5B', 'PA_V3_F1B') ~ desc(reads),
-#   ))
-# 
-# sat_curves %>%
-#   filter(Kit %in% c('Parse_V3', 'Fluent', 'Scale')) %>%
-#   mutate(ID=paste0(Individual, Replicate)) %>%
-# ggplot(aes(x=reads, y=genes, color = Kit, linetype=ID)) +
-#   scale_color_manual(values = color_palette) +
-#   scale_fill_manual(values = color_palette) +
-#   geom_line() +
-#   geom_polygon(data = polygon_data, aes(x=reads, y=genes, group=Kit, fill=Kit), alpha=0.2, inherit.aes = FALSE)+
-#   theme_bw() +
-#   labs(x='Average reads per cell', y='Median genes per cell', linetype='Sample')
-# ggsave('saturation_curves_blog.svg', path = here('figures/blog'), width = unit(7, 'in'), height = unit(5, 'in'))
+ggplot(filter(sat_curves, !is.na(median_umi)),
+       aes(x=nreads, y=median_umi, linetype = paste0(Individual, Replicate), color = Kit)) +
+  geom_line() +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
+  geom_polygon(data = polygon_data, aes(x=nreads, y=median_umi, group=Kit, fill=Kit), alpha=0.1, inherit.aes = FALSE, show.legend=FALSE)+
+  theme_bw() +
+  labs(x='Average reads per cell', y='Median transcripts per cell', linetype='Sample', color = 'Kit', caption = 'Flex data not generated')
+ggsave('saturation_curves_umi.png', path = here('figures/3p'), width = unit(7, 'in'), height = unit(5, 'in'))
