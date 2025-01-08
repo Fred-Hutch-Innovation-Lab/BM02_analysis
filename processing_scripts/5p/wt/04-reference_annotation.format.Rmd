@@ -1,0 +1,117 @@
+---
+title: 'BM02 Annotation'
+author: |
+  | FHIL
+  | Derrik Gratz
+date: '`r Sys.Date()`'
+output: 
+  rmdformats::robobook:
+    fig_width: 9
+    toc_depth: 3
+    css: '../../../config/robobook.css'
+---
+
+```{r, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+```
+
+This report is intended as an in-depth look at the decision points, intermediate data, and possible points of interest. 
+It does not represent a final state of the data, and not every figure here is intended to be used for publication. 
+Aesthetics and image quality can be improved for final versions of images.
+
+# Natural clustering {.tabset}
+
+**Non-optimized** clustering for each sample. This is clustering at a default resolution, intended to just show any
+underlying community structure in the samples. After the annotation, I will perform a more currated clustering.
+
+```{r, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
+  out = c(out, knit_expand(text = chunktext))
+  for (sample in metadata$Sample[metadata$Kit == kit]) {
+    ind <- metadata$Individual[metadata$Sample==sample]
+    rep <- metadata$Replicate[metadata$Sample==sample]
+    chunktext <- '\n### {{ind}}{{rep}} {.unlist}
+      \n```{r, fig.width=6, fig.height=5}\n
+      DimPlot(objs[["{{sample}}"]])
+      \n```\n
+      '
+    out = c(out, knit_expand(text = chunktext))
+  }
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+# Reference mapping {.tabset}
+
+Expression matrices from published annotated datasets are used to predict celltype labels in our data. [SingleR](https://www.nature.com/articles/s41590-018-0276-y) is used as the prediction algorithm with data
+from the [celldex](https://github.com/SingleR-inc/celldex) collection. The following datasets were used:
+
+- Human primary cell atlas [Mabbott et al. 2013](https://doi.org/10.1186/1471-2164-14-632)
+- Bulk sorted hematopoietic cells [Novershtern et al. 2011](https://doi.org/10.1016/j.cell.2011.01.004)
+- Bulk sorted immune cells [Monaco et al. 2019](https://doi.org/10.1016/j.celrep.2019.01.041)
+
+I also used Seurat's reference integration method with the following dataset:
+
+- Single-cell PBMCs [Stoeckius et al. 2017](https://doi.org/10.1038/nmeth.4380)
+
+
+```{r, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
+  out = c(out, knit_expand(text = chunktext))
+  for (sample in metadata$Sample[metadata$Kit == kit]) {
+    ind <- metadata$Individual[metadata$Sample==sample]
+    rep <- metadata$Replicate[metadata$Sample==sample]
+    chunktext <- "\n### {{ind}}{{rep}} {.unlist}
+      \n```{r, fig.width=12, fig.height=10}\n
+      grid.arrange(DimPlot(objs[['{{sample}}']], group.by = 'predicted.pbmc3k_seurat_annotations', label=TRUE),
+        DimPlot(objs[['{{sample}}']], group.by = 'predicted.pbmcsca_seurat_annotations', label=TRUE),
+        DimPlot(objs[['{{sample}}']], group.by = 'Mona.main.labels', label=TRUE),
+        DimPlot(objs[['{{sample}}']], group.by = 'HPCA.main.labels', label=TRUE), nrow=2)
+      \n```\n
+      "
+      out = c(out, knit_expand(text = chunktext))
+  }
+}
+
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+# Gene signatures {.tabset}
+
+Seeing how celltype gene markers from literature correspond to calls from each method/reference.
+
+```{r, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+  chunktext <- '\n## {{kit}} {.tabset .unlist}\n'
+  out = c(out, knit_expand(text = chunktext))
+  for (sample in metadata$Sample[metadata$Kit == kit]) {
+    ind <- metadata$Individual[metadata$Sample==sample]
+    rep <- metadata$Replicate[metadata$Sample==sample]
+    chunktext <- '\n Sample {{ind}}{{rep}} \n'
+    out = c(out, knit_expand(text = chunktext))
+    for (ref in c('pbmc3k','pbmcsca', 'mona', 'hpca')){
+      chunktext <- '\n### {{ref}} {.unlist}
+      \n```{r, fig.width=40, fig.height=11}\n
+      figures[[paste0("marker_dotplots_", "{{ref}}")]][["{{sample}}"]]
+      \n```\n
+      '
+      out = c(out, knit_expand(text = chunktext))
+    }
+    
+    ## only doing one sample
+    break
+  }
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
