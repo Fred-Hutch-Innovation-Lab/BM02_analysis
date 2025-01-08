@@ -12,6 +12,7 @@ rds/*
 **.png
 **.pdf
 *.Rproj
+**.svg
 
 # Renv
 renv/library*
