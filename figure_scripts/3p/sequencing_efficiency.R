@@ -1,13 +1,13 @@
-library(tidyverse)  ## General R logic
-library(here)       ## Easier specification of file locations
-library(yaml)    
+# Setup ----
+source(here('figure_scripts/utils.R'))
 library(readxl)
 
-source(here('config/kit_order.R'))
+# Load data ----
+data <- read.csv(here('data/3p/sequencing_efficiency.csv'), skip = 1) 
 
-data <- read.csv(here('data/sequencing_efficiency.csv'), skip = 1) 
+# Prepare plotdata ----
 
-plotdata1 <- data |>
+expected_data <- data |>
   filter(library == 'all') |>
   select(c(kit, expected_reads)) |>
   filter(kit != 'Parse_v2') |>
@@ -31,22 +31,25 @@ plotdata <- data |>
     mutate(difference = reads - lead(reads, default = 0)) |>
   na.omit()
 
+# Plot ----
 plotdata |>
   ggplot(aes(x=kit, y=difference, group=stage, fill=stage)) +
   geom_bar(stat='identity', position='stack') +
   facet_wrap(~ kit, scales='free_x', nrow=1) +
-  geom_hline(data=plotdata1, aes(yintercept = expected_reads, group = kit), lty='dashed') +
+  geom_hline(data=expected_data, aes(yintercept = expected_reads, group = kit), lty='dashed') +
   scale_fill_manual(values = c('#D7191C', '#e9e29c', '#39B185'),
                      labels = c('Not extracted to fastq',
                                 'Not barcoded and aligned\nin cells', 
                                 'Successfully aligned and\nassigned to cell')) +
-  theme_bw() +
   theme(axis.text.x = element_blank(), 
         axis.ticks.x = element_blank(),
-        panel.margin.x=unit(0, "lines")) + 
-  labs(x='Kit', y='Reads', fill='Read fate', caption = 'Line indicates expected read recovery based on sequencer loading') 
-ggsave(here('figures/3p/sequencing_efficiency/seq_eff_count.png'), device = 'png', 
-       width=unit(6.5, 'in'), height = unit(5, 'in'))
+        panel.spacing.x=unit(0, "lines")) + 
+  labs(x='Kit', y='Reads', fill='Read fate', caption = 'Line indicates expected read recovery based on sequencer loading') ->
+  figures[['seq_eff_count']]
+
+my_plot_save(image = figures[['seq_eff_count']], 
+             path = here('figures/3p/sequencing_efficiency/seq_eff_count.svg'), 
+             width = 10, height = 5)
 
 plotdata |>
   mutate(prop = difference / sum(difference)) |>
@@ -54,10 +57,12 @@ plotdata |>
   geom_bar(stat='identity', position='stack') +
   scale_fill_manual(values = c('#D7191C', '#e9e29c', '#39B185'),
                     labels = c('Not extracted to fastq',
-                               'Not barcoded and aligned in cells', 
-                               'Successfully aligned and assigned to cell')) +
-  theme_bw() +
+                               'Not barcoded and\naligned in cells', 
+                               'Successfully aligned and\nassigned to cell')) +
   scale_y_continuous(labels = scales::percent) +
-  labs(x='Kit', y='% of reads', fill='Read fate') 
-ggsave(here('figures/3p/sequencing_efficiency/seq_eff_prop.png'), device = 'png', 
-       width=unit(6.5, 'in'), height = unit(5, 'in'))
+  labs(x='Kit', y='% of reads', fill='Read fate') ->
+  figures[['seq_eff_prop']]
+
+my_plot_save(image = figures[['seq_eff_count']], 
+             path = here('figures/3p/sequencing_efficiency/seq_eff_prop.svg'), 
+             width = 10, height = 5)
