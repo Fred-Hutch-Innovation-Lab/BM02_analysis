@@ -24,7 +24,7 @@ soupx_results %>%
              labeller = labeller(Kit = label_function)
                ) +
   scale_y_continuous(labels = scales::percent) +
-  labs(x='Sample', y='Contamination estimate', caption = 'Range bars indicate upper and lower bounds of contamination estimate') ->
+  labs(x='Sample', y='Ambient RNA') ->
 figures[['soupx']]
 my_plot_save(image = figures[['soupx']], 
              path = here('figures/3p/ambient_rna.svg'), 

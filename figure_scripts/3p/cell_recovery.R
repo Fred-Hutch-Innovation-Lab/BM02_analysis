@@ -50,7 +50,7 @@ ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variabl
   ggbreak::scale_y_break(c(130000, 200000), ticklabels = c(200000, 230000))+ 
   scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
                     labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
-  labs(x='Sample', y='Number of cells', fill='Classification', caption = 'Dashed lines indicate targeted cell recovery') ->
+  labs(x='Sample', y='Number of cells', fill='Classification') -> #, caption = 'Dashed lines indicate targeted cell recovery'
   figures[['cell_recovery_counts_break']] 
 my_plot_save(image = figures[['cell_recovery_counts_break']] , 
              path = here('figures/3p/cell_recovery/cell_recovery_counts_break.svg'), 
@@ -67,7 +67,7 @@ ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variabl
   figures[['cell_recovery_counts']]
 my_plot_save(image = figures[['cell_recovery_counts']] , 
              path = here('figures/3p/cell_recovery/cell_recovery_counts.svg'), 
-             width = 7, height = 12)
+             width = 12, height = 7)
 
 ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
   geom_col(position='stack') +
@@ -81,7 +81,7 @@ ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variabl
   figures[['cell_recovery_counts_freey']] 
 my_plot_save(image = figures[['cell_recovery_counts_freey']] , 
              path = here('figures/3p/cell_recovery/cell_recovery_counts_freey.svg'), 
-             width = 7, height = 16)
+             width = 16, height = 7)
 
 plotdata %>% 
   group_by(Sample) %>%
@@ -94,8 +94,8 @@ plotdata %>%
   facet_wrap(~Kit, scales = 'free_x', nrow=1, labeller = labeller(Kit = label_function)) +
   scale_fill_manual(values = c('#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
                     labels = c('Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
-  labs(x='Sample', y='% of capture', fill='Classification', caption = 'Dashed lines indicate expected cell recovery') ->
+  labs(x='Sample', y='% of capture', fill='Classification') -> #, caption = 'Dashed lines indicate expected cell recovery'
   figures[['cell_recovery_portions']] 
 my_plot_save(image = figures[['cell_recovery_portions']] , 
              path = here('figures/3p/cell_recovery/cell_recovery_portions.svg'), 
-             width = 7, height = 12)
+             width = 12, height = 7)

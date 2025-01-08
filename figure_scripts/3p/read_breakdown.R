@@ -86,14 +86,15 @@ plotdata |>
   theme(axis.text.x = element_text(angle=45, vjust=0.5),
         panel.spacing=unit(0, "lines")) + 
   facet_wrap(~ Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function)) +
-  labs(y='Percent of total reads', x='Sample', fill='Feature biotype', 
-    caption = paste(
-      'Only showing reads assigned to genes found in all kits',
-      '"Not shared" indicates a gene is not found in all kits.',
-      'All other features are identified in all kits.',
-      'Identified protein coding genes have symbols, non-identified genes only have location information or ENS IDs.',
-      '"Other" indicates the gene could not be identified into a single biotype of these options.',
-    sep='\n')) ->
+  labs(y='Percent of total reads', x='Sample', fill='Feature biotype'#, 
+    # caption = paste(
+    #   'Only showing reads assigned to genes found in all kits',
+    #   '"Not shared" indicates a gene is not found in all kits.',
+    #   'All other features are identified in all kits.',
+    #   'Identified protein coding genes have symbols, non-identified genes only have location information or ENS IDs.',
+    #   '"Other" indicates the gene could not be identified into a single biotype of these options.',
+    # sep='\n')
+    ) ->
   figures[['Expression_barchart_shared']]
 
 my_plot_save(image = figures[['Expression_barchart_shared']], 
@@ -137,15 +138,16 @@ plotdata |>
   theme(axis.text.x = element_text(angle=45, vjust=0.5),
         panel.spacing=unit(0, "lines")) + 
   facet_wrap(~ Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function)) +
-  labs(y='Percent of total reads', x='Sample', fill='Feature biotype', 
-caption = paste(
-  'Only showing genes not found in all kits.',
-  'These genes are not necessarily unique to a kit, just not found in all kits',
-  '"Not shared" indicates a gene is not found in all kits.',
-  'All other features are identified in all kits.',
-  'Identified protein coding genes have symbols, non-identified genes only have location information or ENS IDs.',
-  '"Other" indicates the gene could not be identified into a single biotype of these options.',
-  sep='\n')) ->
+  labs(y='Percent of total reads', x='Sample', fill='Feature biotype'#, 
+# caption = paste(
+#   'Only showing genes not found in all kits.',
+#   'These genes are not necessarily unique to a kit, just not found in all kits',
+#   '"Not shared" indicates a gene is not found in all kits.',
+#   'All other features are identified in all kits.',
+#   'Identified protein coding genes have symbols, non-identified genes only have location information or ENS IDs.',
+#   '"Other" indicates the gene could not be identified into a single biotype of these options.',
+#   sep='\n')
+) ->
   figures[['Expression_barchart_unique']]
 my_plot_save(image = figures[['Expression_barchart_unique']], 
              path = here('figures/3p/read_utilization/unique_genes.svg'), 
@@ -191,13 +193,14 @@ plotdata |>
   theme(axis.text.x = element_text(angle=45, vjust=0.5),
         panel.spacing=unit(0, "lines")) + 
   facet_wrap(~ Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function)) +
-  labs(y='Percent of total reads', x='Sample', fill='Feature biotype', 
-       caption = paste('"Not shared" indicates a gene is not found in all kits.',
-                        'All other features are identified in all kits.',
-                        'Identified protein coding genes have symbols.',
-                        'Non-identified genes only have location information or ENS IDs.',
-                       '"Other" indicates the gene could not be identified into a single biotype of these options.',
-                        sep='\n')) ->
+  labs(y='Percent of total reads', x='Sample', fill='Feature biotype'#, 
+       # caption = paste('"Not shared" indicates a gene is not found in all kits.',
+       #                  'All other features are identified in all kits.',
+       #                  'Identified protein coding genes have symbols.',
+       #                  'Non-identified genes only have location information or ENS IDs.',
+       #                 '"Other" indicates the gene could not be identified into a single biotype of these options.',
+       #                  sep='\n')
+       ) ->
   figures[['Expression_barchart_all']]
 my_plot_save(image = figures[['Expression_barchart_all']], 
              path = here('figures/3p/read_utilization/all_genes.svg'), 

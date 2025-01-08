@@ -47,8 +47,8 @@ obj_cor <- function(obj, kit, celltype, ngenes = 200, method = 'pearson') {
 # Plot ----
 for (kit in unique(metadata_3p$Kit)) {
   plotdata <- tibble()
-  for (celltype in unique(colData(obj)$celltype)) {
-    plotdata1 <- obj_cor(obj, kit=kit, ngenes=200, method='pearson') |>
+  # for (celltype in unique(colData(obj)$celltype)) {
+    plotdata <- obj_cor(obj, kit=kit, ngenes=200, method='pearson') |>
       melt() |> 
       separate_wider_delim(Var1, '_', too_many = 'merge',
                            names = c('Sample1', 'celltype1'), cols_remove = TRUE) |>
@@ -66,9 +66,10 @@ for (kit in unique(metadata_3p$Kit)) {
       filter(celltype1 == celltype2) |>
       mutate(celltype1 = factor(celltype1, levels=coarse_celltypes$fine),
              celltype2 = factor(celltype2, levels=coarse_celltypes$fine)) |>
-      arrange(celltype1, celltype2)
-    plotdata <- rbind(plotdata1, plotdata)
-  }
+      arrange(celltype1, celltype2) |>
+      unique()
+    # plotdata <- rbind(plotdata1, plotdata)
+  # }
   
   
   ggplot(plotdata,
@@ -86,9 +87,6 @@ for (kit in unique(metadata_3p$Kit)) {
     facet_wrap(~ celltype1, drop = FALSE, ncol=4, nrow = 4) ->
     figures[[paste0('corr_mat_pearson', kit)]]
   my_plot_save(image = figures[[paste0('corr_mat_pearson', kit)]],
-               path = here('figures/3p/sample_correlation/', paste0(kit, '_sample_correlations.svg'),
+               path = here('figures/3p/sample_correlation/', paste0(kit, '_sample_correlations.svg')),
                width = 12, height = 12)
-  
 }
-
-

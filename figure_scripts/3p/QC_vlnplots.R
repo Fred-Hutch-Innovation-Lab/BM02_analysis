@@ -3,7 +3,7 @@ source(here('figure_scripts/utils.R'))
 
 # Load data ----
 fig_objs <- readRDS(here('rds/3p/02-objs_post_cell_filtering.rds'))
-caption <- 'QC metrics per cell on data after filtering by global thresholds'
+caption <- NULL #QC metrics per cell on data after filtering by global thresholds'
 
 # Plotting functions ----
 QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', caption=NA) {

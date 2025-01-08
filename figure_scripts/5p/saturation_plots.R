@@ -1,21 +1,31 @@
-library(tidyverse)  ## General R logic
-library(here)       ## Easier specification of file locations
-
-source(here('config/color_palette.R'))
-source(here('config/kit_order.R'))
-metadata <- read.csv(here('config/5p/metadata.csv')) %>%
-  mutate(Kit = factor(Kit, levels = kit_order_5p))
+# Setup ----
+source(here('figure_scripts/utils.R'))
 
 sat_curves <- read.csv(here('data/5p/sequencing_saturation.csv')) |>
   select(-Kit) |>
   mutate(across(all_of(c('median_genes', 'median_umi', 'nreads')), as.numeric))
-sat_curves <- merge(sat_curves, metadata, by='Sample', all=TRUE)
+sat_curves <- merge(sat_curves, metadata_5p, by='Sample', all=TRUE)
 
-ggplot(filter(sat_curves, !is.na(median_genes) & nreads <= 25000),
+ggplot(filter(sat_curves, !is.na(median_genes)),
        aes(x=nreads, y=median_genes, linetype = Individual, color = Kit)) +
   geom_line() +
-  scale_color_manual(values = unlist(color_palette$kits)) +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function) +
   # geom_polygon(data = polygon_data, aes(x=nreads, y=median_genes, group=Kit, fill=Kit), alpha=0.1, inherit.aes = FALSE, show.legend=FALSE)+
   theme_bw() +
-  labs(x='Average reads per cell', y='Median genes per cell', linetype='Sample', color = 'Kit')
-ggsave('saturation_curves_genes.png', path = here('figures/5p'), width = unit(7, 'in'), height = unit(5, 'in'))
+  labs(x='Average reads per cell', y='Median genes per cell', linetype='Sample', color = 'Kit') ->
+  figures[['5p_sat_curves_genes']]
+my_plot_save(figures[['5p_sat_curves_genes']], 
+             here('figures/5p/saturation_curves_genes.svg'), 
+             width = 7, height = 5)
+
+ggplot(filter(sat_curves, !is.na(median_umi)),
+       aes(x=nreads, y=median_umi, linetype = Individual, color = Kit)) +
+  geom_line() +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function) +
+  # geom_polygon(data = polygon_data, aes(x=nreads, y=median_genes, group=Kit, fill=Kit), alpha=0.1, inherit.aes = FALSE, show.legend=FALSE)+
+  theme_bw() +
+  labs(x='Average reads per cell', y='Median UMI per cell', linetype='Sample', color = 'Kit') ->
+  figures[['5p_sat_curves_UMI']]
+my_plot_save(figures[['5p_sat_curves_UMI']], 
+             here('figures/5p/saturation_curves_UMI.svg'), 
+             width = 7, height = 5)

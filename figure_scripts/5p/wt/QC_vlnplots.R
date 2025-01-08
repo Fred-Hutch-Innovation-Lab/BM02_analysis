@@ -1,23 +1,14 @@
-library(tidyverse)  ## General R logic
-library(here)       ## Easier specification of file locations
-library(yaml)       ## parses config yaml
-library(ggrastr)    ## rasterized point layers for reduced image size
-library(Seurat)
-library(reshape2)  ## melt
-library(patchwork)
+# Setup ----
+source(here('figure_scripts/utils.R'))
 
-source(here('config/color_palette.R'))
-source(here('config/kit_order.R'))
-
+# Load data ----
 fig_objs <- readRDS(here('rds/5p/wt/02-objs_post_cell_filtering.rds'))
-metadata <- read.csv(here('config/5p/metadata.csv')) %>%
-  mutate(Kit = factor(Kit, levels = kit_order_5p))
-figures_list <- list()
-  
+
+# Plotting function ----
 QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', caption=NA) {
   plotdata <- lapply(objs, function(x){unname(x@meta.data[[metric]])}) %>%
     melt(idcol='Sample') %>%
-    merge(metadata, by.x='L1', by.y='Sample') 
+    merge(metadata_5p, by.x='L1', by.y='Sample') 
   plotdata2 <- group_by(plotdata, Kit) %>% 
     summarize(med = median(value)) 
   
@@ -33,6 +24,7 @@ QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', caption=NA) {
     labs(x='Sample', y = ylab)
 }
 
+# Plot ----
 labels <- data.frame(
   metric = c('nFeature_RNA', 'nCount_RNA', 'rbRatio', 'mtRatio'),
   label  = c('Feature count', 'UMI count', 'Ribosomal read %', 'Mitochondrial read %'),
@@ -51,13 +43,13 @@ for (i in 1:nrow(labels)) {
     plt <- plt + scale_y_continuous(labels = scales::percent)
   }
   filename <- paste0(c(metric, 'vln'), collapse='_')
-  figures_list[[filename]] <- plt
-  ggsave(plt, filename = paste0(filename, '.png'), path = here(file.path('figures/5p/wt', 'qc_vln_plots_after_filtering')),
-         device = 'png', 
-         height = unit(7, 'in'), width = unit(12, 'in'))
+  figures[[filename]] <- plt
+  my_plot_save(image = plt, 
+               path = here(file.path('figures/5p/wt/qc_vln_plots_after_filtering', paste0(filename, '.svg'))), 
+               width = 12, height = 7)
 }
-plt <- figures_list[[1]] + figures_list[[2]] + figures_list[[3]] + figures_list[[4]] +
+plt <- figures[['nFeature_RNA_vln']] + figures[['nCount_RNA_vln']] + figures[['rbRatio_vln']] + figures[['mtRatio_vln']] +
   plot_layout(nrow=2, ncol=2, guides = 'collect', axes = 'collect_x', axis_titles = 'collect_x')
-ggsave(plt, filename = 'QC_metrics_combined.png', path = here(file.path('figures/5p/wt', 'qc_vln_plots_after_filtering')),
-       device = 'png', 
-       height = unit(12, 'in'), width = unit(18, 'in'))
+my_plot_save(image = plt, 
+             path = here('figures/5p/wt/qc_vln_plots_after_filtering/QC_metrics_combined.svg'), 
+             width = 18, height = 12)

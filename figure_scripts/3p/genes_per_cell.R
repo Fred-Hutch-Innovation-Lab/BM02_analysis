@@ -40,7 +40,7 @@ lapply(detected_genes_sample_level, length) %>%
   figures[['usable_genes_sample']]
 my_plot_save(image = figures[['usable_genes_sample']], 
              path = here('figures/3p/gene_recovery/usable_genes_sample.svg'), 
-             width = 7, height = 5)
+             width = 9.5, height = 5)
 
 lapply(detected_genes_kit_level, length) %>%
   stack() %>%
@@ -53,7 +53,7 @@ lapply(detected_genes_kit_level, length) %>%
   figures[['usable_genes_kit']]
 my_plot_save(image = figures[['usable_genes_kit']], 
              path = here('figures/3p/gene_recovery/usable_genes_kit.svg'), 
-             width = 7, height = 6)
+             width = 9, height = 6)
   
 ## Euler plot ---- 
 plotdata <- detected_genes_kit_level
@@ -106,7 +106,7 @@ upset(fromList(plotdata),
       number.angles = 0,
       empty.intersections=FALSE) ->
   figures[['gene_overlap_upset']]
-my_plot_save(image = figures[['gene_overlap_upset']], 
-             path = here('figures/3p/gene_recovery/usable_genes_upset.svg'), 
-             width = 10, height = 6)
- 
+svglite::svglite(filename = here('figures/3p/gene_recovery/usable_genes_upset.svg'),
+                 width = unit(10, 'in'), height = unit(6, 'in'))
+figures[['gene_overlap_upset']]
+dev.off()
