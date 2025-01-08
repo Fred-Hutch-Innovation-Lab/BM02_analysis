@@ -1,0 +1,74 @@
+---
+title: 'BM 3P WT DGE'
+author: |
+  | FHIL
+  | Derrik Gratz
+date: '`r Sys.Date()`'
+output: 
+  rmdformats::robobook:
+    fig_width: 9
+    toc_depth: 3
+    css: '../../config/robobook.css'
+---
+
+```{r, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+```
+
+# PCA
+
+## All kits
+
+PCA of the top 2000 variable genes in all data.
+
+```{r}
+figures[['PCA_of_kits']]
+```
+
+## By kit {.tabset}
+
+PCA of the top 2000 variable genes per kit.
+
+```{r, eval=TRUE, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+    chunktext <- '\n### {{kit}} {.unlist}\n
+    \n```{r, fig.width=7.5, fig.height=6}\n
+    figures[[paste0("PCA_", "{{kit}}")]]
+    \n```\n
+    '
+    out = c(out, knit_expand(text = chunktext))
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+# Corr mat {.tabset}
+
+Spearman correlation of the top 200 variable genes per celltype within kit. This is a measure of replicability across samples. Higher correlation indicates top genes are similarly ranked. 
+
+First, the average of the two replicate pairs is shown here
+
+```{r, fig.width=8, fig.height=8}
+figures[['rep_corr_summary']]
+```
+
+Then a breakdown of all kits (this may be excessive)
+
+```{r, eval=TRUE, results='asis'}
+out <- NULL
+for (kit in unique(metadata$Kit)) {
+    chunktext <- '\n## {{kit}} {.unlist}\n
+    \n```{r, fig.width=8, fig.height=5}\n
+    figures[[paste0("corr_mat_pearson", "{{kit}}")]]
+    \n```\n
+    '
+    out = c(out, knit_expand(text = chunktext))
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+

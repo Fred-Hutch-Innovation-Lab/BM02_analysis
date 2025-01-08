@@ -23,19 +23,304 @@ library(gridExtra)  ## arrange plots
 # library(janitor) ## Tabyl, adorn_rounding
 # library(ggrastr) ## Rasterize images for smaller size
 library(DT)     ## Datatables
+library(DESeq2)  ## Pseudobulk analysis
 # library(UCell)  ## Module scoring
 rbindlist <- data.table::rbindlist
-library(patchwork)
+# library(patchwork)
 set.seed(33)
 ```
 
 # Load data
 
 ```{r}
-objs <- readRDS(here('rds/3p/07_post_module_scoring.rds'))
-metadata <- read.csv(here('config/3p/metadata.csv'))
+source(here('config/kit_order.R'))
+source(here('config/color_palette.R'))
+  metadata <- read.csv(here('config/3p/metadata.csv')) %>%
+    mutate(Kit = factor(Kit, levels = kit_order_3p))
 figures <- list()
 ```
+
+
+```{r}
+objs <- readRDS(here('rds/3p/07_post_module_scoring.rds'))
+```
+
+# Pseudobulking
+
+```{r}
+genes <- Reduce(intersect, lapply(objs, Features))
+
+objs <- lapply(objs, subset, features = genes)
+objs <- lapply(objs, AggregateExpression, 
+               group.by = c('orig.ident', 'cell_labels.fine'),
+               assays = 'RNA')
+## For scale
+objs$Scale$RNA@x <- round(objs$Scale$RNA@x)
+
+
+
+
+obj <- cbind(
+  objs$Flex$RNA,
+  objs$Fluent_v4$RNA,
+  objs$Fluent_V$RNA,
+  objs$GEMX3P$RNA,
+  objs$NextGEM3P$RNA,
+  objs$Parse_v3$RNA, 
+  objs$Scale$RNA)
+```
+
+```{r}
+coarse_celltypes <- data.frame(
+  fine = c("CD4+ T", "CD8+ T", 'T',
+           "NK",
+           "Classical monocyte", "Non-classical monocyte", "Monocyte",
+           "Dendritic",
+           "B naive", "B memory", 'B',
+           "Megakaryocyte",
+           "pDC", 
+           "Granulocyte", 
+           "Erythrocyte",
+           "Unknown"),
+  coarse =  c("T", "T", 'T',
+              "NK",
+           "Monocyte", "Monocyte", "Monocyte",
+           "Dendritic",
+           "B", "B", 'B',
+           "Megakaryocyte",
+           "pDC", 
+           "Granulocyte", 
+           "Erythrocyte",
+           "Unknown")
+)
+```
+
+
+## deseq2 
+
+```{r,eval=FALSE}
+coldata <- obj@Dimnames[[2]] |> 
+    as.data.table() |> 
+    separate(V1, c('Sample', 'celltype'), '_', remove=FALSE) |>
+    mutate(Sample = gsub('-', '_', Sample)) |>
+    merge(metadata, by = 'Sample') |>
+  column_to_rownames('V1')
+    # mutate(Sample = gsub('_', '-', Sample)) 
+coldata <- coldata[colnames(obj),]
+obj <- DESeqDataSetFromMatrix(obj,
+                         colData = coldata,
+                         design = ~ Kit + celltype + Individual * Replicate,
+                         tidy = FALSE)
+obj <- DESeq(obj)
+assays(obj)$vst <- assay(vst(obj))
+```
+
+
+## Save rds
+
+```{r,eval=FALSE}
+saveRDS(obj, here('rds/3p/pseudobulk_obj.Rds'), compress = FALSE)
+```
+
+```{r,eval=FALSE}
+obj <- readRDS(here('rds/3p/pseudobulk_obj.Rds'))
+```
+
+
+# PCA
+
+## All kits
+
+```{r}
+pca <- function(data, nfeatures=2000, npcs = 2) {
+  var_feats <- matrixStats::rowVars(data) |>
+    order(decreasing = TRUE)
+  var_feats <- var_feats[seq_len(min(nfeatures,length(var_feats)))]
+  pca <- stats::prcomp(t(data[var_feats,]))
+  return(pca$x[,1:npcs])
+}
+plotdata <- pca(assays(obj)$vst) |>
+  as.data.frame() |>
+  rownames_to_column('sample') |>
+  separate(sample, c('Sample', 'celltype'), '_', remove = TRUE) |>
+  mutate(Sample = gsub('-', '_', Sample)) |>
+  merge(metadata, by = 'Sample') |>
+  mutate(celltype_coarse = plyr::mapvalues(celltype,
+                                    from = coarse_celltypes$fine,
+                                    to = coarse_celltypes$coarse))
+
+ggplot(plotdata, aes(x=PC1, y=PC2)) +
+  # geom_point(aes(shape = Kit, color = celltype)) + 
+  geom_point(aes(shape = paste0(Individual, Replicate), color = Kit)) + 
+  # stat_ellipse(aes(group = celltype, color = celltype, type = "norm", level = 0.67)) +
+  # stat_ellipse(aes(color = Kit, type = "norm", level = 0.67), show.legend = FALSE) +
+  scale_color_manual(values=color_palette$kits, labels = label_function) +
+  theme_bw() +
+  labs(x='PC1', y='PC2', color='Kit', shape='Sample') ->
+  figures[['PCA_of_kits']]
+figures[['PCA_of_kits']]
+```
+
+## By kit
+
+```{r}
+for (kit in unique(metadata$Kit)) {
+  plotdata <- assays(obj)$vst
+  plotdata <- plotdata[,grepl(kit, gsub('-', '_', colnames(plotdata)))]
+  plotdata <- pca(plotdata) |>
+    as.data.frame() |>
+    rownames_to_column('sample') |>
+    separate(sample, c('Sample', 'celltype'), '_', remove = TRUE) |>
+    mutate(Sample = gsub('-', '_', Sample)) |>
+    merge(metadata, by = 'Sample') |>
+    mutate(celltype_coarse = plyr::mapvalues(celltype,
+                                      from = coarse_celltypes$fine,
+                                      to = coarse_celltypes$coarse))
+  ggplot(plotdata, aes(x=PC1, y=PC2)) +
+  # geom_point(aes(shape = Kit, color = celltype)) + 
+  geom_point(aes(shape = paste0(Individual, Replicate), color = celltype)) + 
+  # stat_ellipse(aes(group = celltype, color = celltype, type = "norm", level = 0.67)) +
+  # stat_ellipse(aes(color = Kit, type = "norm", level = 0.67), show.legend = FALSE) +
+  scale_color_manual(values=color_palette$cell_colors) +
+  theme_bw() +
+  labs(x='PC1', y='PC2', color='Celltype', shape='Sample', title=kit) ->
+    figures[[paste0('PCA_', kit)]]
+}
+figures[[paste0('PCA_', kit)]]
+figures[['PCA_Flex']]
+```
+
+# Corr mat
+
+spearman and pearson are the same with VST data. Already scaled? 
+
+```{r}
+sampleDists <- dist(t(assays(obj)$vst))
+```
+
+```{r}
+obj_cor <- function(obj, kit, celltype, ngenes = 200, method = 'pearson') {
+  plotdata <- subset(obj, select=colData(obj)$Kit==kit)
+  plotdata <- subset(plotdata, select=colData(plotdata)$celltype==celltype)
+  rv <- rowVars(plotdata@assays@data$vst) 
+  var_feat <- names(head(sort(rv, decreasing=TRUE), 200))
+  plotdata <- subset(plotdata, rownames(plotdata) %in% var_feat)
+  plotdata <- assays(plotdata)$vst |>
+    cor(method = 'pearson')
+  return(plotdata)
+}
+```
+
+```{r}
+corr_data <- lapply(unique(metadata$Kit), function(kit){
+  lapply(unique(colData(obj)$celltype), function(celltype) {
+    obj_cor(obj, kit, celltype, ngenes=200, method='pearson') |>
+    melt() |> 
+    separate_wider_delim(Var1, '_', too_many = 'merge',
+                         names = c('Sample1', 'celltype1'), cols_remove = TRUE) |>
+    separate_wider_delim(Var2, '_', too_many = 'merge',
+                         names = c('Sample2', 'celltype2'), cols_remove = TRUE) |>
+    separate_wider_regex(Sample1, patterns = c(
+      Kit1 = '^.+', '-', Individual1 = '[^-]+$'
+    ), cols_remove = TRUE) |>
+    separate_wider_regex(Sample2, patterns = c(
+      Kit2 = '^.+', '-', Individual2 = '[^-]+$'
+    ), cols_remove = TRUE) |>
+    mutate(Kit1 = gsub('-', '_', Kit1),
+           Kit2 = gsub('-', '_', Kit2)) |>
+    # filter(celltype1 != 'Unknown') |>
+    filter(celltype1 == celltype2) |>
+    mutate(celltype1 = factor(celltype1, levels=coarse_celltypes$fine),
+           celltype2 = factor(celltype2, levels=coarse_celltypes$fine)) |>
+    arrange(celltype1, celltype2) |>
+      distinct()
+  }) |>
+    rbindlist() |>
+    distinct()
+}) |>
+  rbindlist() |>
+  distinct()
+
+# corr_data1 <- rbindlist(corr_data)
+```
+
+
+## All
+
+```{r}
+corr_data |>
+  filter((Individual1 == 'F1A' & Individual2 == 'F1B') |
+         (Individual1 == 'F5A' & Individual2 == 'F5B')
+         ) |>
+  mutate(Sample = paste0(Kit1, '_', Individual1),
+         Kit1 = factor(Kit1, levels = kit_order_3p)) |>
+  group_by(Kit1, celltype1) |>
+  summarize(y=mean(value)) |>
+  ggplot(aes(x=Kit1, y=celltype1, fill=y, label=round(y, 2))) +
+  geom_tile() +
+  geom_text() +
+  scale_fill_gradient2(low = "white",
+                     mid="#FFFFCC",
+                     high = "#FF0000", 
+                     midpoint=0.5) +
+  scale_x_discrete(labels = label_function) +
+  theme_bw() +
+  labs(x = 'Kit', y = 'Celltype', fill = 'Average\nreplicate\ncorrelation') ->
+  figures[['rep_corr_summary']]
+```
+
+
+## by kit
+
+```{r, eval=TRUE}
+for (kit in unique(metadata$Kit)) {
+  plotdata <- tibble()
+  for (celltype in unique(colData(obj)$celltype)) {
+    plotdata1 <- obj_cor(obj, kit=kit, ngenes=200, method='pearson') |>
+    melt() |> 
+    separate_wider_delim(Var1, '_', too_many = 'merge',
+                         names = c('Sample1', 'celltype1'), cols_remove = TRUE) |>
+    separate_wider_delim(Var2, '_', too_many = 'merge',
+                         names = c('Sample2', 'celltype2'), cols_remove = TRUE) |>
+    separate_wider_regex(Sample1, patterns = c(
+      Kit1 = '^.+', '-', Individual1 = '[^-]+$'
+    ), cols_remove = TRUE) |>
+    separate_wider_regex(Sample2, patterns = c(
+      Kit2 = '^.+', '-', Individual2 = '[^-]+$'
+    ), cols_remove = TRUE) |>
+    mutate(Kit1 = gsub('-', '_', Kit1),
+           Kit2 = gsub('-', '_', Kit2)) |>
+    # filter(celltype1 != 'Unknown') |>
+    filter(celltype1 == celltype2) |>
+    mutate(celltype1 = factor(celltype1, levels=coarse_celltypes$fine),
+           celltype2 = factor(celltype2, levels=coarse_celltypes$fine)) |>
+    arrange(celltype1, celltype2) |>
+    distinct()
+    plotdata <- rbind(plotdata1, plotdata)
+  }
+  
+  
+  ggplot(distinct(plotdata),
+         # aes(x=paste0(Sample1, '_', celltype1),
+         #     y=paste0(Sample2, '_', celltype2), 
+         aes(x=Individual1,
+             y=Individual2,
+             label=round(value,2),
+             fill=value)) +
+    geom_tile() +
+    geom_text() +
+    scale_fill_gradient2(low = "white",
+                       mid="#FFFFCC",
+                       high = "#FF0000", 
+                       midpoint=0.5) +
+    labs(x = 'Sample 1', y = 'Sample 2', fill = 'Corr', title = label_function(kit)) +
+    facet_wrap(~ celltype1, drop = FALSE, ncol=4, nrow = 4) ->
+    figures[[paste0('corr_mat_pearson', kit)]]
+  print(figures[[paste0('corr_mat_pearson', kit)]])
+}
+
+```
+
 
 # Render report
 
@@ -43,7 +328,7 @@ figures <- list()
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/3p/08-dge.format.rmd'),
+rmarkdown::render(here('processing_scripts/3p/08-dge.format.Rmd'),
                   output_file = '08-dge.html',
                   output_dir = here('reports/3p/'))
 ```
