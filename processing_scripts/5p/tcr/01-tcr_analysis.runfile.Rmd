@@ -236,7 +236,8 @@ trimmed_metric_summaries_10x <- lapply(metric_summaries[metadata$Sample[metadata
     select(Metric.Name, Metric.Value, pct)
 }) |> rbindlist(idcol='Sample')
 
-trimmed_metric_summaries <- rbind(trimmed_metric_summaries_10x, trimmed_metric_summaries_parse)
+trimmed_metric_summaries <- rbind(trimmed_metric_summaries_10x, trimmed_metric_summaries_parse) |>
+  mutate(Metric.Name = factor(Metric.Name, levels = c('Total cells', 'TRA & TRB', 'TRA', 'TRB')))
 ```
 
 # Cell recovery
@@ -417,6 +418,14 @@ ggplot(plotdata, aes(x=Individual, y=value)) +
   labs(x='Individual', y='Inverse Simpson index') ->
   figures[['simpson index']]
 figures[['simpson index']]
+```
+
+# Save objs
+
+```{r}
+saveRDS(objs, here('rds/5p/tcr/tcr_paired.Rds'), compress=FALSE)
+write.table(trimmed_metric_summaries, here('rds/5p/tcr/metric_summaries.csv'), 
+            sep=',', row.names = FALSE, col.names = TRUE, quote = FALSE)
 ```
 
 
