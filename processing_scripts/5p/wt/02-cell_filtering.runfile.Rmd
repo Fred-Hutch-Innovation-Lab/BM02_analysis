@@ -24,15 +24,16 @@ library(scDblFinder) ## Doublet detection
 library(scuttle)    ## various SC utilities
 library(ggrastr)    ## rasterized point layers for reduced image size
 set.seed(33)
+select <- dplyr::select
 ```
 
 # Load data
 
 ```{r}
 objs <- readRDS(here('rds/5p/wt/01_raw_objs.rds'))
-kit_order <- unname(unlist(read.table(here('config/kit_order.txt'))))
+source(here('config/kit_order.R'))
 metadata <- read.csv(here('config/5p/metadata.csv'))
-metadata$Kit <- factor(metadata$Kit, levels = kit_order)
+metadata$Kit <- factor(metadata$Kit, levels = kit_order_5p)
 figures <- list()
 ```
 
