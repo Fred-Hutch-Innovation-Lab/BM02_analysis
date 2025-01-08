@@ -1,8 +1,8 @@
-﻿## Updated Dec 17th,,,,,,
+## Updated Dec 17th,,,,,,
 kit,library,expected_reads,passing_filter_reads,percent_passing_filter_cluster,reads_in_fastqs,reads_in_cells_and_mapped
-Flex,,,,,,
-NextGEM3P,,,,,,
-GEMX3P,,,,,,
+Flex,all,,,,902233029,835482894
+NextGEM3P,all,,,,3190622359,2195704959
+GEMX3P,all,,,,5280349848,3212297758
 Fluent_v4,all,1800000000,2070000000,87.58,1875957722,696318401
 Fluent_V,all,1800000000,2000000000,85.67,1999507092,1173728937
 Parse_v2,1,1800000000,2010000000,85.08,,
