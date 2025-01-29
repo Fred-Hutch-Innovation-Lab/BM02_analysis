@@ -52,4 +52,4 @@ plt <- figures[['nFeature_RNA_vln']] + figures[['nCount_RNA_vln']] + figures[['r
   plot_layout(nrow=2, ncol=2, guides = 'collect', axes = 'collect_x', axis_titles = 'collect_x')
 my_plot_save(image = plt, 
              path = here('figures/3p/qc_vln_plots_after_filtering/QC_metrics_combined.svg'), 
-             width = 23, height = 12)
+             width = 24, height = 12)

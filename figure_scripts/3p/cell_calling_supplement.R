@@ -32,7 +32,6 @@ my_dimplot <- function(obj,
     rasterize(geom_point(size=0.1, alpha=alpha, show.legend = TRUE), dpi=300) +
     (if (!missing(colors)) {scale_color_manual(values = colors, breaks = names(colors), drop=TRUE)} else NULL) +
     labs(x=paste0(reduction, '_', dims[1]), y=paste0(reduction, '_', dims[2]), color=color_label, title = title) +
-    # theme_classic() +
     theme(axis.text = element_blank(), 
           axis.title = element_blank(),
           axis.ticks = element_blank()) +
@@ -41,7 +40,7 @@ my_dimplot <- function(obj,
 my_dotplot <-  function(x) {
   z <- DotPlot(x, celltype_markers, group.by = 'clusters') + 
     theme_grey() +
-    theme(axis.text.x = element_text(angle=45, hjust=1), text = element_text(family = 'Arial'))
+    theme(axis.text.x = element_text(angle=45, hjust=1), text = element_text(size=16, family = 'Arial'))
   geom_stripes() 
   z$data$feature.groups <- factor(z$data$feature.groups,
                                   levels=gtools::mixedsort(as.character(unique(z$data$feature.groups))))

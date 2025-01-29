@@ -4,9 +4,16 @@ library(Seurat)
 library(ggrastr)    ## rasterize layers of ggplot
 library(patchwork)  ## arrange plots
 library(svglite)
+library(data.table)
+library(DT)     ## Datatables
+library(gt)
+# library(extrafont)
 library(reshape2)  ## melt
 set.seed(33)
 
+systemfonts::register_font('Arial', plain=here('config/Arial.ttf'))
+# ttf_import(here('config'), pattern = '.ttf')
+# loadfonts(device = 'all', quiet=TRUE)
 source(here('config/kit_order.R'))
 source(here('config/color_palette.R'))
 
@@ -28,7 +35,7 @@ theme_fhil <- function(){
   theme_bw() %+replace%    #replace elements we want to change
     
     theme(
-      text = element_text(size=16)
+      text = element_text(size=16, family=font)
     )
 }
 theme_set(theme_fhil())
@@ -41,4 +48,11 @@ my_plot_save <- function(image, path, width, height, device='svglite'){
                    width = unit(width, 'in'), height = unit(height, 'in'))
   plot(image)
   dev.off()
+}
+
+write_plot_data <- function(plotdata, file, sep='\t', row.names = FALSE, quote = FALSE, ...){
+  if (!dir.exists(dirname(file))) {
+    dir.create(dirname(file), recursive=TRUE)
+  }
+  write.table(plotdata, quote = quote, sep = sep, row.names = row.names, file=file, ...)
 }

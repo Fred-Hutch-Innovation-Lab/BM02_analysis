@@ -16,7 +16,6 @@ QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', caption=NA) {
     rasterize(geom_jitter(alpha=0.1, size=.1), dpi=100) +
     geom_violin(draw_quantiles = 0.5) +
     scale_fill_manual(values = color_palette$kits, labels = label_function) +
-    theme_bw() +
     theme(text = element_text(size = 20),
           panel.spacing=unit(0, "lines"),
           axis.text.x = element_text(angle=45, vjust=0.5)) + 

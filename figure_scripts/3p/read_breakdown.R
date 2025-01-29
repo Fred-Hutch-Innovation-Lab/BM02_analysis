@@ -74,7 +74,6 @@ plotdata |>
   ggplot(aes(x=paste0(Individual, Replicate), y=y, fill=group)) +
   geom_col(position='stack') +
   scale_y_continuous(labels = scales::percent) +
-  theme_bw() +
   scale_fill_manual(values = c(
     'other' = '#CC79A7',
     'lncRNA' = '#0072B2',
@@ -99,8 +98,8 @@ plotdata |>
 
 my_plot_save(image = figures[['Expression_barchart_shared']], 
              path = here('figures/3p/read_utilization/shared_genes.svg'), 
-             width = 9, height = 4)
-
+             width = 12, height = 4)
+write_plot_data(plotdata, here('figure_data/3p/read_utilization/shared_genes.txt'))
 ## Unique genes -----
 
 plotdata <- lapply(fig_objs, function(x) {
@@ -123,7 +122,6 @@ plotdata <- lapply(fig_objs, function(x) {
 plotdata |>
   ggplot(aes(x=paste0(Individual, Replicate), y=y, fill=group)) +
   geom_col(position='stack') +
-  theme_bw() +
   scale_fill_manual(values = c(
     'other' = '#CC79A7',
     'lncRNA' = '#0072B2',
@@ -151,7 +149,8 @@ plotdata |>
   figures[['Expression_barchart_unique']]
 my_plot_save(image = figures[['Expression_barchart_unique']], 
              path = here('figures/3p/read_utilization/unique_genes.svg'), 
-             width = 9, height = 4)
+             width = 12, height = 4)
+write_plot_data(plotdata, here('figure_data/3p/read_utilization/unique_genes.txt'))
 
 ## Joint ----
 
@@ -189,7 +188,6 @@ plotdata |>
     'Not shared', 'Other', 'Mitochondrial', 'Ribosomal', 'lncRNA', 'Unidentified', 'Identified protein coding'
   )) + 
   scale_y_continuous(labels = scales::percent) +
-  theme_bw() +
   theme(axis.text.x = element_text(angle=45, vjust=0.5),
         panel.spacing=unit(0, "lines")) + 
   facet_wrap(~ Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function)) +
@@ -204,4 +202,5 @@ plotdata |>
   figures[['Expression_barchart_all']]
 my_plot_save(image = figures[['Expression_barchart_all']], 
              path = here('figures/3p/read_utilization/all_genes.svg'), 
-             width = 9, height = 4)
+             width = 12, height = 4)
+write_plot_data(plotdata, here('figure_data/3p/read_utilization/all_genes.txt'))

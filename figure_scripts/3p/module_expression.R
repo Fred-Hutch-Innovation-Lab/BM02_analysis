@@ -29,7 +29,6 @@ confusion_plot <- function(plotdata, kit){
     geom_tile() +
     geom_text() +
     scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
-    theme_minimal() +
     theme(axis.text.x = element_text(angle=45, hjust=1)) +
     labs(x='Cell label', y='Marker module', fill='Average\nscore')
 }
@@ -60,7 +59,6 @@ plotdata |> filter(
   geom_text() +
   scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
   scale_x_discrete(labels = label_function) +
-  theme_minimal() +
   labs(x='Kit', y='Marker module', fill='Average\nscore') +
   theme(axis.text.x = element_text(angle=45, hjust=1)) ->
 figures[['module_scores_kit_fine']] 

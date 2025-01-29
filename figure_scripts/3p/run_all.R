@@ -1,4 +1,3 @@
-library(here)
 skip <- c('run_all.R', 'pipeline_metrics_table.R')
 files <- dir(here('figure_scripts/3p'), pattern = '\\.R$')
 files <- files[!files %in% skip]

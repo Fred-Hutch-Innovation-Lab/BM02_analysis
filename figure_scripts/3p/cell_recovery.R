@@ -68,12 +68,12 @@ ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variabl
 my_plot_save(image = figures[['cell_recovery_counts']] , 
              path = here('figures/3p/cell_recovery/cell_recovery_counts.svg'), 
              width = 12, height = 7)
+write_plot_data(plotdata, here('figure_data/3p/cell_recovery/cell_recovery_counts.txt'))
 
 ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
   geom_col(position='stack') +
   geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
   facet_wrap(~Kit, scales = 'free', nrow=1, labeller = labeller(Kit = label_function)) +
-  theme_bw() +
   theme(axis.text.x = element_text(angle=45, vjust=0.5)) + 
   scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
                     labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
@@ -83,11 +83,12 @@ my_plot_save(image = figures[['cell_recovery_counts_freey']] ,
              path = here('figures/3p/cell_recovery/cell_recovery_counts_freey.svg'), 
              width = 16, height = 7)
 
-plotdata %>% 
+plotdata <- plotdata %>% 
   group_by(Sample) %>%
   filter(variable != 'cells_barcoded') %>%
-  mutate(difference = 100 * difference / sum (difference)) %>%
-  ggplot(aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
+  mutate(difference = 100 * difference / sum (difference))
+
+ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
   geom_col(position='stack') +
   theme(axis.text.x = element_text(angle=45, vjust=0.5)) + 
   geom_hline(data = target_cells_fraction, aes(yintercept = 100*value), lty='dashed', color='black') +
@@ -99,3 +100,4 @@ plotdata %>%
 my_plot_save(image = figures[['cell_recovery_portions']] , 
              path = here('figures/3p/cell_recovery/cell_recovery_portions.svg'), 
              width = 12, height = 7)
+write_plot_data(plotdata, here('figure_data/3p/cell_recovery/cell_recovery_portions.txt'))

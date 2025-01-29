@@ -1,92 +1,109 @@
 # Setup ----
 source(here('figure_scripts/utils.R'))
-library(DT)     ## Datatables
 library(DESeq2)  ## Pseudobulk analysis
-rbindlist <- data.table::rbindlist
 
 # Load data ----
 obj <- readRDS(here('rds/3p/pseudobulk_obj.Rds'))
-coarse_celltypes <- data.frame(
-  fine = c("CD4+ T", "CD8+ T", 'T',
-           "NK",
-           "Classical monocyte", "Non-classical monocyte", "Monocyte",
-           "Dendritic",
-           "B naive", "B memory", 'B',
-           "Megakaryocyte",
-           "pDC", 
-           "Granulocyte", 
-           "Erythrocyte",
-           "Unknown"),
-  coarse =  c("T", "T", 'T',
-              "NK",
-              "Monocyte", "Monocyte", "Monocyte",
-              "Dendritic",
-              "B", "B", 'B',
-              "Megakaryocyte",
-              "pDC", 
-              "Granulocyte", 
-              "Erythrocyte",
-              "Unknown")
+cellcounts <- read.csv(here('rds/3p/pb_cell_counts.txt'), sep='\t')
+label_order <- c(
+  "B naive", "B memory",
+  "CD4+ T", "CD8+ T", 
+  "NK",
+  "Classical monocyte", "Non-classical monocyte",
+  "Dendritic", "pDC",
+  "Megakaryocyte", 'Erythrocyte','Granulocyte'
 )
 
-# Prepare plotdata ----
+# Functions ----
 
-sampleDists <- dist(t(assays(obj)$vst))
-
-obj_cor <- function(obj, kit, celltype, ngenes = 200, method = 'pearson') {
-  plotdata <- subset(obj, select=colData(obj)$Kit==kit)
-  plotdata <- subset(plotdata, select=colData(plotdata)$celltype==celltype)
-  rv <- rowVars(plotdata@assays@data$vst) 
-  var_feat <- names(head(sort(rv, decreasing=TRUE), 200))
-  plotdata <- subset(plotdata, rownames(plotdata) %in% var_feat)
-  plotdata <- assays(plotdata)$vst |>
-    cor(method = 'pearson')
-  return(plotdata)
+corr_dotplot <- function(corrdata) {
+  corrdata |>
+    ggplot(aes(x=Kit, y=Celltype)) +
+    geom_point(aes(size=prop, color=y)) +
+    geom_text(aes(label=round(y, 2)), size=2) +
+    scale_size_continuous(range=c(5,12)) +
+    scale_color_gradient2(high = "#4DAF4A",
+                          mid="grey",
+                          low = "#FF0000", 
+                          midpoint=0.5) +
+    scale_x_discrete(labels = label_function) +
+    theme_bw() +
+    labs(x = 'Kit', y = 'Celltype',
+         color = 'Average\nreplicate\ncorrelation', 
+         size = 'Proportion\nof cells\nfrom kit')
 }
+
+# Prepare plotdata ----
+sampleDists <- dist(t(assay(assays(obj)$vsd))) |>
+  as.matrix() |>
+  as.data.table(keep.rownames = TRUE) |>
+  # rownames_to_column('Sample1') |>
+  melt() |>
+  separate_wider_delim(rn, '_', too_many = 'merge',
+                       names = c('Sample1', 'celltype1'), cols_remove = TRUE) |>
+  separate_wider_delim(variable, '_', too_many = 'merge',
+                       names = c('Sample2', 'celltype2'), cols_remove = TRUE) |>
+  separate_wider_regex(Sample1, patterns = c(
+    Kit1 = '^.+', '-', Individual1 = '[^-]+$'
+  ), cols_remove = TRUE) |>
+  separate_wider_regex(Sample2, patterns = c(
+    Kit2 = '^.+', '-', Individual2 = '[^-]+$'
+  ), cols_remove = TRUE) |>
+  mutate(Kit1 = gsub('-', '_', Kit1),
+         Kit2 = gsub('-', '_', Kit2)) |>
+  filter(celltype1 == celltype2) |>
+  filter(Kit1 == Kit2) 
 
 # Plot ----
-for (kit in unique(metadata_3p$Kit)) {
-  plotdata <- tibble()
-  # for (celltype in unique(colData(obj)$celltype)) {
-    plotdata <- obj_cor(obj, kit=kit, ngenes=200, method='pearson') |>
-      melt() |> 
-      separate_wider_delim(Var1, '_', too_many = 'merge',
-                           names = c('Sample1', 'celltype1'), cols_remove = TRUE) |>
-      separate_wider_delim(Var2, '_', too_many = 'merge',
-                           names = c('Sample2', 'celltype2'), cols_remove = TRUE) |>
-      separate_wider_regex(Sample1, patterns = c(
-        Kit1 = '^.+', '-', Individual1 = '[^-]+$'
-      ), cols_remove = TRUE) |>
-      separate_wider_regex(Sample2, patterns = c(
-        Kit2 = '^.+', '-', Individual2 = '[^-]+$'
-      ), cols_remove = TRUE) |>
-      mutate(Kit1 = gsub('-', '_', Kit1),
-             Kit2 = gsub('-', '_', Kit2)) |>
-      # filter(celltype1 != 'Unknown') |>
-      filter(celltype1 == celltype2) |>
-      mutate(celltype1 = factor(celltype1, levels=coarse_celltypes$fine),
-             celltype2 = factor(celltype2, levels=coarse_celltypes$fine)) |>
-      arrange(celltype1, celltype2) |>
-      unique()
-    # plotdata <- rbind(plotdata1, plotdata)
-  # }
+plotdata <- sampleDists |>
+  mutate(value = value / max(value)) |> 
+  group_by(Kit1, celltype1) |>
+  summarize(y=mean(value)) |>
+  rename(Kit1 = 'Kit', celltype1 = 'Celltype', y = 'y') |>
+  mutate(Kit = factor(Kit, levels = kit_order_3p),
+         Celltype = factor(Celltype, levels = label_order)) |>
+  merge(cellcounts_kit, by=c('Kit', 'Celltype'))
+
+
+corr_dotplot(plotdata) +
+  scale_color_gradient2(low = "#4DAF4A",
+                        mid="grey",
+                        high = "#FF0000", midpoint = 0.35, limits=c(0,.7)) ->
+  figures[['sample_distance_dotplot']]
+
+my_plot_save(image = figures[['sample_distance_dotplot']], 
+             path = here('figures/3p/replicate_correlation/rep_cor_dotplot.svg'), 
+             width = 8, height = 5.5)
+
+plotdata <- sampleDists |>
+  filter(celltype1 == celltype2,
+         Kit1 == Kit2,
+         (Individual1 == 'F1A' & Individual2 == 'F1B') |
+           (Individual1 == 'F5A' & Individual2 == 'F5B')) |>
   
-  
-  ggplot(plotdata,
-         aes(x=Individual1,
-             y=Individual2,
-             label=round(value,2),
-             fill=value)) +
-    geom_tile() +
-    geom_text() +
-    scale_fill_gradient2(low = "white",
-                         mid="#FFFFCC",
-                         high = "#FF0000", 
-                         midpoint=0.5) +
-    labs(x = 'Sample 1', y = 'Sample 2', fill = 'Corr', title = label_function(kit)) +
-    facet_wrap(~ celltype1, drop = FALSE, ncol=4, nrow = 4) ->
-    figures[[paste0('corr_mat_pearson', kit)]]
-  my_plot_save(image = figures[[paste0('corr_mat_pearson', kit)]],
-               path = here('figures/3p/sample_correlation/', paste0(kit, '_sample_correlations.svg')),
-               width = 12, height = 12)
-}
+  mutate(value = value / max(value)) |> 
+  rename(Kit1 = 'Kit', celltype1 = 'Celltype', value = 'value') |>
+  mutate(Kit = factor(Kit, levels = kit_order_3p),
+         Celltype = factor(Celltype, levels = label_order)) |>
+  mutate(Sample = paste0(Kit, '_', Individual1)) |>
+  merge(cellcounts_samp, by = c('Sample', 'Celltype')) |>
+  mutate(Individual = substr(Individual1, 1, 2)) |>
+  mutate(z = value * prop) |>
+  group_by(Individual, Kit) |>
+  summarize(z = sum(z)) |>
+  janitor::adorn_rounding(digits = 3) |>
+  as.data.table() |>
+  dcast(Kit ~ Individual, value.var = 'z')
+
+plotdata |> 
+  gt::gt() |>
+  # cols_hide(c(low, high, avg)) |>
+  # cols_label(Kit = 'Kit', text = 'Sample distance') |>
+  data_color(columns = c("F1", 'F5'), method = 'numeric', palette = 'RdYlGn', reverse = TRUE) ->
+  figures[['pb_dist_table']]
+
+my_plot_save(image = figures[['pb_dist_table']], 
+             path = here('figures/3p/replicate_correlation/rep_cor_table.svg'), 
+             width = 2.75, height = 3.2)
+
+

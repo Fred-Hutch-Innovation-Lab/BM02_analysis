@@ -42,6 +42,7 @@ my_plot_save(image = figures[['usable_genes_sample']],
              path = here('figures/3p/gene_recovery/usable_genes_sample.svg'), 
              width = 9.5, height = 5)
 
+
 lapply(detected_genes_kit_level, length) %>%
   stack() %>%
   ggplot(aes(x=ind, y=values)) +
