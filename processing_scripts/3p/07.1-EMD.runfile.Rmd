@@ -1,0 +1,235 @@
+---
+title: 'SC processing'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+
+library(tidyverse)  ## General R logic
+library(here)       ## Easier specification of file locations
+library(yaml)       ## parses config yaml
+library(Seurat)
+library(reshape2)   ## DF manipulation
+# library(clustree)   ## Resolution selection for clustering
+# library(ggraph)     ## To render clustree
+# library(ggforestplot) ## Striped lines for dotplots
+# library(SingleCellExperiment)
+library(gridExtra)  ## arrange plots
+# library(janitor) ## Tabyl, adorn_rounding
+# library(ggrastr) ## Rasterize images for smaller size
+library(DT)     ## Datatables
+library(DESeq2)  ## Pseudobulk analysis
+# library(UCell)  ## Module scoring
+library(parallel)
+library(data.table)
+rbindlist <- data.table::rbindlist
+# library(patchwork)
+library(emdist)
+set.seed(33)
+```
+
+# Load data
+
+```{r}
+# source(here('config/kit_order.R'))
+# source(here('config/color_palette.R'))
+#   metadata <- read.csv(here('config/3p/metadata.csv')) %>%
+#     mutate(Kit = factor(Kit, levels = kit_order_3p))
+figures <- list()
+```
+
+
+```{r}
+objs <- readRDS(here('rds/3p/07_post_module_scoring.rds'))
+```
+
+# Earthmover distance
+
+## functions
+
+```{r}
+kd2d <- function(x,y,n=100) {
+  # kd_range <- c(
+  #   c(min(x[,1], y[,1]), max(x[,1], y[,1])),
+  #   c(min(x[,2], y[,2]), max(x[,2], y[,2])))
+  kd_range <- c(-1, 1, -1 ,1)
+  x <- MASS::kde2d(x[,1], x[,2], lims = kd_range, n=n)
+  y <- MASS::kde2d(y[,1], y[,2], lims = kd_range, n=n)
+  return(list(x=x$z, y=y$z))
+}
+dim_red_downsample <- function(fobj, ncells=8000, seed) {
+  message('downsampling and processing object')
+  # Idents(fobj) <- 'orig.ident'
+  cells <- c()
+  x <- .Random.seed
+  set.seed(seed)
+  for (ind in unique(fobj$orig.ident)) {
+    cells <- c(cells, sample(colnames(fobj)[grepl(ind, colnames(fobj))], size=ncells, replace = FALSE)) 
+  }
+  .Random.seed <- x
+  fobj <- subset(fobj, cells=cells)
+  fobj <- fobj |>
+    NormalizeData(verbose=FALSE) |>
+    FindVariableFeatures(verbose=FALSE) |>
+    ScaleData(verbose=FALSE) |>
+    RunPCA(verbose=FALSE) |>
+    RunUMAP(dims=1:20,reduction.name = 'emd_umap', verbose=FALSE)
+  fobj
+}
+get_emd_data <- function(fobj, reduction='emd_umap',
+                         individual, replicates = c('A', 'B'), ndims=2, kd_n) {
+  umap_data <- fobj@reductions[[reduction]]@cell.embeddings
+  umap_data <- scale(umap_data)
+  for (rep in replicates) {
+    rep1 <- umap_data[grepl(paste0(individual, 'A'), row.names(umap_data)),1:ndims]
+    rep2 <- umap_data[grepl(paste0(individual, 'B'), row.names(umap_data)),1:ndims]
+  }
+  
+  kds <- kd2d(rep1, rep2, n=kd_n)
+  return(list(x=kds$x, y=kds$y))
+  # return(list(x=rep1, y=rep2))
+}
+run_emd <- function(fobj, 
+                    ncells=8000, #based on lowest # of cells per any sample
+                    emd_iter=10000, 
+                    kd_n=25, #this quickly increases runtime
+                    ndims=2,
+                    seed = .Random.seed) {
+  # fobj <- trim_obj(fobj)
+  fobj <- dim_red_downsample(fobj, ncells=ncells, seed=seed)
+  message('running emd')
+  emd_results <- list()
+  for (ind in c('F1', 'F5')) {
+    emd_data <- get_emd_data(fobj, individual = ind, ndims=ndims, kd_n=kd_n)
+    emd_results[[ind]] <- emd2d(A=emd_data$x, B=emd_data$y, max.iter=emd_iter)
+  }
+  emd_results
+}
+trim_obj <- function(fobj) {
+  for (assay in names(fobj@assays)) {
+    if (assay != 'RNA'){
+      fobj@assays[[assay]] <- NULL
+    }
+  }
+  fobj@reductions <- list()
+  fobj@meta.data <- fobj@meta.data[Cells(fobj),]
+  fobj
+}
+```
+
+```{r, eval=FALSE}
+emd_results_p <- list()
+e <- new.env()
+e$libs <- .libPaths()
+## https://www.r-bloggers.com/2020/12/how-to-set-library-path-on-a-parallel-r-cluster/
+cl <- makeCluster(5)
+clusterExport(cl, "libs", envir=e)
+clusterEvalQ(cl, .libPaths(libs))
+clusterCall(cl, function() {
+  # source("/fh/fast/_IRC/FHIL/grp/BM_paper/analysis/renv/activate.R")
+  # .libPaths(c("/fh/fast/_IRC/FHIL/user/dgratz/BM02/renv/library/linux-ubuntu-bionic/R-4.4/x86_64-pc-linux-gnu",
+  #             "/home/dgratz/.cache/R/renv/sandbox/linux-ubuntu-bionic/R-4.4/x86_64-pc-linux-gnu/dd05a7a7",
+  #             "/app/software/fhR/4.4.0-foss-2023b",
+  #             "/app/software/R-Tidyverse/4.4.0-gfbf-2023b",
+  #             "/app/software/R/4.4.0-gfbf-2023b/lib/R/library"
+  # ))
+  # # renv::load('/fh/fast/_IRC/FHIL/grp/BM_paper/analysis')
+  library(emdist)
+  library(Seurat)
+})
+clusterExport(cl, envir = .GlobalEnv,
+              varlist = c("run_emd", 'get_emd_data', 'dim_red_downsample', 'kd2d'))
+for (kit in unique(metadata$Kit)) { # {c('Fluent_v4', 'Fluent_V',  'GEMX3P', 'NextGEM3P', 'Parse_v3', 'Scale')
+  fobj <- trim_obj(objs[[kit]])
+  clusterExport(cl, envir = .GlobalEnv, varlist = c("fobj"))
+  emd_results_p[[kit]] <- parLapply(cl, 1:25, function(z) run_emd(fobj, seed=z, ncells = 10000))
+}
+stopCluster(cl)
+emd_results_p <- melt(emd_results_p) 
+colnames(emd_results_p) <- c('EMD', 'Individual', 'Iter', 'Kit')
+emd_results_p <- emd_results_p |>
+  mutate(Kit = factor(Kit, levels = kit_order_3p))
+write.table(emd_results_p, here('rds/3p/emd_bootstraps.txt'), row.names = FALSE, quote = FALSE, sep='\t')
+```
+
+## Save results
+
+```{r}
+emd_results_p <- read.csv(here('rds/3p/emd_bootstraps.txt'), sep = '\t')
+```
+
+# Vis
+
+```{r}
+emd_results_p %>%
+  group_by(Kit, Individual) %>%
+  summarize(
+    mean = mean(EMD),
+    conf_low = t.test(EMD)$conf.int[1],
+    conf_high = t.test(EMD)$conf.int[2],
+    .groups = "drop"
+  ) |> arrange(mean) ->
+  emd_summary
+```
+
+```{r}
+plotdata <-
+  emd_summary |> 
+  mutate(ci = mean - conf_low) |>
+  select(-c(conf_low, conf_high)) |>
+  # data.table::as.data.table() |> 
+  # knitr::kable() |>
+  janitor::adorn_rounding(digits = 3) |>
+  mutate(EMD = paste0(mean, ' ± ', ci)) |>
+  group_by(Kit) |>
+  mutate(tmp = mean(mean)) |>
+  arrange(tmp, Individual) |>
+  select(-c(tmp, ci)) |>
+  as.data.table() #|>
+plotdata |> 
+  dcast(Kit ~ Individual)  |>
+  gt::gt() |>
+  data_color(
+    columns = c(F1, F5),
+    method='numeric',
+    # colors = scales::col_numeric(
+    #   palette = c("green", "yellow", "red"), # Customize the color scale
+    #   domain = NULL # Dynamic domain will be calculated later
+    # ),
+    apply_to = "fill",
+    fn = function(x) {
+      # Extract the mean dynamically from the cell values
+      mean_values <- as.numeric(sub(" ±.*", "", x))
+      
+      # Define the color scale using the extracted means
+      color_scale <- scales::col_numeric(
+        palette = c("#006837", "#FFFFBF", "#A50026"),
+        domain = c(0, .75),#range(mean_values, na.rm = TRUE)
+        na.color='red'
+      )
+      # Apply the color scale to the extracted means
+      color_scale(mean_values)
+    }
+  ) ->
+  figures[['emd_table']]
+figures[['emd_table']]
+```
+
+
+```{r}
+ggplot() +
+  geom_boxplot(data = emd_results_p, aes(x=Individual, y=EMD), outlier.shape = NA) +
+  geom_jitter(data = emd_results_p, aes(x=Individual, y=EMD)) +
+  geom_errorbar(data=emd_summary, aes(x=Individual, ymin=conf_low, ymax=conf_high), color='goldenrod') +
+  geom_point(data=emd_summary, aes(x=Individual, y=mean), color='goldenrod') +
+  facet_wrap(~Kit, nrow=1) +
+  labs(x='Individual', y='EMD', caption = 'Bootstrapped EMD on 8k cell downsampled data') ->
+  figures[['emd_plot']]
+figures[['emd_plot']]
+
+```

@@ -18,6 +18,8 @@ knitr::opts_chunk$set(echo = FALSE,
                       cache=FALSE, cache.lazy = FALSE) 
 ```
 
+Trying to quantify replicability across kits. I started with PCA as a visual inspection of replicate overlap
+
 # PCA
 
 ## All kits
@@ -46,19 +48,50 @@ for (kit in unique(metadata$Kit)) {
 cat(knit_child(text = out, quiet = TRUE), sep = '\n')
 ```
 
-# Corr mat {.tabset}
+# PCA distance
 
-Spearman correlation of the top 200 variable genes per celltype within kit. This is a measure of replicability across samples. Higher correlation indicates top genes are similarly ranked. 
+I then tried to take the distance in PCA space as a quantification of difference between replicates. This is distance between replicates across 20 PCs, calculated at the kit level. 
 
-First, the average of the two replicate pairs is shown here
-
-```{r, fig.width=8, fig.height=8}
-figures[['rep_corr_summary']]
+```{r, fig.width=7, fig.height=5}
+figures[['pca_dist_euc_mean']]
 ```
 
-Then a breakdown of all kits (this may be excessive)
+```{r, fig.width=13, fig.height=5}
+figures[['pca_dist_euc_pairs']]
+```
 
-```{r, eval=TRUE, results='asis'}
+# Expression correlation {.tabset}
+
+Looking at the spearman correlation of gene expression. This is a measure of replicability across samples. Higher correlation indicates top genes are similarly ranked. The average of the two replicate pairs is shown here. 
+
+I played with a few different sets of genes for this analysis. Using all genes led to high correlation across the board. This is likely driven by lowly or lowly-variant genes. So I then tried to subset to smaller sets of genes with more variance that might separate the kits more. However, I am also worried that if this set of genes isn't consistent across all kits that it may not be a fair comparison.  
+
+## Across kits
+
+First, looking at the top 200 variable genes across all celltypes/samples (all samples use the same 200 genes). I think this is not the best way to analyze this, as the top variable genes across this comparison are likely more kit-variable than sample-variable. 
+
+```{r, fig.width=8, fig.height=5}
+figures[['rep_corr_summary_all']]
+```
+
+## Across individuals
+
+Now looking at the top 200 genes that vary across the two individuals F1 and F5. I thought this would be a good set of genes that wouldn't vary by kit necessarily, but would be useful to show tightness of replicates. Seeing it here though I'm not sure it's showing much information. 
+
+```{r, fig.width=8, fig.height=5}
+figures[['rep_corr_summary_byind']]
+```
+
+## Within Kit
+
+Finally, looking at the top 200 variable gene within cells from each kit. So each point here is using a different set of genes. While this does show stronger differenes, I'm not sure how fair it is to compare across kits since they are looking at different genes.
+
+```{r}
+figures[['rep_corr_summary_bykit']]
+```
+
+```{r, eval=FALSE, results='asis'}
+#Then a breakdown of all kits (this may be excessive)
 out <- NULL
 for (kit in unique(metadata$Kit)) {
     chunktext <- '\n## {{kit}} {.unlist}\n
@@ -72,3 +105,28 @@ for (kit in unique(metadata$Kit)) {
 cat(knit_child(text = out, quiet = TRUE), sep = '\n')
 ```
 
+
+# Total distance
+
+The purpose of using correlation was to ignore the subtle variations and instead focus on the relative expression of the genes through rank. However, this had the undesireable consequence of weighting all genes the same, regardless of the baseline expression. In practice, I think some weighting of the magnitude of expression and variance could help focus on more biologically relevant replicability. 
+
+I then came across the idea of just taking total distance across the entire original normalized expression matrix. This way, distance would automatically be weighted for the normalized expression (e.g., a smaller variance would have less distance than a more highly expressed gene). This is somewhat what I was trying to do with PCA, but applied more directly to the raw data. 
+
+**I think this is my preferred measure of sample replicability**, as it 
+
+a) includes all the data 
+
+b) has more direct consideration of the magnitude of differences across the replicates
+
+c) removes an additional intermediate calculation/transformation (PCA)
+
+
+```{r}
+figures[['sample_distance_dotplot']]
+```
+
+I could then weight the per-sample distance by the sample-level composition (multiply it by the proportion of cells) and come up with a kit-level distance measurement. I report it as a range, as it is 2 values per kit (F1 and F5). I'm not a huge fan of this, but it seems better than reporting the mean and variance. But maybe it makes sense to just show the 2 data points rather than report it as a range
+
+```{r}
+figures[['pb_dist_table']]
+```

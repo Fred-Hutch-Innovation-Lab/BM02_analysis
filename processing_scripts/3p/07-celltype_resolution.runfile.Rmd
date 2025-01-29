@@ -51,6 +51,7 @@ label_order <- list(
     "NK",
     "Classical monocyte", "Non-classical monocyte", "Monocyte", 
     "Dendritic", "pDC",
+    'Erythrocyte', 'Granulocyte',
     "Megakaryocyte", 'Unknown'
   )
 )
@@ -119,6 +120,15 @@ celltype_markers_modules$`Non-classical monocyte` <-
 celltype_markers_modules <- lapply(celltype_markers_modules, unique)
 # celltype_markers_shared <- filter_marker_genes(celltype_markers, shared_genes)
 ```
+
+# Downsample
+
+```{r, eval=FALSE}
+objs <- lapply(objs, function(x){
+  x[, sample(colnames(x), size = 8000, replace=F)]
+})
+```
+
 
 # Check gene expression
 

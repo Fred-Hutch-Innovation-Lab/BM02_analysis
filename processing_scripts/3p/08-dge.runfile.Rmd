@@ -25,8 +25,12 @@ library(gridExtra)  ## arrange plots
 library(DT)     ## Datatables
 library(DESeq2)  ## Pseudobulk analysis
 # library(UCell)  ## Module scoring
+library(parallel)
+library(data.table)
 rbindlist <- data.table::rbindlist
 # library(patchwork)
+library(gt)
+library(emdist)
 set.seed(33)
 ```
 
@@ -43,14 +47,48 @@ figures <- list()
 
 ```{r}
 objs <- readRDS(here('rds/3p/07_post_module_scoring.rds'))
+genes <- Reduce(intersect, lapply(objs, Features))
+objs <- lapply(objs, subset, features = genes)
+```
+
+```{r}
+cellcounts <- lapply(objs, function(x) {
+  table(x$orig.ident, x$cell_labels.fine) |>
+    as.data.table() 
+}) |> rbindlist(idcol = 'Kit')
+colnames(cellcounts) <- c('Kit', 'Sample', 'Celltype', 'Count')
+cellcounts_kit <- cellcounts |>
+  group_by(Kit) |> 
+    mutate(prop = Count / sum(Count)) |>
+  group_by(Kit, Celltype) |> 
+  summarize(prop = sum(prop))
+cellcounts_samp <- cellcounts |>
+  group_by(Sample) |> 
+    mutate(prop = Count / sum(Count)) |>
+  group_by(Sample, Celltype) |> 
+  summarize(prop = sum(prop))
+write.table(cellcounts, 
+            here('rds/3p/pb_cell_counts.txt'), sep='\t', 
+            quote=FALSE, row.names = FALSE)
+```
+
+
+
+```{r}
+label_order <- c(
+    "B naive", "B memory",
+    "CD4+ T", "CD8+ T", 
+    "NK",
+    "Classical monocyte", "Non-classical monocyte",
+    "Dendritic", "pDC",
+    "Megakaryocyte", 'Erythrocyte','Granulocyte'
+)
 ```
 
 # Pseudobulking
 
 ```{r}
-genes <- Reduce(intersect, lapply(objs, Features))
 
-objs <- lapply(objs, subset, features = genes)
 objs <- lapply(objs, AggregateExpression, 
                group.by = c('orig.ident', 'cell_labels.fine'),
                assays = 'RNA')
@@ -68,6 +106,7 @@ obj <- cbind(
   objs$NextGEM3P$RNA,
   objs$Parse_v3$RNA, 
   objs$Scale$RNA)
+rm(objs)
 ```
 
 ```{r}
@@ -96,23 +135,35 @@ coarse_celltypes <- data.frame(
 ```
 
 
-## deseq2 
+# DEseq2 
 
-```{r,eval=FALSE}
+```{r}
 coldata <- obj@Dimnames[[2]] |> 
     as.data.table() |> 
     separate(V1, c('Sample', 'celltype'), '_', remove=FALSE) |>
     mutate(Sample = gsub('-', '_', Sample)) |>
     merge(metadata, by = 'Sample') |>
-  column_to_rownames('V1')
-    # mutate(Sample = gsub('_', '-', Sample)) 
+  column_to_rownames('V1') |>
+  mutate(celltype = factor(celltype, levels = coarse_celltypes$fine))
+
+design_formula <- as.formula('~ Kit + celltype + Individual * Replicate')
+design_matrix  <- stats::model.matrix(design_formula, data = coldata)
 coldata <- coldata[colnames(obj),]
+colnames(design_matrix)
+```
+
+
+```{r,eval=FALSE}
 obj <- DESeqDataSetFromMatrix(obj,
                          colData = coldata,
                          design = ~ Kit + celltype + Individual * Replicate,
                          tidy = FALSE)
+
+
+assays(obj)$vst <- vst(obj)
+vsd <- assays(obj)$vst
 obj <- DESeq(obj)
-assays(obj)$vst <- assay(vst(obj))
+
 ```
 
 
@@ -122,10 +173,9 @@ assays(obj)$vst <- assay(vst(obj))
 saveRDS(obj, here('rds/3p/pseudobulk_obj.Rds'), compress = FALSE)
 ```
 
-```{r,eval=FALSE}
+```{r,eval=TRUE}
 obj <- readRDS(here('rds/3p/pseudobulk_obj.Rds'))
 ```
-
 
 # PCA
 
@@ -139,7 +189,7 @@ pca <- function(data, nfeatures=2000, npcs = 2) {
   pca <- stats::prcomp(t(data[var_feats,]))
   return(pca$x[,1:npcs])
 }
-plotdata <- pca(assays(obj)$vst) |>
+plotdata <- pca(assay(vsd), npcs=20, nfeatures = 200) |>
   as.data.frame() |>
   rownames_to_column('sample') |>
   separate(sample, c('Sample', 'celltype'), '_', remove = TRUE) |>
@@ -165,7 +215,7 @@ figures[['PCA_of_kits']]
 
 ```{r}
 for (kit in unique(metadata$Kit)) {
-  plotdata <- assays(obj)$vst
+  plotdata <- assay(vsd)
   plotdata <- plotdata[,grepl(kit, gsub('-', '_', colnames(plotdata)))]
   plotdata <- pca(plotdata) |>
     as.data.frame() |>
@@ -190,35 +240,127 @@ figures[[paste0('PCA_', kit)]]
 figures[['PCA_Flex']]
 ```
 
+# Euclidean distance
+
+```{r}
+  plotdata <- 
+    pca(assay(vsd), nfeatures = 200, npcs = 20) |>
+    dist() |>
+    as.matrix() |>
+    as.data.frame() |>
+    rownames_to_column('sample1') |>
+    melt(variable.name = 'sample2') |>
+    separate(sample1, c('sample1', 'celltype1'), '_', remove = TRUE) |>
+    separate(sample2, c('sample2', 'celltype2'), '_', remove = TRUE) |>
+  separate_wider_regex(sample1, c(kit1 = '.+', '-', sample1='.+$')) |> 
+  separate_wider_regex(sample2, c(kit2 = '.+', '-', sample2='.+$')) |> 
+    filter(((sample1 == 'F1A' & sample2 == 'F1B') | (sample1 == 'F5A' & sample2 == 'F5B')) &
+           celltype1 == celltype2 &
+             kit1 == kit2) |>
+    mutate(ind = ifelse(grepl('F1', sample2), 'F1', 'F5')) |>
+  arrange(celltype1) |>
+  filter(!celltype1 %in% c('T', 'B', 'Monocyte', 'Unknown')) |>
+  select(c(kit1, celltype1, sample1, sample2, value, ind)) |>
+  mutate(kit1 = factor(gsub('-', '_', kit1), levels = kit_order_3p),
+         celltype1 = factor(celltype1, levels = label_order))
+# }
+ggplot(plotdata ,
+         aes(x=ind,
+             y=celltype1,
+             label=round(value,2),
+             fill=value)) +
+    geom_tile() +
+    geom_text() +
+    scale_fill_gradient2(low = "#4DAF4A",
+                       mid="#FFFFCC",
+                       high = "#FF0000", 
+                       midpoint=max(plotdata$value)/2, limits = c(0, max(plotdata$value))) +
+    labs(x = 'Sample', y = 'Celltype', fill = 'Distance') +
+    facet_wrap(~ kit1, ncol=7, nrow = 1, labeller = labeller(Kit = label_function)) ->
+    figures[['pca_dist_euc_pairs']]
+
+plotdata <- plotdata |>
+  group_by(kit1, celltype1) |>
+  summarize(value = mean(value))
+ggplot(plotdata ,
+         aes(x=kit1,
+             y=celltype1,
+             label=round(value,2),
+             fill=value)) +
+    geom_tile() +
+    geom_text() +
+    scale_x_discrete(labels = label_function) +
+    scale_fill_gradient2(low = "#4DAF4A",
+                       mid="#FFFFCC",
+                       high = "#FF0000", 
+                       midpoint=max(plotdata$value)/2, limits = c(0, max(plotdata$value))) +
+    labs(x = 'Sample', y = 'Celltype', fill = 'Distance') ->
+    figures[['pca_dist_euc_mean']]
+```
+
+```{r, fig.width=11, fig.height=5}
+figures[['pca_dist_euc_mean']]
+```
+
+```{r, fig.width=14, fig.height=5}
+figures[['pca_dist_euc_pairs']]
+```
+
+
+```{r}
+euc_data <- expand.grid(unique(metadata$Kit), unique(metadata$Individual), coarse_celltypes$fine) |>
+  rename(Var1 = 'Kit', Var2 = 'Individual', Var3 = 'Celltype')
+for (kit in unique(metadata$Kit)) {
+  plotdata <- assay(vsd)
+  plotdata <- plotdata[,grepl(kit, gsub('-', '_', colnames(plotdata)))]
+  plotdata <- pca(plotdata, npcs = 40) |>
+    as.data.frame() |>
+    rownames_to_column('sample') |>
+    separate(sample, c('Sample', 'celltype'), '_', remove = TRUE) |>
+    mutate(Sample = gsub('-', '_', Sample)) |>
+    merge(metadata, by = 'Sample') |>
+    mutate(celltype_coarse = plyr::mapvalues(celltype,
+                                      from = coarse_celltypes$fine,
+                                      to = coarse_celltypes$coarse))
+  for (ind in c('F1', 'F5')) {
+    for (cell in unique(plotdata$celltype)) {
+     tmp <- plotdata |>
+       filter(Individual == ind, celltype == cell) |> 
+       select(starts_with('PC')) |>
+       dist(method='euclidean')
+    }
+  }
+  
+}
+```
+
 # Corr mat
+
+## funcs
 
 spearman and pearson are the same with VST data. Already scaled? 
 
 ```{r}
-sampleDists <- dist(t(assays(obj)$vst))
-```
-
-```{r}
-obj_cor <- function(obj, kit, celltype, ngenes = 200, method = 'pearson') {
-  plotdata <- subset(obj, select=colData(obj)$Kit==kit)
-  plotdata <- subset(plotdata, select=colData(plotdata)$celltype==celltype)
-  rv <- rowVars(plotdata@assays@data$vst) 
-  var_feat <- names(head(sort(rv, decreasing=TRUE), 200))
-  plotdata <- subset(plotdata, rownames(plotdata) %in% var_feat)
-  plotdata <- assays(plotdata)$vst |>
-    cor(method = 'pearson')
-  return(plotdata)
-}
-```
-
-```{r}
-corr_data <- lapply(unique(metadata$Kit), function(kit){
-  lapply(unique(colData(obj)$celltype), function(celltype) {
-    obj_cor(obj, kit, celltype, ngenes=200, method='pearson') |>
-    melt() |> 
-    separate_wider_delim(Var1, '_', too_many = 'merge',
+obj_cor <- function(obj, kit, cell_type, ngenes = 200,
+                    method = 'spearman', 
+                    features_select = c('celltype', 'kit+celltype'),
+                    features = NULL) {
+  obj <- subset(obj, select=colData(obj)$celltype==cell_type)
+  if (features_select == 'celltype') {rv <- rowVars(assay(obj))}
+  obj <- subset(obj, select=colData(obj)$Kit==kit)
+  if (features_select == 'kit+celltype') {rv <- rowVars(assay(obj))}
+  if (is.null(features)) {
+    features <- names(head(sort(rv, decreasing=TRUE), ngenes))
+  }
+  # if ()
+  obj <- subset(obj, rownames(obj) %in% features)
+  obj <- assay(obj) |>
+    cor(method = method) |>
+    as.data.table(keep.rownames = TRUE) |>
+    melt(id.var='rn') |> 
+    separate_wider_delim(rn, '_', too_many = 'merge',
                          names = c('Sample1', 'celltype1'), cols_remove = TRUE) |>
-    separate_wider_delim(Var2, '_', too_many = 'merge',
+    separate_wider_delim(variable, '_', too_many = 'merge',
                          names = c('Sample2', 'celltype2'), cols_remove = TRUE) |>
     separate_wider_regex(Sample1, patterns = c(
       Kit1 = '^.+', '-', Individual1 = '[^-]+$'
@@ -227,77 +369,190 @@ corr_data <- lapply(unique(metadata$Kit), function(kit){
       Kit2 = '^.+', '-', Individual2 = '[^-]+$'
     ), cols_remove = TRUE) |>
     mutate(Kit1 = gsub('-', '_', Kit1),
-           Kit2 = gsub('-', '_', Kit2)) |>
-    # filter(celltype1 != 'Unknown') |>
+           Kit2 = gsub('-', '_', Kit2))
+  return(obj)
+}
+
+corr_dotplot <- function(corrdata) {
+  corrdata  |>
+  merge(cellcounts_kit, by=c('Kit', 'Celltype')) |>
+  ggplot(aes(x=Kit, y=Celltype)) +
+  geom_point(aes(size=prop, color=y)) +
+  geom_text(aes(label=round(y, 2)), size=2) +
+  scale_size_continuous(range=c(5,12)) +
+  scale_color_gradient2(high = "#4DAF4A",
+                       mid="grey",
+                       low = "#FF0000", 
+                     midpoint=0.5) +
+  scale_x_discrete(labels = label_function) +
+  theme_bw() +
+  labs(x = 'Kit', y = 'Celltype',
+       color = 'Average\nreplicate\ncorrelation', 
+       size = 'Proportion\nof cells\nfrom kit')
+}
+```
+
+## across kits
+
+```{r}
+corr_data_all <- list()
+for (kit in unique(metadata$Kit)) {
+  for (celltype in unique(colData(obj)$celltype)) {
+    if (table(obj$Kit, obj$celltype)[kit, celltype] > 0) {
+      plotdata <- obj_cor(vsd, kit, celltype, ngenes=200,
+                          method='spearman',
+                          features_select = 'celltype'
+                          ) |>
+    filter((Individual1 == 'F1A' & Individual2 == 'F1B') |
+         (Individual1 == 'F5A' & Individual2 == 'F5B')) |>
     filter(celltype1 == celltype2) |>
     mutate(celltype1 = factor(celltype1, levels=coarse_celltypes$fine),
            celltype2 = factor(celltype2, levels=coarse_celltypes$fine)) |>
     arrange(celltype1, celltype2) |>
       distinct()
-  }) |>
-    rbindlist() |>
-    distinct()
-}) |>
-  rbindlist() |>
-  distinct()
-
-# corr_data1 <- rbindlist(corr_data)
+    corr_data_all <- rbind(corr_data_all, plotdata)
+    }
+  }
+}
+corr_data_all <- corr_data_all |>
+  mutate(#Sample = paste0(Kit1, '_', Individual1),
+         Kit = factor(Kit1, levels = kit_order_3p),
+         Celltype = factor(celltype1, levels = label_order)) |>
+  select(-c(celltype1, Kit1)) |>
+  filter(!is.na(celltype)) |>
+  group_by(Kit, Celltype) |>
+  summarize(y = mean(value))
 ```
 
 
-## All
+```{r, fig.height=5, fig.width=7}
+corr_data_all |>
+  corr_dotplot() ->
+  figures[['rep_corr_summary_all']]
+figures[['rep_corr_summary_all']]
+```
+
+## top genes variable across samples (across all kits)
 
 ```{r}
-corr_data |>
-  filter((Individual1 == 'F1A' & Individual2 == 'F1B') |
-         (Individual1 == 'F5A' & Individual2 == 'F5B')
-         ) |>
-  mutate(Sample = paste0(Kit1, '_', Individual1),
-         Kit1 = factor(Kit1, levels = kit_order_3p)) |>
-  group_by(Kit1, celltype1) |>
-  summarize(y=mean(value)) |>
-  ggplot(aes(x=Kit1, y=celltype1, fill=y, label=round(y, 2))) +
-  geom_tile() +
-  geom_text() +
-  scale_fill_gradient2(low = "white",
-                     mid="#FFFFCC",
-                     high = "#FF0000", 
-                     midpoint=0.5) +
-  scale_x_discrete(labels = label_function) +
-  theme_bw() +
-  labs(x = 'Kit', y = 'Celltype', fill = 'Average\nreplicate\ncorrelation') ->
-  figures[['rep_corr_summary']]
-```
-
-
-## by kit
-
-```{r, eval=TRUE}
+var_genes <- results(obj, name = 'Individual_F5_vs_F1') |>
+  as.data.frame() |> 
+  arrange(padj) |> 
+  head(n=200) |> 
+  rownames()
+corr_data_byind <- list()
 for (kit in unique(metadata$Kit)) {
-  plotdata <- tibble()
   for (celltype in unique(colData(obj)$celltype)) {
-    plotdata1 <- obj_cor(obj, kit=kit, ngenes=200, method='pearson') |>
-    melt() |> 
-    separate_wider_delim(Var1, '_', too_many = 'merge',
-                         names = c('Sample1', 'celltype1'), cols_remove = TRUE) |>
-    separate_wider_delim(Var2, '_', too_many = 'merge',
-                         names = c('Sample2', 'celltype2'), cols_remove = TRUE) |>
-    separate_wider_regex(Sample1, patterns = c(
-      Kit1 = '^.+', '-', Individual1 = '[^-]+$'
-    ), cols_remove = TRUE) |>
-    separate_wider_regex(Sample2, patterns = c(
-      Kit2 = '^.+', '-', Individual2 = '[^-]+$'
-    ), cols_remove = TRUE) |>
-    mutate(Kit1 = gsub('-', '_', Kit1),
-           Kit2 = gsub('-', '_', Kit2)) |>
-    # filter(celltype1 != 'Unknown') |>
+    if (table(obj$Kit, obj$celltype)[kit, celltype] > 0) {
+      plotdata <- obj_cor(vsd, kit, celltype, ngenes=200,
+                          method='spearman',
+                          features_select = 'celltype', 
+                          features = var_genes
+                          ) |>
+    filter((Individual1 == 'F1A' & Individual2 == 'F1B') |
+         (Individual1 == 'F5A' & Individual2 == 'F5B')) |>
     filter(celltype1 == celltype2) |>
     mutate(celltype1 = factor(celltype1, levels=coarse_celltypes$fine),
            celltype2 = factor(celltype2, levels=coarse_celltypes$fine)) |>
     arrange(celltype1, celltype2) |>
-    distinct()
-    plotdata <- rbind(plotdata1, plotdata)
+      distinct()
+    corr_data_byind <- rbind(corr_data_byind, plotdata)
+    }
   }
+}
+corr_data_byind <- corr_data_byind |>
+  mutate(#Sample = paste0(Kit1, '_', Individual1),
+         Kit = factor(Kit1, levels = kit_order_3p),
+         Celltype = factor(celltype1, levels = label_order)) |>
+  select(-c(celltype1, Kit1)) |>
+  filter(!is.na(celltype)) |>
+  group_by(Kit, Celltype) |>
+  summarize(y = mean(value))
+```
+
+```{r}
+corr_data_byind  |>
+  corr_dotplot() ->
+  figures[['rep_corr_summary_byind']]
+figures[['rep_corr_summary_byind']]
+```
+
+## by kit
+
+```{r, eval = FALSE}
+# my_contrast <- limma::makeContrasts(
+# CelltypeBonemarrow_CD19posCD138pos-CelltypeBonemarrow_CD19negCD138pos,
+# (CelltypeBonemarrow_CD19posCD138pos+CelltypeBonemarrow_CD19posCD138neg)/2 -
+#  (CelltypeBonemarrow_CD19negCD138neg-CelltypeBonemarrow_CD19negCD138pos)/2,
+# levels = colnames(analysis$dds$modelMatrix))
+contrast_matrix_expanded <- data.frame(
+  contrast_names = c(
+    'Flex',
+    'Fluent_v4',
+    'Fluent_V',
+    'GEMX3P',
+    'NextGEM3P',
+    'Parse_v3',
+    'Scale'
+  ),
+  numerators = c(
+    'X.Intercept. + IndividualF5',
+    'X.Intercept. + KitFluent_v4 + IndividualF5',
+    'X.Intercept. + KitFluent_V+ IndividualF5',
+    'X.Intercept. + KitGEMX3P+ IndividualF5',
+    'X.Intercept. + KitNextGEM3P+ IndividualF5',
+    'X.Intercept. + KitParse_v3+ IndividualF5',
+    'X.Intercept. + KitScale+ IndividualF5'
+  ),
+  denominators = c(
+    'X.Intercept.',
+    'X.Intercept. + KitFluent_v4',
+    'X.Intercept. + KitFluent_V',
+    'X.Intercept. + KitGEMX3P',
+    'X.Intercept. + KitNextGEM3P',
+    'X.Intercept. + KitParse_v3',
+    'X.Intercept. + KitScale'
+  )
+)
+
+contrast_matrix <- apply(contrast_matrix_expanded, MARGIN = 1, function(row) {
+  paste0('(', row[2], ') - (', row[3], ')')
+})
+contrast_matrix <- limma::makeContrasts(contrasts = contrast_matrix,
+    levels = make.names(colnames(design_matrix)))
+colnames(contrast_matrix) <- contrast_matrix_expanded$contrast_names
+contrast_matrix
+
+
+# results(obj, contrast = list(
+#         c('(Intercept)),
+#       ))
+```
+
+
+```{r, eval=TRUE}
+corr_data_bykit <- tibble()
+for (kit in unique(metadata$Kit)) {
+  plotdata <- tibble()
+  for (celltype in unique(colData(obj)$celltype)) {
+    if (table(obj$Kit, obj$celltype)[kit, celltype] > 0) {
+      # # var_genes <- adsf |>
+      #   as.data.frame() |> 
+      #   arrange(padj) |> 
+      #   head(n=200) |> 
+      #   rownames()
+      plotdata1 <- obj_cor(vsd, kit, celltype, ngenes=2000, method='spearman', features_select = 'kit+celltype') |>
+      filter(celltype1 == celltype2) |>
+      # filter((Individual1 == 'F1A' & Individual2 == 'F1B') |
+      #      (Individual1 == 'F5A' & Individual2 == 'F5B')) |>
+      mutate(celltype1 = factor(celltype1, levels=coarse_celltypes$fine),
+             celltype2 = factor(celltype2, levels=coarse_celltypes$fine)) |>
+      arrange(celltype1, celltype2) |>
+      distinct()
+      plotdata <- rbind(plotdata, plotdata1)
+    }
+  }
+  corr_data_bykit <- rbind(corr_data_bykit, plotdata)
   
   
   ggplot(distinct(plotdata),
@@ -309,9 +564,9 @@ for (kit in unique(metadata$Kit)) {
              fill=value)) +
     geom_tile() +
     geom_text() +
-    scale_fill_gradient2(low = "white",
+    scale_fill_gradient2(high = "#4DAF4A",
                        mid="#FFFFCC",
-                       high = "#FF0000", 
+                       low = "#FF0000", 
                        midpoint=0.5) +
     labs(x = 'Sample 1', y = 'Sample 2', fill = 'Corr', title = label_function(kit)) +
     facet_wrap(~ celltype1, drop = FALSE, ncol=4, nrow = 4) ->
@@ -321,6 +576,118 @@ for (kit in unique(metadata$Kit)) {
 
 ```
 
+```{r}
+corr_data_bykit |>
+  mutate(Kit = factor(Kit1, levels = kit_order_3p),
+         Celltype = factor(celltype1, levels = label_order)) |>
+  select(-c(celltype1, Kit1)) |>
+  filter(!is.na(celltype))  |>
+  group_by(Kit, Celltype) |>
+  summarize(y=mean(value)) |> 
+  corr_dotplot() ->
+  figures[['rep_corr_summary_bykit']]
+figures[['rep_corr_summary_bykit']]
+```
+
+# Sample dist
+
+```{r}
+sampleDists <- dist(t(assay(vsd))) |>
+  as.matrix() |>
+  as.data.table(keep.rownames = TRUE) |>
+  # rownames_to_column('Sample1') |>
+  melt() |>
+  separate_wider_delim(rn, '_', too_many = 'merge',
+                         names = c('Sample1', 'celltype1'), cols_remove = TRUE) |>
+    separate_wider_delim(variable, '_', too_many = 'merge',
+                         names = c('Sample2', 'celltype2'), cols_remove = TRUE) |>
+    separate_wider_regex(Sample1, patterns = c(
+      Kit1 = '^.+', '-', Individual1 = '[^-]+$'
+    ), cols_remove = TRUE) |>
+    separate_wider_regex(Sample2, patterns = c(
+      Kit2 = '^.+', '-', Individual2 = '[^-]+$'
+    ), cols_remove = TRUE) |>
+    mutate(Kit1 = gsub('-', '_', Kit1),
+           Kit2 = gsub('-', '_', Kit2)) 
+  # mutate(Kit1 = factor(Kit1, levels = kit_order_3p),
+         # Celltype = factor(celltype1, levels = label_order)) |>
+  # select(-c(celltype1, , celltype2)) |>
+  # filter(!is.na(celltype))  |>
+  # group_by(Kit, Celltype) |>
+  # summarize(y=mean(value))  #|>
+      # filter((Individual1 == 'F1A' & Individual2 == 'F1B') |
+      #      (Individual1 == 'F5A' & Individual2 == 'F5B')) |>
+```
+
+
+```{r, fig.height=10, fig.width=10}
+# sampleDists |>
+#   filter(celltype1 == celltype2) |>
+#   filter(Kit1 == Kit2) |>
+#   mutate(value = value / max(value)) |>
+# ggplot(aes(x=Individual1, y=Individual2, fill=value)) +
+#   geom_tile() +
+#   facet_grid(celltype1 ~ Kit1)
+# pheatmap(sampleDistMatrix,
+#          clustering_distance_rows=sampleDists,
+#          clustering_distance_cols=sampleDists,
+#          col=colors)
+```
+
+```{r}
+plotdata <- sampleDists |>
+  filter(celltype1 == celltype2) |>
+  filter(Kit1 == Kit2) |>
+  mutate(value = value / max(value)) |> 
+  group_by(Kit1, celltype1) |>
+  summarize(y=mean(value)) |>
+  rename(Kit1 = 'Kit', celltype1 = 'Celltype', y = 'y') |>
+  mutate(Kit = factor(Kit, levels = kit_order_3p),
+         Celltype = factor(Celltype, levels = label_order)) 
+corr_dotplot(plotdata) +
+  scale_color_gradient2(low = "#4DAF4A",
+                       mid="grey",
+                       high = "#FF0000", midpoint = 0.35, limits=c(0,.7)) ->
+  figures[['sample_distance_dotplot']]
+figures[['sample_distance_dotplot']]
+```
+
+
+```{r}
+plotdata <- sampleDists |>
+  filter(celltype1 == celltype2,
+         Kit1 == Kit2,
+         (Individual1 == 'F1A' & Individual2 == 'F1B') |
+         (Individual1 == 'F5A' & Individual2 == 'F5B')) |>
+  
+  mutate(value = value / max(value)) |> 
+  # group_by(Kit1, celltype1) |>
+  # summarize(y=mean(value)) |>
+  rename(Kit1 = 'Kit', celltype1 = 'Celltype', value = 'value') |>
+  mutate(Kit = factor(Kit, levels = kit_order_3p),
+         Celltype = factor(Celltype, levels = label_order)) |>
+  mutate(Sample = paste0(Kit, '_', Individual1)) |>
+  merge(cellcounts_samp, by = c('Sample', 'Celltype')) |>
+  mutate(Individual = substr(Individual1, 1, 2)) |>
+  mutate(z = value * prop) |>
+  group_by(Individual, Kit) |>
+  summarize(z = sum(z)) |>
+  # group_by(Kit) |>
+  # summarize(low = min(z), high = max(z), avg = mean(z)) |>
+  janitor::adorn_rounding(digits = 3) |>
+  as.data.table() |>
+  dcast(Kit ~ Individual, value.var = 'z')
+  # mutate(text = paste0(low, ' - ', high))
+
+plotdata |> 
+  gt::gt() |>
+  # cols_hide(c(low, high, avg)) |>
+  # cols_label(Kit = 'Kit', text = 'Sample distance') |>
+  data_color(columns = c("F1", 'F5'), method = 'numeric', palette = 'RdYlGn', reverse = TRUE) ->
+  
+  figures[['pb_dist_table']]
+figures[['pb_dist_table']]
+```
 
 # Render report
 
