@@ -20,7 +20,7 @@ label_function <- function(kits) {
       kit == 'Fluent_v4' ~ "Fluent v4",
       kit == 'Fluent_V' ~ "Fluent V",
       kit == 'Parse_v3' ~ "Parse v3",
-      kit == 'Parse_v2' ~ "Parse v2",
+      kit == 'Parse_v2' ~ "Parse TCR",
       kit == 'NextGEM5P' ~ "NextGEM 5'",
       kit == 'GEMX5P' ~ "GEMX 5'",
       .default = kit
