@@ -1,0 +1,306 @@
+---
+title: 'scRNA QC'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+
+library(here)       ## Easier specification of file locations
+source(here('figure_scripts/utils.R')) 
+library(readxl)
+library(gridExtra)
+set.seed(33)
+```
+
+
+# Load data 
+
+```{r}
+cost_data_ref <- read_csv(here('data/cost.csv'))  |>
+  mutate(cost = readr::parse_number(cost)) |>
+    group_by(kit_family) |>
+  arrange(kit_family, max_samples) |>
+  mutate(kit_throughput_n = as.factor(row_number()))
+  
+cost_data_ref
+```
+
+```{r}
+cost_data_extrapolated <- cost_data_ref |>
+  rowwise() |>
+    mutate(
+      Extended = list(data.frame(
+        samples = 1:96#,
+      ))
+    ) %>%
+    unnest(cols = c(Extended)) |>
+  # multiple kits if # samples exceeds max samples
+  mutate(kit_multiples = ceiling(samples / max_samples)) |>
+  mutate(scaled_cost = cost * kit_multiples,
+         scaled_samples = max_samples * kit_multiples,
+         scaled_cells = max_cells * kit_multiples
+         ) |>
+  mutate(cost_per_sample = ifelse(all_in,
+                                  scaled_cost / samples,
+                                  scaled_cost / scaled_samples),
+         cells_per_sample = ifelse(all_in, 
+                                   scaled_cells / samples,
+                                   scaled_cells / scaled_samples)) |>
+  group_by(kit) |>
+  arrange(kit, samples) |>
+  mutate(running_cost = ifelse(all_in, scaled_cost, cumsum(cost_per_sample)),
+         running_cells = ifelse(all_in, scaled_cells, cumsum(cells_per_sample))) |>
+  mutate(cost_per_cell = running_cost / (samples * cells_per_sample)) |>
+  select(c(kit_family, kit,kit_throughput_n,
+           samples, cells_per_sample,
+           running_cost, running_cells,
+           cost_per_cell, cost_per_sample,
+           kit_multiples, scaled_cost)) |>
+  as.data.table()
+cost_data_extrapolated
+```
+
+```{r}
+kit_palette_legend <- function(x) {
+  n <- length(x)
+  hues = seq(15, 375, length = n + 1)
+  y <- hcl(h = hues, l = 65, c = 100)[1:n]
+  names(y) <- x
+  y
+}
+kit_palette_legend <- kit_palette_legend(unique(cost_data_ref$kit_throughput_n))
+plotdata <- cost_data_ref |>
+  mutate(hue = plyr::mapvalues(kit_throughput_n, 
+                               from = names(kit_palette_legend),
+                               to = kit_palette_legend)) |>
+  select(kit_family, kit, hue, kit_throughput_n) |>
+  group_by(kit_family) |>
+  arrange(kit_family, kit_throughput_n) 
+
+gt(plotdata) |>
+    # data_color(columns = c("kit_throughput_n"), target_columns = c('kit', 'kit_throughput_n'), method = 'numeric', palette = 'RdYlGn', reverse = TRUE) |>
+  cols_hide('hue')  |>
+   data_color(
+     target_columns = c('kit', 'kit_throughput_n'),
+    columns = 'kit_throughput_n',  # Apply color to the 'category' column
+    colors = scales::col_factor(
+      palette = kit_palette_legend,
+      domain = names(kit_palette_legend)
+    )
+  ) |>
+  tab_options(row_group.as_column = TRUE) ->
+figures[['kit_index_color_table']]
+figures[['kit_index_color_table']]
+```
+
+
+
+```{r, eval=FALSE, fig.width=12, fig.height=4}
+plot_func <- function(data, title) {
+  ggplot(data, aes(x=samples, color=kit, group=kit, linewidth=cells_per_sample)) +
+  geom_line(aes(y=cost_per_sample), alpha=0.8, lty='solid') +
+  # geom_step(aes(y=cells_per_sample), direction='hv', alpha=0.8, lty='dashed') +
+    lims(x=c(0,50), y=c(0,2000)) +
+  theme_bw() +
+  # facet_wrap(~ kit_family, nrow=1, scales='fixed') +
+  scale_linewidth_continuous(range=c(0,4), limits = c(0,30000), breaks = c(10000, 20000, 30000)#,
+                             # guide = guide_legend(position = 'bottom', direction = 'vertical')
+                             ) +
+    theme(legend.position = 'bottom', legend.direction = 'vertical') +
+  # scale_color_manual(values = unlist(color_palette$kits), labels = label_function) +
+  labs(x='Samples', y='Cost per sample', color = 'Kit', title=title) #+ 
+  # guides(color = guide_legend(override.aes = list(linewidth = 4)))
+}
+
+#"Flex"      "Fluent"    "GEMX"      "NextGEM"   "Parse_TCR" "Parse_WT"  "Scale" 
+plotdata <- lapply(list("Flex", "Fluent", "GEMX", "NextGEM"), function(x){
+  cost_data_kit |> 
+    filter(kit_family == x) |>
+    plot_func(title=x)
+})
+# grid.arrange(grobs = plotdata, nrow=1)
+plotdata[[1]] + plotdata[[2]] + plotdata[[3]] + plotdata[[4]] +
+plot_layout(guides = 'collect', nrow=1, axes='collect')
+
+```
+
+# Kit cost
+
+```{r, fig.width=15, fig.height=4}
+plotdata <- cost_data_extrapolated |> 
+  filter(kit_multiples == 1) |>
+  group_by(kit) |> 
+  slice_max(samples)
+ggplot(plotdata, aes(x=samples, y=running_cost, 
+                     color=kit_throughput_n, group=kit,
+                     size = cells_per_sample,
+                            )) +
+  geom_point(alpha = 0.8)+
+  theme_bw() +
+  facet_wrap(~ kit_family, nrow=1, scales='fixed') +
+  theme(panel.spacing.x = unit(0.5, "lines")) +
+     scale_size_area(max_size=10,
+                        limits = c(0, 100000),
+                        breaks = c(1000, 10000, 100000),
+                        # transform = scales::log10_trans(),
+                        oob = scales::squish,
+                        ) +
+  # ggbreak::scale_y_break(c(30000, 59000), scales='free', space = 1) +
+  scale_y_continuous(#breaks = c(c(10,20,30,60,65) * 1000),
+                     labels = scales::label_currency()) +
+  labs(x='Max samples', y='Total cost', color = 'Cells per sample', size = 'Cells per sample', shape = 'Vendor kit index')  ->
+  figures[['kit_cost']]
+figures[['kit_cost']] 
+```
+
+```{r}
+plotdata <- cost_data_extrapolated |> 
+  filter(kit_multiples == 1) |>
+  group_by(kit) |> 
+  slice_max(samples)
+ggplot(plotdata, aes(x=samples, y=running_cost, 
+                     color=kit_throughput_n, group=kit,
+                     size = cells_per_sample,
+                            )) +
+  geom_point(alpha = 0.8)+
+  theme_bw() +
+  facet_wrap(~ kit_family, nrow=1, scales='fixed') +
+  theme(panel.spacing.x = unit(0.5, "lines")) +
+     scale_size_area(max_size=10,
+                        limits = c(0, 100000),
+                        breaks = c(1000, 10000, 100000),
+                        # transform = scales::log10_trans(),
+                        oob = scales::squish,
+                        ) +
+  ggbreak::scale_y_break(c(30000, 59000), scales='free', space = 1) +
+  scale_y_continuous(breaks = c(c(10,20,30,60,65) * 1000),
+                     labels = scales::label_currency()) +
+  labs(x='Max samples', y='Total cost', color = 'Cells per sample', size = 'Cells per sample', shape = 'Vendor kit index')  ->
+  figures[['kit_cost_breaks']]
+figures[['kit_cost_breaks']] 
+```
+
+
+
+# Minimum cost
+
+```{r, fig.width=12, fig.height=5}
+plotdata <- cost_data_extrapolated
+ggplot(plotdata, aes(x=samples, y=scaled_cost, 
+                       color=kit_throughput_n, group=kit_throughput_n,
+                       size=cells_per_sample)) +
+  geom_step(direction='hv') +
+  theme_bw() +
+  facet_wrap(~ kit_family, nrow=1, scales='free_x') +
+  theme(panel.spacing.x = unit(0.5, "lines")) +
+  # scale_size_continuous(range=c(1,12),
+  #                            limits = c(0, 500000),
+  #                            breaks = c(1000, 10000, 100000)) +
+     scale_size_area(max_size=10,
+                        limits = c(0, 500000),
+                        breaks = c(1000, 10000, 100000),
+                        # transform = scales::log10_trans(),
+                        oob = scales::squish,
+                        ) +
+  scale_y_continuous(labels = scales::label_currency()) +
+  labs(x='Samples', y='Total cost', color = 'Kit') ->
+  figures[['n_samples_min_cost']]
+figures[['n_samples_min_cost']]
+
+```
+
+# Cost per sample
+
+```{r, fig.width=12, fig.height=5}
+ggplot(cost_data_extrapolated,
+         aes(x=samples,  y=cost_per_sample,
+             color=kit_throughput_n, 
+             group=kit_throughput_n,
+             size=cells_per_sample)) +
+  geom_line(alpha=0.7, lty='solid') +
+  coord_cartesian(ylim=c(0, 5000)) +
+  theme_bw() +
+  facet_wrap(~ kit_family, nrow=1, scales='free_x') +
+  theme(panel.spacing.x = unit(0.5, "lines")) +
+  scale_size_area(max_size=10,
+                        limits = c(0, 500000),
+                        breaks = c(1000, 10000, 100000),
+                        # transform = scales::log10_trans(),
+                        oob = scales::squish,
+                        ) +
+  # ggbreak::scale_y_break(c(5000, 10000), scales='free') +
+  scale_y_continuous(labels = scales::label_currency()) +
+  labs(x='Samples', y='Cost per sample', color = 'Vendor kit index') ->
+  figures[['cost_per_sample']]
+figures[['cost_per_sample']]
+
+```
+
+# Total cost per sample
+
+```{r, fig.width=12, fig.height=5}
+  ggplot(cost_data_extrapolated,
+         aes(x=samples, y=running_cost,
+             color=kit_throughput_n, 
+             group=kit_throughput_n, size=cells_per_sample)) +
+  geom_step(direction='hv') +
+  theme_bw() +
+  facet_wrap(~ kit_family, nrow=1, scales='free_x') +
+  theme(panel.spacing.x = unit(0.5, "lines")) +
+    scale_size_area(max_size=10,
+                        limits = c(0, 500000),
+                        breaks = c(1000, 10000, 100000),
+                        # transform = scales::log10_trans(),
+                        oob = scales::squish,
+                        ) +
+  # scale_color_manual(values = unlist(color_palette$kits), labels = label_function) +
+  scale_y_continuous(labels = scales::label_currency()) +
+  labs(x='Samples', y='Total cost', color = 'Vendor kit index')  ->
+  figures[['running_cost']]
+figures[['running_cost']] 
+
+```
+
+# Cost per cell
+
+```{r, fig.width=12, fig.height=5}
+plotdata <- cost_data_extrapolated |> 
+  filter(kit_multiples == 1) |>
+  group_by(kit) |> 
+  slice_max(samples)
+ggplot(plotdata, aes(x=samples, y=cost_per_cell, 
+                            color=kit_throughput_n, group=kit_throughput_n,
+                            size=cells_per_sample
+                            )) +
+  geom_point(alpha = 0.8)+
+  theme_bw() +
+  facet_wrap(~ kit_family, nrow=1, scales='fixed') +
+  theme(panel.spacing.x = unit(0.5, "lines")) +
+   scale_size_area(max_size=10,
+                        limits = c(0, 100000),
+                        breaks = c(1000, 10000, 100000),
+                        # transform = scales::log10_trans(),
+                        oob = scales::squish,
+                        ) +
+  scale_y_continuous(labels = scales::label_currency()) +
+  labs(x='Max samples', y='Cost per cell', color = 'Vendor kit index', size = 'Cells per sample')  ->
+  figures[['cost_per_cell']]
+figures[['cost_per_cell']] 
+
+```
+
+# Render report
+
+```{r}
+## This only works if all the variables called in the format file 
+## are in the current environment. Check the format file to tweak
+## aesthetics 
+rmarkdown::render(here('processing_scripts/cost.format.Rmd'),
+                  output_file = 'cost.html',
+                  output_dir = here('reports'))
+```
