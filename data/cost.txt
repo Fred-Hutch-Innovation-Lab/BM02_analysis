@@ -1,0 +1,20 @@
+kit_family	kit	max_samples	all_in	max_cells	cost
+Flex	10X FLEX 4 x 1	4	FALSE	40,000	$7,540 
+Flex	10X FLEX 4 x 4 	16	FALSE	160,000	$15,240 
+Fluent	Fluent T2	8	FALSE	16000	$2,520 
+Fluent	Fluent T10	8	FALSE	80,000	$4,800 
+Fluent	Fluent T100	2	FALSE	200,000	$6,720 
+Fluent	Fluent (both)	4	FALSE	80,000	$3,600 
+GEMX	GEM X -16 rxn	16	FALSE	320000	$24,920 
+GEMX	GEM X -48 rxn	48	FALSE	960000	$59,308 
+GEMX	10X GEM-X  4rxn 	4	FALSE	80,000	$6,811 
+NextGEM	Next GEM 16rxn	16	FALSE	160000	$26,920 
+NextGEM	Next GEM 48rxn	48	FALSE	480000	$66,180 
+NextGEM	10X Next GEM 4rxn	4	FALSE	40,000	$7,840 
+Parse_TCR	Parse TCR mega	96	TRUE	1000000	$26,335 
+Parse_TCR	Parse TCR-WT 4 rxns	48	TRUE	100,000	$12,500 
+Parse_WT	Parse mini 	2	TRUE	10000	$4,500 
+Parse_WT	Parse v3- 12 rxns	48	TRUE	100,000	$10,780 
+Parse_WT	Parse Mega	96	TRUE	1000000	19,435
+Scale	Scale mega	96	TRUE	500000	$17,500
+Scale	Scale ET	96	TRUE	125,000	$8,500 
