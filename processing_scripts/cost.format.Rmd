@@ -28,7 +28,9 @@ figures[['kit_index_color_table']]
 
 ***
 
-# Kit cost
+# Per Kit
+
+## Kit cost
 
 The overall cost and value of a kit if it's entirely used.
 
@@ -42,10 +44,27 @@ Same thing with breaks, but this may be misleading
 figures[['kit_cost_breaks']] 
 ```
 
+## Cost per cell
+
+```{r, fig.width=12, fig.height=5}
+figures[['cost_per_cell']] 
+```
+
+```{r, fig.width=12, fig.height=5}
+figures[['price_per_cell_2']]
+```
+
+## Reagent cost table
+
+```{r}
+figures[['reagent_cost_table']]
+```
 
 ***
 
-# Cost per sample
+# Per sample
+
+## Cost per sample
 
 Now the cost per sample. Note the different x axis scale. While this is a little misleading, some kits only have <4 samples, so they get squished and hard to see when stretched to the 96 samples to match parse. 
 
@@ -53,9 +72,7 @@ Now the cost per sample. Note the different x axis scale. While this is a little
 figures[['cost_per_sample']]
 ```
 
-***
-
-# Total cost for N samples
+## Total cost for N samples
 
 A flipped variant of the cost per sample: the total cost for N samples. 
 
@@ -63,9 +80,7 @@ A flipped variant of the cost per sample: the total cost for N samples.
 figures[['running_cost']] 
 ```
 
-***
-
-# Minimum cost
+## Minimum cost
 
 The minimum cost of running N samples. This helps explain why the cost per sample is lower for the kits with more reactions. E.g. if you want to run 5-8 samples on flex and want to spend the minumum amount right now (ignoring that it might be cheaper 'per sample' to get a higher throughput kit), you'd buy two 4x1 kits rather than the 4x4 kit. 
 
@@ -73,12 +88,34 @@ The minimum cost of running N samples. This helps explain why the cost per sampl
 figures[['n_samples_min_cost']]
 ```
 
-***
-
-# Cost per cell
+## Cells per sample
 
 ```{r, fig.width=12, fig.height=5}
-figures[['cost_per_cell']] 
+figures[['cells_per_sample']]
 ```
 
 ***
+
+# Sequencing cost
+
+## Example table
+
+```{r}
+figures[['seq_cost_table']]
+```
+
+
+## Seq cost per depth
+
+```{r}
+figures[['seq_cost_curves']]
+```
+
+***
+
+# Example experiment cost table
+
+```{r}
+figures[['cost_table']]
+```
+

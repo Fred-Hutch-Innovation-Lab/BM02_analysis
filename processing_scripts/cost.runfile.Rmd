@@ -21,11 +21,19 @@ set.seed(33)
 # Load data 
 
 ```{r}
-cost_data_ref <- read_csv(here('data/cost.csv'))  |>
-  mutate(cost = readr::parse_number(cost)) |>
+cost_data_ref <- read.table(here('data/cost.txt'), sep='\t', header = TRUE)  |>
+  mutate(cost = readr::parse_number(cost),
+         max_cells = readr::parse_number(max_cells)) |>
+  
     group_by(kit_family) |>
-  arrange(kit_family, max_samples) |>
-  mutate(kit_throughput_n = as.factor(row_number()))
+  arrange(kit_family, max_samples, max_cells) |>
+  mutate(kit_throughput_n = as.factor(row_number())) |>
+  mutate(baseline_cost_per_cell = cost / max_cells)
+  # mutate(kit_multiples_20k_x_2_samples = max(
+  #   kit_multiples_20k_x_2_samples,
+  #   kit_multiples_20k_x_2_samples * (ceiling(#if can't run 4 samples, need extra kits
+  #     4/(max_samples * ceiling(kit_multiples_20k_x_2_samples))
+  #   ))))
   
 cost_data_ref
 ```
@@ -35,7 +43,7 @@ cost_data_extrapolated <- cost_data_ref |>
   rowwise() |>
     mutate(
       Extended = list(data.frame(
-        samples = 1:96#,
+        samples = 1:max_samples#96,
       ))
     ) %>%
     unnest(cols = c(Extended)) |>
@@ -48,17 +56,20 @@ cost_data_extrapolated <- cost_data_ref |>
   mutate(cost_per_sample = ifelse(all_in,
                                   scaled_cost / samples,
                                   scaled_cost / scaled_samples),
-         cells_per_sample = ifelse(all_in, 
-                                   scaled_cells / samples,
-                                   scaled_cells / scaled_samples)) |>
+         ## assuming all samples can have variable cells/sample
+         cells_per_sample = #ifelse(all_in, 
+                                   scaled_cells / samples
+                                   # scaled_cells / scaled_samples)
+  ) |>
   group_by(kit) |>
   arrange(kit, samples) |>
   mutate(running_cost = ifelse(all_in, scaled_cost, cumsum(cost_per_sample)),
-         running_cells = ifelse(all_in, scaled_cells, cumsum(cells_per_sample))) |>
-  mutate(cost_per_cell = running_cost / (samples * cells_per_sample)) |>
+         # running_cells = ifelse(all_in, scaled_cells, cumsum(cells_per_sample))
+         ) |>
+  mutate(cost_per_cell = scaled_cost / (samples * cells_per_sample)) |>
   select(c(kit_family, kit,kit_throughput_n,
            samples, cells_per_sample,
-           running_cost, running_cells,
+           running_cost, #running_cells,
            cost_per_cell, cost_per_sample,
            kit_multiples, scaled_cost)) |>
   as.data.table()
@@ -98,36 +109,6 @@ figures[['kit_index_color_table']]
 figures[['kit_index_color_table']]
 ```
 
-
-
-```{r, eval=FALSE, fig.width=12, fig.height=4}
-plot_func <- function(data, title) {
-  ggplot(data, aes(x=samples, color=kit, group=kit, linewidth=cells_per_sample)) +
-  geom_line(aes(y=cost_per_sample), alpha=0.8, lty='solid') +
-  # geom_step(aes(y=cells_per_sample), direction='hv', alpha=0.8, lty='dashed') +
-    lims(x=c(0,50), y=c(0,2000)) +
-  theme_bw() +
-  # facet_wrap(~ kit_family, nrow=1, scales='fixed') +
-  scale_linewidth_continuous(range=c(0,4), limits = c(0,30000), breaks = c(10000, 20000, 30000)#,
-                             # guide = guide_legend(position = 'bottom', direction = 'vertical')
-                             ) +
-    theme(legend.position = 'bottom', legend.direction = 'vertical') +
-  # scale_color_manual(values = unlist(color_palette$kits), labels = label_function) +
-  labs(x='Samples', y='Cost per sample', color = 'Kit', title=title) #+ 
-  # guides(color = guide_legend(override.aes = list(linewidth = 4)))
-}
-
-#"Flex"      "Fluent"    "GEMX"      "NextGEM"   "Parse_TCR" "Parse_WT"  "Scale" 
-plotdata <- lapply(list("Flex", "Fluent", "GEMX", "NextGEM"), function(x){
-  cost_data_kit |> 
-    filter(kit_family == x) |>
-    plot_func(title=x)
-})
-# grid.arrange(grobs = plotdata, nrow=1)
-plotdata[[1]] + plotdata[[2]] + plotdata[[3]] + plotdata[[4]] +
-plot_layout(guides = 'collect', nrow=1, axes='collect')
-
-```
 
 # Kit cost
 
@@ -241,6 +222,34 @@ figures[['cost_per_sample']]
 
 ```
 
+# cells per sample
+
+```{r, fig.width = 10, fig.height = 5}
+ ggplot(cost_data_extrapolated,
+         aes(x=samples, y=cells_per_sample,
+             color=kit_throughput_n, 
+             group=kit_throughput_n,
+             size=cost_per_cell
+             )) +
+  # geom_step(direction='hv') +
+  geom_line() +
+  theme_bw() +
+  facet_wrap(~ kit_family, nrow=1, scales='free_x') +
+  theme(panel.spacing.x = unit(0.5, "lines")) +
+    scale_size_area(max_size=6,
+                        limits = c(0, .25),
+                        breaks = c(0.01, 0.05, 0.1, 0.25),
+                        # transform = scales::log10_trans(),
+                        oob = scales::squish,
+                        ) +
+  # scale_color_manual(values = unlist(color_palette$kits), labels = label_function) +
+  # scale_y_continuous(labels = scales::label_currency()) +
+  labs(x='Samples', y='Cells per sample', color = 'Vendor kit index') ->
+  figures[['cells_per_sample']]
+figures[['cells_per_sample']]
+```
+
+
 # Total cost per sample
 
 ```{r, fig.width=12, fig.height=5}
@@ -248,7 +257,8 @@ figures[['cost_per_sample']]
          aes(x=samples, y=running_cost,
              color=kit_throughput_n, 
              group=kit_throughput_n, size=cells_per_sample)) +
-  geom_step(direction='hv') +
+  # geom_step(direction='hv'
+  geom_line() +
   theme_bw() +
   facet_wrap(~ kit_family, nrow=1, scales='free_x') +
   theme(panel.spacing.x = unit(0.5, "lines")) +
@@ -293,6 +303,347 @@ ggplot(plotdata, aes(x=samples, y=cost_per_cell,
 figures[['cost_per_cell']] 
 
 ```
+
+# Cost per cell 2
+
+```{r, fig.width=12, fig.height=5}
+plotdata <- cost_data_ref
+ggplot(plotdata, aes(x=max_cells,
+                     y=baseline_cost_per_cell, 
+                            color=kit_family,
+                     group=kit_family,
+                            size=max_samples
+                            )) +
+  geom_point(alpha = 0.8)+
+  theme_bw() +
+  # facet_wrap(~ kit_family, nrow=1, scales='fixed') +
+  theme(panel.spacing.x = unit(0.5, "lines")) +
+   scale_size_area(max_size=10,
+                        limits = c(0, 96),
+                        breaks = c(4, 16, 48, 96),
+                        # transform = scales::log10_trans(),
+                        oob = scales::squish,
+                        ) +
+  scale_y_continuous(labels = scales::label_currency()) +
+  labs(x='Max cells', y='Cost per cell', color = 'Vendor kit index', size = 'Max samples') ->
+  figures[['price_per_cell_2']]
+figures[['price_per_cell_2']]
+
+```
+
+# Seq cost table 
+
+## ref data
+
+```{r}
+models <- readRDS(here('rds/3p/sat_models.rds'))
+models_u <- models$models_u
+models_g <- models$models_g
+models <- readRDS(here('rds/5p/sat_models.rds'))
+models_u <- c(models_u, models$models_u)
+models_g <- c(models_g, models$models_g)
+# rm(models)
+model_coef_g <- lapply(models_g, function(x) summary(x$model)$coefficients)
+model_coef_u <- lapply(models_u, function(x) summary(x$model)$coefficients)
+```
+
+```{r}
+read_eff <- rbind(
+  read.csv(here('data/3p/sequencing_efficiency_2.txt'), sep='\t') |>
+  mutate(prop = reads_in_matrix / reads_in_fastqs) |>
+  merge(metadata_3p, by='Sample') |>
+  group_by(Kit) |>
+  summarize(eff = mean(prop)),
+  read.csv(here('data/5p/sequencing_efficiency.txt'), sep='\t') |>
+  mutate(prop = reads_in_matrix / reads_in_fastqs) |>
+  merge(metadata_5p, by='Sample') |>
+  group_by(Kit) |>
+  summarize(eff = mean(prop)))
+read_eff
+```
+
+## project
+
+```{r}
+# model_function <- function(nreads, a, c) {
+#   # michaelis menten
+#   (a * nreads) / (c + nreads)
+# }
+# y = (a * nreads) / (c + nreads)
+# y * (c + nreads) = (a * nreads)
+# y*c + y*nreads = (a * nreads)
+# y*c = (a * nreads) - y*nreads
+# y*c = nreads*(a - y)
+# y*c / (a - y) = nreads
+
+readfit <- function(y, a, c) {
+  y*c / (a - y)
+}
+
+req_reads_g <- lapply(model_coef_g, function(x) {
+  readfit(1000, x['a',1], x['c',1])
+})|>
+  as.data.frame() |> 
+  melt(value.name = 'target_seq_depth')
+req_reads_g
+
+req_reads_u <- lapply(model_coef_u, function(x) {
+  readfit(2000, x['a',1], x['c',1])
+}) |>
+  as.data.frame() |> 
+  melt(value.name = 'target_seq_depth')
+req_reads_u
+```
+
+```{r}
+ncells = 20000
+nsamples = 4
+seq_cost_coef = 1.5e-06 # 1,000,000,000 reads / $1,500
+
+plotdata <- merge(read_eff, req_reads_u, by.x='Kit', by.y='variable') |>
+  rename(eff = 'read_conversion_eff') |>
+  mutate(required_reads_per_cell = target_seq_depth / read_conversion_eff) |>
+  mutate(seq_cost = required_reads_per_cell * ncells * nsamples * seq_cost_coef) 
+```
+
+## table
+
+```{r}
+plotdata |>
+  mutate(Kit = factor(Kit, levels = c(
+    'Flex', 'NextGEM5P', 'NextGEM3P', 'GEMX5P', 'GEMX3P',
+    'Fluent_v4', 'Fluent_V', 'Parse_v2', 'Parse_v3', 'Scale'
+  ))) |>
+  arrange(Kit) |>
+  select(Kit, target_seq_depth, read_conversion_eff, required_reads_per_cell, seq_cost) |>
+  gt() |>
+  # tab_spanner('Read conversion efficiency from fastq to matrix', 'eff') |>
+  cols_label(Kit = 'Kit',
+             seq_cost = html('Sequencing<br>cost'),
+             read_conversion_eff = html('Read<br>conversion<br>efficiency'),
+             target_seq_depth = html('Reads<br>needed for<br>2000 UMI'),
+             required_reads_per_cell = html('Required<br>seq depth<br>per cell')
+             ) |>
+  fmt_currency(c('seq_cost'), decimals = 0) |>
+  fmt_number(c('read_conversion_eff'), decimals = 2) |>
+  fmt_number(c('required_reads_per_cell', 'target_seq_depth'), decimals = 0) |>
+  tab_caption(html(paste0('Projected cost based on estimates for<br>', ncells, ' cells<br>from ', nsamples, ' samples<br>with a median UMI recovery of ', 2000, '<br>and an estimated sequencing cost of $', seq_cost_coef, ' per read'))) ->
+  figures[['seq_cost_table']]
+figures[['seq_cost_table']]
+gt::gtsave(figures[['seq_cost_table']], here('figures/seq_cost.html'))
+write_plot_data(plotdata, file = here('figure_data/seq_cost_table.txt'))
+```
+
+## curve
+
+```{r}
+# seq_cost_func <- function(reads, kit, 
+#                           ncells = 20000,
+#                           nsamples = 4,
+                          seq_cost_coef = 1.5e-06
+                          # ) {
+#   required_reads_per_cell = reads / read_eff[read_eff$Kit==kit, 'eff']
+#   cost = required_reads_per_cell * ncells * nsamples * seq_cost_coef
+#   return(cost)
+# }
+seq_cost_modeling <- expand.grid(
+  names(model_coef_u),
+  seq(100, 4000, by = 100)
+  # c(500, 1000, 1500, 2000, 2500, 3000, 3500, 4000)
+) |>
+  dplyr::rename('Kit' = Var1, 'depth' = Var2) |>
+  rowwise() |>
+  filter(depth < model_coef_u[[Kit]]['a',1]) |>
+  mutate(req_reads = readfit(depth, 
+                        model_coef_u[[Kit]]['a',1],
+                        model_coef_u[[Kit]]['c',1])) |>
+  ungroup() |>
+  left_join(read_eff, by = 'Kit') |>
+  mutate(target_reads = req_reads / eff) |>
+  mutate(cost_per_cell = req_reads * seq_cost_coef) |>
+  mutate(example_cost = cost_per_cell * 80000)
+
+ggplot(seq_cost_modeling, aes(x=depth, y=cost_per_cell, color = Kit)) + 
+  geom_line() +
+  # geom_point() +
+  # stat_function() + 
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function) +
+  scale_y_continuous(labels = scales::label_currency(),
+                     sec.axis = sec_axis(~ . * 80000,
+                                         labels = scales::label_currency(), 
+                                         name = 'Cost for 80k cells')) +
+  labs(x='UMI per cell', y='Cost per cell', color = 'Kit') +
+  coord_cartesian(ylim=c(0,.1)) ->
+  figures[['seq_cost_curves']]
+figures[['seq_cost_curves']]
+  # ggbreak::scale_y_break(breaks = c(50000, 200000))
+  
+```
+
+# Reagent cost table
+
+```{r}
+plotdata <- cost_data_ref |>
+  mutate(kit_multiples = ((ncells * nsamples) / max_cells)) |>
+  mutate(kit_multiples = case_when(
+    max_samples * ceiling(kit_multiples) < nsamples ~ nsamples / max_samples,
+    all_in ~ ceiling(kit_multiples),
+    .default = kit_multiples
+  ))  |> 
+  mutate(reagent_cost = kit_multiples * cost)
+# plotdata <- plotdata |>
+#   filter(kit_family %in% c('Fluent', 'GEMX', 'NextGEM')) |>
+#   mutate(kit_family = case_when(
+#     kit_family == 'GEMX' ~ 'GEMX3P',
+#     kit_family == 'NextGEM' ~ 'NextGEM3P',
+#     kit_family == 'Fluent' ~ 'Fluent_v4',
+#     .default = kit_family
+#   )) |>
+#   bind_rows(plotdata |>
+#               mutate(kit_family = case_when(
+#                 kit_family == 'GEMX' ~ 'GEMX5P',
+#                 kit_family == 'NextGEM' ~ 'NextGEM5P',
+#                 kit_family == 'Fluent' ~ 'Fluent_V',
+#                 kit_family == 'Parse_WT' ~ 'Parse_v3',
+#                 kit_family == 'Parse_TCR' ~ 'Parse_v2',
+#                 .default = kit_family
+#   ))) |>
+
+
+plotdata |>
+  select(kit_family, kit, 
+         cost, 
+         max_samples, max_cells,
+         kit_multiples, reagent_cost
+         ) |>
+  # group_by(kit_family) |>
+  gt() |>
+  # tab_spanner('Read conversion efficiency from fastq to matrix', 'eff') |>
+  cols_label(kit_family = 'Assay', 
+             kit = 'Kit',
+             max_samples = 'Max samples',
+             max_cells = 'Max cells', 
+             cost = 'Kit cost',
+             kit_multiples = 'Kit multiples',
+             # cost_per_sample = 'Cost per sample',
+             # cells_per_sample = 'Cells per sample',
+             # baseline_cost_per_cell = 'Cost per cell',
+             reagent_cost = 'Reagent cost'
+             ) |>
+  fmt_currency(c('cost','reagent_cost'), decimals = 0) |>
+  # fmt_currency(c('baseline_cost_per_cell'), decimals = 2) |>
+  fmt_number(c('kit_multiples'), decimals = 2) |>
+  fmt_number(c('max_cells', 'max_samples'), decimals = 0) |>
+  tab_caption(html(paste0('Projected cost based on estimates for<br>', ncells, ' cells<br>from ', nsamples, ' samples'))) ->
+  figures[['reagent_cost_table']]
+figures[['reagent_cost_table']]
+# gt::gtsave(figures[['reagent_cost_table']], here('figures/seq_cost.html'))
+# write_plot_data(plotdata, file = here('figure_data/reagent_cost_table'))
+```
+
+# Projected cost
+
+## plot 
+
+```{r}
+ncells = 20000
+nsamples = 4
+seq_cost_coef = 1.5e-06 # 1,000,000,000 reads / $1,500
+plotdata <- cost_data_ref |>
+  mutate(kit_multiples = ((ncells * nsamples) / max_cells)) |>
+  mutate(kit_multiples = case_when(
+    max_samples * ceiling(kit_multiples) < nsamples ~ nsamples / max_samples,
+    all_in ~ ceiling(kit_multiples),
+    .default = kit_multiples
+  ))
+
+plotdata <- plotdata |>
+  filter(kit_family %in% c('Fluent', 'GEMX', 'NextGEM')) |>
+  mutate(kit_family = case_when(
+    kit_family == 'GEMX' ~ 'GEMX3P',
+    kit_family == 'NextGEM' ~ 'NextGEM3P',
+    kit_family == 'Fluent' ~ 'Fluent_v4',
+    .default = kit_family
+  )) |>
+  bind_rows(plotdata |>
+              mutate(kit_family = case_when(
+                kit_family == 'GEMX' ~ 'GEMX5P',
+                kit_family == 'NextGEM' ~ 'NextGEM5P',
+                kit_family == 'Fluent' ~ 'Fluent_V',
+                kit_family == 'Parse_WT' ~ 'Parse_v3',
+                kit_family == 'Parse_TCR' ~ 'Parse_v2',
+                .default = kit_family
+  ))) |>
+
+# tmp <- plotdata |>
+#   filter(kit_family=='Fluent')
+# plotdata[plotdata$kit_family=='Fluent','kit_family'] <- 'Fluent_v4'
+# tmp$kit_family <- 'Fluent_V'
+# plotdata <- rbind(plotdata, tmp)
+# plotdata <- plotdata |>
+#   # filter(!kit_family %in% c('Parse_TCR')) |>
+#   mutate(kit_family = case_when(
+#     kit_family == 'GEMX' ~ 'GEMX3P',
+#     kit_family == 'NextGEM' ~ 'NextGEM3P',
+#     kit_family == 'Parse_WT' ~ 'Parse_v3',
+#     kit_family == 'Parse_TCR' ~ 'Parse_v2',
+#     .default = kit_family
+  # )) |>
+  merge(read_eff, by.x='kit_family', by.y='Kit') |>
+  merge(req_reads_u, by.x='kit_family', by.y='variable') |>
+  mutate(read_conversion_eff = eff) |>
+  mutate(required_reads_per_cell = target_seq_depth / read_conversion_eff) |>
+  mutate(reagent_cost = kit_multiples * cost,
+         seq_cost = required_reads_per_cell * ncells * nsamples * seq_cost_coef) |>
+  mutate(estimated_cost = reagent_cost + seq_cost) 
+  
+  # mutate(cell_frac= 20000/ cells_per_sample) |>
+  # mutate(adjusted_reads = req_reads * cell_frac) |>
+  # mutate(adjusted_cost_per_sample = cost_per_cell * 20000)
+  
+plotdata |>
+  select(kit_family, kit, 
+         cost, 
+         max_samples, max_cells,
+         kit_multiples, reagent_cost,
+         # baseline_cost_per_cell,
+         target_seq_depth, eff, #req_reads,
+         required_reads_per_cell,
+         seq_cost, estimated_cost
+         # cell_frac, adjusted_cost_per_sample, adjusted_reads
+         ) |>
+  group_by(kit_family) |>
+  gt() |>
+  # tab_spanner('Read conversion efficiency from fastq to matrix', 'eff') |>
+  cols_label(kit_family = 'Assay', 
+             kit = 'Kit',
+             max_samples = 'Max samples',
+             max_cells = 'Max cells', 
+             cost = 'Cost',
+             kit_multiples = 'Kit multiples',
+             # cost_per_sample = 'Cost per sample',
+             # cells_per_sample = 'Cells per sample',
+             # baseline_cost_per_cell = 'Cost per cell',
+             reagent_cost = 'Reagent cost',
+             seq_cost = html('Sequencing<br>cost'),
+             eff = html('Read<br>conversion<br>efficiency'),
+             target_seq_depth = html('Reads<br>needed for<br>2000 UMI'),
+             required_reads_per_cell = html('Required<br>seq depth<br>per cell'),
+             estimated_cost = 'Projected cost'
+             ) |>
+  fmt_currency(c('cost','reagent_cost', 'seq_cost', 'estimated_cost'), decimals = 0) |>
+  # fmt_currency(c('baseline_cost_per_cell'), decimals = 2) |>
+  fmt_number(c('kit_multiples', 'eff'), decimals = 2) |>
+  fmt_number(c('max_cells', 'required_reads_per_cell', 'target_seq_depth',
+               'max_samples'), decimals = 0) |>
+  tab_caption(html(paste0('Projected cost based on estimates for<br>', ncells, ' cells<br>from ', nsamples, ' samples<br>with a median UMI recovery of ', 2000, '<br>and an estimated sequencing cost of $', seq_cost_coef, ' per read'))) ->
+  figures[['cost_table']]
+figures[['cost_table']]
+
+write_plot_data(plotdata, file = here('figure_data/cost_table.txt'))
+```
+
+
 
 # Render report
 
