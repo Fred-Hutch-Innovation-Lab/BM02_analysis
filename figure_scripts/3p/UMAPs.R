@@ -38,7 +38,8 @@ my_dimplot <- function(obj,
     theme(text = element_text(size=16, hjust = 0),
           axis.text = element_blank(), 
           axis.title = element_blank(),
-          axis.ticks = element_blank()) +
+          axis.ticks = element_blank(),
+          plot.title = element_text(size = 30, face = "bold")) +
     guides(colour = guide_legend(override.aes = list(size=ifelse(big, 10, 3)))) +
     (if (big) {theme(legend.title = element_text(size = 30), 
               legend.text  = element_text(size = 24),
@@ -69,7 +70,7 @@ for (kit in unique(metadata_3p$Kit)) {
   figures[[paste0(kit, '_for_merging')]] <- 
     my_dimplot(fig_objs[[kit]], group.by = 'cell_labels.fine', drop=FALSE, big = TRUE) +
     my_dimplot(fig_objs[[kit]], group.by = 'individual', 
-               colors = color_palette$samples, color_label='Sample', alpha=0.5, big = TRUE) 
+               colors = color_palette$samples, color_label='Sample', alpha=0.5, big = TRUE) +
   ggtitle(label_function(kit))
 }
 p1 <- 
@@ -80,14 +81,11 @@ figures[['Fluent_v4_for_merging']] +
 figures[['Fluent_V_for_merging']]  +
 figures[['Parse_v3_for_merging']] +
 figures[['Scale_for_merging']] + 
-  plot_layout(guides = 'collect', ncol=1, design = 'AB
-              CC
-              DD
-              EE
-              FF
-              GG
-              HH') 
+  plot_layout(guides = 'collect', ncol=2, design = 'ABCC
+              DDEE
+              FFGG
+              HH##') 
 my_plot_save(image = p1, 
              path = here('figures/3p/UMAPs/all_kits_label_&_sample.svg'), 
-             width = 20, height = 28)
+             width = 28, height = 20)
   
