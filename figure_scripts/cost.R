@@ -162,7 +162,7 @@ ggplot(seq_cost_modeling, aes(x=depth, y=cost_per_cell, color = Kit,
                      sec.axis = sec_axis(~ . * 80000,
                                          labels = scales::label_currency(), 
                                          name = 'Cost for 80k cells')) +
-  labs(x='UMI per cell', y='Cost per cell', color = 'Kit', linetype = 'Kit type') +
+  labs(x='UMI per cell', y='Sequencing cost per cell', color = 'Kit', linetype = 'Kit type') +
   coord_cartesian(ylim=c(0,.1)) ->
   figures[['seq_cost_curves_umi']]
 my_plot_save(figures[['seq_cost_curves_umi']],
@@ -203,7 +203,7 @@ ggplot(seq_cost_modeling,
                      sec.axis = sec_axis(~ . * 80000,
                                          labels = scales::label_currency(), 
                                          name = 'Cost for 80k cells')) +
-  labs(x='Genes per cell', y='Cost per cell', color = 'Kit', linetype = 'Kit type') +
+  labs(x='Genes per cell', y='Sequencing cost per cell', color = 'Kit', linetype = 'Kit type') +
   coord_cartesian(ylim=c(0,.1)) ->
   figures[['seq_cost_curves_gene']]
 my_plot_save(figures[['seq_cost_curves_gene']], 
