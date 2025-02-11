@@ -3,12 +3,12 @@
 color_palette <- function() {
   palette <- list(
     kits=list(
-      NextGEM5P = "#f39c00",
+      NextGEM5P = "#FF7700",
       NextGEM3P = "#f39c00", 
       Fluent_V  = "#56b4e9",
       Fluent_v4 = "#0072b2", 
       GEMX3P =    "#b03800", 
-      GEMX5P    = "#b03800",
+      GEMX5P    = "#E41A1C",
       Parse_v2  = '#3add77',
       Parse_v3 =  "#009e73", 
       Scale =     '#ff8696', 
