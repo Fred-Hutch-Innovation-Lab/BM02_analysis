@@ -12,6 +12,18 @@ kit_order_5p <- c(
   'GEMX5P',
   'Parse_v2'
 )
+kit_order_all <- c(
+  'Flex',
+  'NextGEM5P',
+  'NextGEM3P',
+  'GEMX5P',
+  'GEMX3P',
+  'Fluent_v4',
+  'Fluent_V',
+  'Parse_v2',
+  'Parse_v3',
+  'Scale'
+)
 label_function <- function(kits) {
   lapply(kits, function(kit) {
     case_when(
