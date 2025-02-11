@@ -54,7 +54,7 @@ ggplot(plotdata, aes(x=Individual, y=difference, fill=variable)) +
 my_plot_save(image = figures[['cell_recovery_counts']], 
              path = here('figures/5p/wt/cell_recovery/tcell_recovery_counts.svg'), 
              width = 10, height = 7)
-write_plot_data(plotdata, here('figure_data/5p/wt/cell_recovery/tcell_recovery_counts.txt'))
+# write_plot_data(plotdata, here('figure_data/5p/wt/cell_recovery/tcell_recovery_counts.txt'))
 
 plotdata <- plotdata %>% 
   group_by(Sample) %>%
@@ -73,4 +73,13 @@ plotdata <- plotdata %>%
 my_plot_save(image = figures[['cell_recovery_portions']], 
              path = here('figures/5p/wt/cell_recovery/tcell_recovery_portions.svg'), 
              width = 10, height = 7)
-write_plot_data(plotdata, here('figure_data/5p/wt/cell_recovery/tcell_recovery_portions.txt'))
+
+plotdata |>
+  mutate(sample = paste0(Individual, Replicate)) |>
+  select(Kit, sample, variable, value) |>
+  dcast(Kit + sample ~ variable) |>
+  group_by(Kit) |>
+  arrange(Kit, sample) |>
+  # write_plot_data(here('figure_data/3p/cell_recovery/cell_recovery_counts.txt'))
+write_plot_data(here('figure_data/5p/wt/cell_recovery/tcell_recovery_counts.txt'))
+
