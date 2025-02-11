@@ -63,26 +63,38 @@ my_plot_save(image = figures[['seq_eff_count']],
 write_plot_data(plotdata, here('figure_data/3p/seq_eff_count.txt'))
 
 plotdata <- data2 |>
-  mutate(prop = reads_in_matrix / reads_in_fastqs) |>
   as.data.table() |>
-  select(c(Sample, prop)) |>
+  melt() |>
+  mutate(variable = factor(variable, levels = c('reads_in_fastqs', 'reads_mapped_transcriptome', 'reads_in_matrix'))) |>
+  group_by(Sample) |>
+  arrange(Sample, variable) |> 
+  mutate(value=as.numeric(value),
+         next_remaining = lead(value, default = 0),  # Next step's remaining count (or 0 for the last step)
+         difference = value - next_remaining         # Difference from the next entry
+  ) |> 
+  mutate(prop = difference / sum(difference)) |>
+  # mutate(prop = reads_in_matrix / reads_in_fastqs) |>
+  # select(c(Sample, prop)) |>
   merge(metadata_3p, by='Sample') |>
   mutate(Kit = factor(Kit, levels=kit_order_3p)) 
 
 plotdata  |>
-  ggplot(aes(x=Kit, y=prop, group=Kit, shape=paste0(Individual, Replicate))) +
-  geom_boxplot(show.legend = FALSE) +
-  geom_point() +
-  # geom_bar(stat='identity', position='stack') +
-  scale_fill_manual(values = c('#D7191C', '#39B185'), #'#D7191C',
-                    labels = c('No', 
-                               'Yes')) +
+  ggplot(aes(x=paste0(Individual, Replicate), y=prop, group = variable, fill=variable)) +
+  geom_bar(stat='identity', position='stack') +
+  scale_fill_manual(values = c('#D7191C', '#e9e29c', '#39B185'), #'#D7191C',
+                    labels = c('Not aligned or\nin called cells',
+                               'Aligned but\nnot in called cells',
+                               'Aligned and\nassigned to cell')) +
   scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
-  scale_x_discrete(labels = label_function) +
+  # scale_x_discrete(labels = label_function) +
+  facet_wrap(~ Kit, scales='free_x', nrow=1, labeller = labeller(Kit = label_function)) +
   theme(axis.text.x = element_text(angle=45, hjust = 1)) +
-  labs(x='Kit', y='% of reads contributing to counts matrix', shape='Sample') ->
+  # theme(axis.text.x = element_blank(), 
+  #       axis.ticks.x = element_blank(),
+  #       panel.spacing.x=unit(0, "lines")) + 
+  labs(x='Kit', y='% of extracted reads', fill='Read utilization') ->
   figures[['seq_eff_prop']]
 
 my_plot_save(image = figures[['seq_eff_prop']], 
              path = here('figures/3p/sequencing_efficiency/seq_eff_prop.svg'), 
-             width = 6, height = 6)
+             width = 10.5, height = 4)
