@@ -91,6 +91,15 @@ parse_marker_table <- function(celltype_dataframe) {
     filter(gene_symbol %in% shared_genes) %>%
     unstack()
 }
+celltype_markers |> 
+    filter(expression_level == 'Increased' & tissue == 'PBMC') %>%
+    filter(confidence %in% c('high', 'med')) %>%
+    filter(celltype %in% c('T', 'CD4+ T', 'CD8+ T',
+                           'B', 'B naive', 'B memory',
+                           'Monocyte', 'Non-classical monocyte', 'Classical monocyte',
+                           'Erythrocyte', 'Granulocyte',
+                           'NK', 'Dendritic', 'Megakaryocyte', 'pDC')) |>
+  write_plot_data(here('figure_data/marker_genes.txt'))
 
 celltype_markers <- parse_marker_table(celltype_markers)
 
