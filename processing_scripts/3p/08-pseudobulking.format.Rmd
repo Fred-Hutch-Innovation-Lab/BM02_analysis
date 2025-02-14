@@ -52,7 +52,7 @@ cat(knit_child(text = out, quiet = TRUE), sep = '\n')
 
 I then tried to take the distance in PCA space as a quantification of difference between replicates. This is distance between replicates across 20 PCs, calculated at the kit level. 
 
-```{r, fig.width=7, fig.height=5}
+```{r, fig.width=10, fig.height=6}
 figures[['pca_dist_euc_mean']]
 ```
 
@@ -74,19 +74,19 @@ First, looking at the top 200 variable genes across all celltypes/samples (all s
 figures[['rep_corr_summary_all']]
 ```
 
-## Across individuals
+<!-- ## Across individuals -->
 
-Now looking at the top 200 genes that vary across the two individuals F1 and F5. I thought this would be a good set of genes that wouldn't vary by kit necessarily, but would be useful to show tightness of replicates. Seeing it here though I'm not sure it's showing much information. 
+<!-- Now looking at the top 200 genes that vary across the two individuals F1 and F5. I thought this would be a good set of genes that wouldn't vary by kit necessarily, but would be useful to show tightness of replicates. Seeing it here though I'm not sure it's showing much information.  -->
 
-```{r, fig.width=8, fig.height=5}
-figures[['rep_corr_summary_byind']]
-```
+<!-- ```{r, fig.width=8, fig.height=5} -->
+<!-- figures[['rep_corr_summary_byind']] -->
+<!-- ``` -->
 
-## Within Kit
+## Within Kit {.active}
 
 Finally, looking at the top 200 variable gene within cells from each kit. So each point here is using a different set of genes. While this does show stronger differenes, I'm not sure how fair it is to compare across kits since they are looking at different genes.
 
-```{r}
+```{r, fig.width=8, fig.height=5}
 figures[['rep_corr_summary_bykit']]
 ```
 
@@ -121,7 +121,7 @@ b) has more direct consideration of the magnitude of differences across the repl
 c) removes an additional intermediate calculation/transformation (PCA)
 
 
-```{r}
+```{r, fig.width=8, fig.height=5}
 figures[['sample_distance_dotplot']]
 ```
 
