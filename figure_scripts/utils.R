@@ -7,6 +7,7 @@ library(svglite)
 library(data.table)
 library(DT)     ## Datatables
 library(gt)
+library(janitor)
 # library(extrafont)
 library(reshape2)  ## melt
 set.seed(33)
@@ -44,10 +45,16 @@ my_plot_save <- function(image, path, width, height, device='svglite'){
   if (!dir.exists(dirname(path))) {
     dir.create(dirname(path), recursive=TRUE)
   }
-  svglite::svglite(filename = path,
-                   width = unit(width, 'in'), height = unit(height, 'in'))
-  plot(image)
-  dev.off()
+  if (device == 'svglite') {
+    svglite::svglite(filename = path,
+                     width = unit(width, 'in'), height = unit(height, 'in'))
+    plot(image)
+    dev.off()
+  } else if (device == 'pdf'){
+    pdf(file = path, width = unit(width, 'in'), height = unit(height, 'in'))
+    plot(image)
+    dev.off()
+  }
 }
 
 write_plot_data <- function(plotdata, file, sep='\t', row.names = FALSE, quote = FALSE, ...){
