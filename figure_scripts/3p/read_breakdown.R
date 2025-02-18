@@ -99,7 +99,12 @@ plotdata |>
 my_plot_save(image = figures[['Expression_barchart_shared']], 
              path = here('figures/3p/read_utilization/shared_genes.svg'), 
              width = 12, height = 4)
-write_plot_data(plotdata, here('figure_data/3p/read_utilization/shared_genes.txt'))
+plotdata |>
+  mutate(sample = paste0(Individual, Replicate)) |>
+  select(c(Kit, sample, group, y)) |>
+  mutate(y = round(y * 100, 2)) |> 
+  dcast(Kit + sample ~ group) |>
+write_plot_data(here('figure_data/3p/read_utilization/shared_genes.txt'))
 ## Unique genes -----
 
 plotdata <- lapply(fig_objs, function(x) {
@@ -150,7 +155,13 @@ plotdata |>
 my_plot_save(image = figures[['Expression_barchart_unique']], 
              path = here('figures/3p/read_utilization/unique_genes.svg'), 
              width = 12, height = 4)
-write_plot_data(plotdata, here('figure_data/3p/read_utilization/unique_genes.txt'))
+
+plotdata |>
+  mutate(sample = paste0(Individual, Replicate)) |>
+  select(c(Kit, sample, group, y)) |>
+  mutate(y = round(y * 100, 2)) |> 
+  dcast(Kit + sample ~ group) |>
+  write_plot_data(here('figure_data/3p/read_utilization/unique_genes.txt'))
 
 ## Joint ----
 
@@ -203,4 +214,12 @@ plotdata |>
 my_plot_save(image = figures[['Expression_barchart_all']], 
              path = here('figures/3p/read_utilization/all_genes.svg'), 
              width = 12, height = 4)
-write_plot_data(plotdata, here('figure_data/3p/read_utilization/all_genes.txt'))
+
+plotdata |>
+  mutate(sample = paste0(Individual, Replicate)) |>
+  select(c(Kit, sample, group, y)) |>
+  mutate(y = round(y * 100, 5)) |> 
+  group_by(Kit, sample, group) |>
+  summarize(y = sum(y)) |>
+  dcast(Kit + sample ~ group, value.var = 'y') |>
+  write_plot_data(here('figure_data/3p/read_utilization/all_genes.txt'))
