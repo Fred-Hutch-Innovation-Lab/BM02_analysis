@@ -1,18 +1,36 @@
 # Setup ----
 source(here('figure_scripts/utils.R')) 
 # library(readxl)
+library(ggpattern)
 
 
 # Load data ----
 ## Kit costs
 cost_data_ref <- read.table(here('data/cost.txt'), sep='\t', header = TRUE)  |>
-  mutate(cost = readr::parse_number(cost),
+  mutate(kit = trimws(kit), 
+         cost = readr::parse_number(cost),
          max_cells = readr::parse_number(max_cells)) |>
   
   group_by(kit_family) |>
   arrange(kit_family, max_samples, max_cells) |>
   mutate(kit_throughput_n = as.factor(row_number())) |>
   mutate(baseline_cost_per_cell = cost / max_cells)
+
+cell_loading_data_3p <- read.table(here('figure_data/3p/cell_recovery/cell_recovery_counts.txt'), header=TRUE)
+cell_loading_data_5p <- read.table(here('figure_data/5p/wt/cell_recovery/tcell_recovery_counts.txt'), header=TRUE)
+cell_loading_data <- merge(cell_loading_data_3p, cell_loading_data_5p, all=TRUE, by=colnames(cell_loading_data_3p)) |> 
+  group_by(Kit) |>
+  summarize(recovery = sum(after_doublet_filtering) / sum(cells_loaded)) |>
+  dplyr::rename(Assay = Kit) |>
+  mutate(kit_family = case_when(
+    grepl('Fluent', Assay) ~ 'Fluent',
+    Assay == 'Flex' ~ 'Flex',
+    grepl('NextGEM', Assay) ~ 'NextGEM',
+    grepl('GEMX', Assay) ~ 'GEMX',
+    Assay == 'Parse_v3' ~ 'Parse_WT',
+    Assay == 'Parse_v2' ~ 'Parse_TCR',
+    Assay == 'Scale' ~ 'Scale'
+  )) 
   
 ## Models ----
 models <- readRDS(here('rds/3p/sat_models.rds'))
@@ -91,7 +109,47 @@ seq_cost_coef = 1.5e-06 # 1,000,000,000 reads / $1,500
 
 # Plot ----
 
-## Sequencing
+## Per cell/reagents ----
+
+plotdata <- cost_data_ref |>
+  filter(kit %in% c(
+    '10X FLEX 4 x 4',
+    '10X Next GEM 4rxn',
+    '10X GEM-X  4rxn',
+    'Fluent (both)',
+    'Parse v3- 12 rxns',
+    'Parse TCR-WT 4 rxns',
+    'Scale ET'
+  )) |>
+  merge(cell_loading_data, by='kit_family', all=TRUE) |>
+  mutate(observed_cost = cost / (max_cells * recovery)) |>
+  mutate(kit_family = factor(kit_family, levels = c('Flex', 'NextGEM', 'GEMX', 'Fluent', 'Parse_TCR', 'Parse_WT', 'Scale')),
+         Assay = factor(Assay, levels = kit_order_all))
+
+plotdata |>
+  select(kit_family, Assay, baseline_cost_per_cell, observed_cost) |>
+  as.data.table() |>
+  data.table::melt(id.vars = c('kit_family', 'Assay')) |>
+  mutate(variable = factor(variable, levels = c('baseline_cost_per_cell', 'observed_cost'))) |>
+  ggplot(aes(x=Assay, y=value, 
+             fill=Assay, group=variable )) +
+  geom_col_pattern(aes(pattern=variable), position='identity', alpha=1, pattern_key_scale_factor = 0.1) +
+  facet_wrap(~ kit_family, nrow=1, scales='free_x') +
+  scale_fill_manual(values = color_palette$kits, labels = label_function, breaks = kit_order_all) +
+  scale_pattern_manual(values=c('stripe', 'none'), labels = c('Theoretical', 'Observed'))  +
+  scale_x_discrete(labels = label_function) +
+  guides(fill = guide_legend(override.aes = list(pattern = 'none')),
+         pattern = guide_legend(override.aes = list(fill = 'white', color = 'black'))) +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(x='Kit', y='Cost per cell', fill = 'Kit', pattern = 'Cost group') ->
+  figures[['price_per_cell']]
+
+my_plot_save(figures[['price_per_cell']],
+             here('figures/cost/cost_per_cell.svg'),
+             device ='svglite' ,
+             width = 10, height = 5)
+
+## Sequencing ----
 
 ## Table ----
 
