@@ -1,6 +1,7 @@
 # Template specific
 reports/*
 rds/*
+figures/*
 
 ## general filetypes
 
