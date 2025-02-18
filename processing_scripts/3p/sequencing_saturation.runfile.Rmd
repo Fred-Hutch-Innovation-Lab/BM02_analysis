@@ -20,7 +20,7 @@ set.seed(33)
 ```{r}
 metadata_3p <- read.csv(here('config/3p/metadata.csv')) |>
   mutate(Kit = factor(Kit, levels = kit_order_3p))
-sat_curves <- read.csv(here('data/3p/saturation_curves/manually_downsampled.csv')) |>
+sat_curves <- read.csv(here('data/3p/saturation_curves/manually_downsampled.csv'), sep = '\t') |>
   select(-Kit) |>
   mutate(across(all_of(c('median_genes', 'median_umi', 'nreads')), as.numeric))
 ```
@@ -79,9 +79,30 @@ models_u <- lapply(unique(metadata_3p$Kit), function(kit) {
 names(models_u) <- unique(metadata_3p$Kit)
 ```
 
-## Save models
+## Model fits
 
 ```{r}
+lapply(models_u, function(x) {
+  coefs <- summary(x$model)$coefficients
+  return(list(max_umi = coefs['a','Estimate'], max_umi_sd = coefs['a','Std. Error'],
+              rd50 = coefs['c','Estimate'], rd50_sd = coefs['c','Std. Error'],
+              rmse = x$rmse, r2 = x$r2)) 
+}) |> rbindlist(idcol='Kit') |>
+  write_plot_data(here('figure_data/3p/sequencing_saturation/model_fits_umi.txt'))
+
+lapply(models_g, function(x) {
+  coefs <- summary(x$model)$coefficients
+  return(list(max_umi = coefs['a','Estimate'], max_umi_sd = coefs['a','Std. Error'],
+              rd50 = coefs['c','Estimate'], rd50_sd = coefs['c','Std. Error'],
+              rmse = x$rmse, r2 = x$r2)) 
+}) |> rbindlist(idcol='Kit') |>
+  write_plot_data(here('figure_data/3p/sequencing_saturation/model_fits_gene.txt'))
+```
+
+
+## Save models
+
+```{r, eval=FALSE}
 saveRDS(list(models_g = models_g, models_u = models_u), here('rds/3p/sat_models.rds'))
 ```
 
