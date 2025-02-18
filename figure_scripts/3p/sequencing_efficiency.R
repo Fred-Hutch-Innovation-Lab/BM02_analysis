@@ -54,7 +54,7 @@ plotdata |>
         axis.ticks.x = element_blank(),
         panel.spacing.x=unit(0, "lines")) + 
   scale_x_discrete(labels = label_function) +
-  labs(x='Kit', y='Reads', fill='Read fate', caption = 'Line indicates expected read recovery based on sequencer loading') ->
+  labs(x='Sample', y='Reads', fill='Read fate', caption = 'Line indicates expected read recovery based on sequencer loading') ->
   figures[['seq_eff_count']]
 
 my_plot_save(image = figures[['seq_eff_count']], 
@@ -92,7 +92,7 @@ plotdata  |>
   # theme(axis.text.x = element_blank(), 
   #       axis.ticks.x = element_blank(),
   #       panel.spacing.x=unit(0, "lines")) + 
-  labs(x='Kit', y='% of extracted reads', fill='Read utilization') ->
+  labs(x='Sample', y='% of extracted reads', fill='Read utilization') ->
   figures[['seq_eff_prop']]
 
 my_plot_save(image = figures[['seq_eff_prop']], 
