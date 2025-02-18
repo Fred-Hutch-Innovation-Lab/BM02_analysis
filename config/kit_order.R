@@ -27,14 +27,16 @@ kit_order_all <- c(
 label_function <- function(kits) {
   lapply(kits, function(kit) {
     case_when(
-      kit == 'NextGEM3P' ~ "NextGEM 3'",
-      kit == 'GEMX3P' ~ "GEMX 3'",
-      kit == 'Fluent_v4' ~ "Fluent v4",
-      kit == 'Fluent_V' ~ "Fluent V",
-      kit == 'Parse_v3' ~ "Parse v3",
-      kit == 'Parse_v2' ~ "Parse TCR",
-      kit == 'NextGEM5P' ~ "NextGEM 5'",
-      kit == 'GEMX5P' ~ "GEMX 5'",
+      grepl('Flex', kit) ~ "Flex",
+      grepl('NextGEM3P', kit) ~ "NextGEM 3'",
+      grepl('GEMX3P', kit) ~ "GEMX 3'",
+      grepl('Fluent_v4', kit) ~ "Fluent v4",
+      grepl('Fluent_V', kit) ~ "Fluent V",
+      grepl('Parse_v3', kit) ~ "Parse v3",
+      grepl('Parse_v2', kit) ~ "Parse TCR",
+      grepl('Scale', kit) ~ "Scale",
+      grepl('NextGEM5P', kit) ~ "NextGEM 5'",
+      grepl('GEMX5P', kit) ~ "GEMX 5'",
       .default = kit
     )
   }) |>
