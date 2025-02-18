@@ -68,7 +68,6 @@ ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variabl
 my_plot_save(image = figures[['cell_recovery_counts']] , 
              path = here('figures/3p/cell_recovery/cell_recovery_counts.svg'), 
              width = 12, height = 7)
-write_plot_data(plotdata, here('figure_data/3p/cell_recovery/cell_recovery_counts.txt'))
 
 ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
   geom_col(position='stack') +
@@ -100,4 +99,12 @@ ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variabl
 my_plot_save(image = figures[['cell_recovery_portions']] , 
              path = here('figures/3p/cell_recovery/cell_recovery_portions.svg'), 
              width = 12, height = 7)
-write_plot_data(plotdata, here('figure_data/3p/cell_recovery/cell_recovery_portions.txt'))
+
+# Write plot data ----
+plotdata |>
+  mutate(sample = paste0(Individual, Replicate)) |>
+  select(Kit, sample, variable, value) |>
+  dcast(Kit + sample ~ variable) |>
+  group_by(Kit) |>
+  arrange(Kit, sample) |>
+write_plot_data(here('figure_data/3p/cell_recovery/cell_recovery_counts.txt'))
