@@ -2,6 +2,8 @@
 reports/*
 rds/*
 figures/*
+config/Arial.ttf
+processing_scripts/3p/.ipynb_checkpoints/
 
 ## general filetypes
 
