@@ -5,7 +5,8 @@ library(ggpattern)
 
 
 # Load data ----
-## Kit costs
+
+## Kit costs ----
 cost_data_ref <- read.table(here('data/cost.txt'), sep='\t', header = TRUE)  |>
   mutate(kit = trimws(kit), 
          cost = readr::parse_number(cost),
@@ -15,6 +16,8 @@ cost_data_ref <- read.table(here('data/cost.txt'), sep='\t', header = TRUE)  |>
   arrange(kit_family, max_samples, max_cells) |>
   mutate(kit_throughput_n = as.factor(row_number())) |>
   mutate(baseline_cost_per_cell = cost / max_cells)
+
+## Cell counts ----
 
 cell_loading_data_3p <- read.table(here('figure_data/3p/cell_recovery/cell_recovery_counts.txt'), header=TRUE)
 cell_loading_data_5p <- read.table(here('figure_data/5p/wt/cell_recovery/tcell_recovery_counts.txt'), header=TRUE)
@@ -32,6 +35,48 @@ cell_loading_data <- merge(cell_loading_data_3p, cell_loading_data_5p, all=TRUE,
     Assay == 'Scale' ~ 'Scale'
   )) 
   
+
+
+
+expected_recovery_3p <- read.csv(here('data/3p/loaded_cells.csv')) |>
+  as.data.table() |>
+  melt(id='Sample') |>
+  merge(metadata_3p, by='Sample') |>
+  group_by(Kit) |>
+  filter(variable == 'target_cells_fraction') |>
+  summarize(expected_cells_fraction = mean(value)) |>
+  mutate(kit_family = case_when(
+    grepl('Fluent', Kit) ~ 'Fluent',
+    Kit == 'Flex' ~ 'Flex',
+    grepl('NextGEM', Kit) ~ 'NextGEM',
+    grepl('GEMX', Kit) ~ 'GEMX',
+    Kit == 'Parse_v3' ~ 'Parse_WT',
+    Kit == 'Parse_v2' ~ 'Parse_TCR',
+    Kit == 'Scale' ~ 'Scale'
+  ))
+
+expected_recovery_5p <- read.csv(here('data/5p/loaded_cells.csv')) |>
+  as.data.table() |>
+  melt(id='Sample') |>
+  merge(metadata_5p, by='Sample') |>
+  group_by(Kit) |>
+  filter(variable == 'target_cells_fraction') |>
+  summarize(expected_cells_fraction = mean(value)) |>
+  mutate(kit_family = case_when(
+    grepl('Fluent', Kit) ~ 'Fluent',
+    Kit == 'Flex' ~ 'Flex',
+    grepl('NextGEM', Kit) ~ 'NextGEM',
+    grepl('GEMX', Kit) ~ 'GEMX',
+    Kit == 'Parse_v3' ~ 'Parse_WT',
+    Kit == 'Parse_v2' ~ 'Parse_TCR',
+    Kit == 'Scale' ~ 'Scale'
+  ))
+
+expected_recovery <- merge(expected_recovery_3p, expected_recovery_5p, all=TRUE, by=colnames(expected_recovery_3p)) 
+
+cell_loading_data <- merge(cell_loading_data, expected_recovery, by.x=c('Assay', 'kit_family'), by.y=c('Kit', 'kit_family')) |> 
+  mutate(cost_ratio = expected_cells_fraction / recovery)
+
 ## Models ----
 models <- readRDS(here('rds/3p/sat_models.rds'))
 models_u <- models$models_u
@@ -55,7 +100,7 @@ model_coef_u <- lapply(models_u, parse_coef) |>
 
 
 
-## Conversion efficiency
+## Conversion efficiency ----
 read_eff <- rbind(
   read.csv(here('data/3p/sequencing_efficiency_2.txt'), sep='\t') |>
     mutate(prop = reads_in_matrix / reads_in_fastqs) |>
@@ -122,8 +167,9 @@ plotdata <- cost_data_ref |>
     'Scale ET'
   )) |>
   merge(cell_loading_data, by='kit_family', all=TRUE) |>
-  mutate(observed_cost = cost / (max_cells * recovery)) |>
-  mutate(kit_family = factor(kit_family, levels = c('Flex', 'NextGEM', 'GEMX', 'Fluent', 'Parse_TCR', 'Parse_WT', 'Scale')),
+  mutate(observed_cost = baseline_cost_per_cell  * cost_ratio) |>
+  mutate(kit_family = case_when(grepl('Parse', kit_family) ~ 'Parse', .default = kit_family)) |>
+  mutate(kit_family = factor(kit_family, levels = c('Flex', 'NextGEM', 'GEMX', 'Fluent', 'Parse', 'Scale')),
          Assay = factor(Assay, levels = kit_order_all))
 
 plotdata |>
@@ -134,10 +180,11 @@ plotdata |>
   ggplot(aes(x=Assay, y=value, 
              fill=Assay, group=variable )) +
   geom_col_pattern(aes(pattern=variable), position='identity', alpha=1, pattern_key_scale_factor = 0.1) +
-  facet_wrap(~ kit_family, nrow=1, scales='free_x') +
+  facet_grid(~ kit_family, scales='free_x') +
   scale_fill_manual(values = color_palette$kits, labels = label_function, breaks = kit_order_all) +
-  scale_pattern_manual(values=c('stripe', 'none'), labels = c('Theoretical', 'Observed'))  +
+  scale_pattern_manual(values=c('stripe', 'none'), labels = c('Expected', 'Observed'))  +
   scale_x_discrete(labels = label_function) +
+  scale_y_continuous(labels = scales::label_currency()) +
   guides(fill = guide_legend(override.aes = list(pattern = 'none')),
          pattern = guide_legend(override.aes = list(fill = 'white', color = 'black'))) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) +
