@@ -7,7 +7,7 @@ data <- read.csv(here('data/3p/sequencing_efficiency.csv'), skip = 1)
 data <- data |>
   filter(kit != 'Parse_v2') |>
   mutate(approx_total_reads = passing_filter_reads / (percent_passing_filter_cluster / 100))
-data2 <- read.csv(here('data/3p/sequencing_efficiency_2.txt'), sep='\t') 
+data2 <- read.csv(here('data/3p/sequencing_efficiency_3.txt'), sep='\t') 
 # Prepare plotdata ----
 
 expected_data <- data |>
