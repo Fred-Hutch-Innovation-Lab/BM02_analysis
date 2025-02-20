@@ -56,13 +56,14 @@ sampleDists <- dist(t(assay(assays(obj)$vsd))) |>
 
 # Plot ----
 plotdata <- sampleDists |>
-  mutate(value = value / max(value)) |> 
+  # mutate(value = value / max(value)) |> 
   group_by(Kit1, celltype1) |>
-  summarize(y=mean(value)) |>
+  summarize(y=mean(value), 
+            prop = Count / sum(Count)) |>
   rename(Kit1 = 'Kit', celltype1 = 'Celltype', y = 'y') |>
   mutate(Kit = factor(Kit, levels = kit_order_3p),
          Celltype = factor(Celltype, levels = label_order)) |>
-  merge(cellcounts_kit, by=c('Kit', 'Celltype'))
+  merge(cellcounts, by=c('Kit', 'Celltype')) 
 
 
 corr_dotplot(plotdata) +
@@ -81,22 +82,37 @@ plotdata <- sampleDists |>
          (Individual1 == 'F1A' & Individual2 == 'F1B') |
            (Individual1 == 'F5A' & Individual2 == 'F5B')) |>
   
-  mutate(value = value / max(value)) |> 
+  # mutate(value = value / max(value)) |> 
   rename(Kit1 = 'Kit', celltype1 = 'Celltype', value = 'value') |>
   mutate(Kit = factor(Kit, levels = kit_order_3p),
          Celltype = factor(Celltype, levels = label_order)) |>
   mutate(Sample = paste0(Kit, '_', Individual1)) |>
-  merge(cellcounts_samp, by = c('Sample', 'Celltype')) |>
+  merge(cellcounts, by = c('Kit', 'Sample', 'Celltype')) |>
   mutate(Individual = substr(Individual1, 1, 2)) |>
+  group_by(Sample) |>
+  mutate(prop = Count / sum(Count)) |>
   mutate(z = value * prop) |>
   group_by(Individual, Kit) |>
   summarize(z = sum(z)) |>
-  janitor::adorn_rounding(digits = 3) |>
-  as.data.table() |>
-  dcast(Kit ~ Individual, value.var = 'z')
+  # mutate(z = z / max(z)) |>
+  # janitor::adorn_rounding(digits = 3) |>
+  as.data.table() #|>
+  # dcast(Kit ~ Individual, value.var = 'z')
+
+plotdata |>
+  ggplot(aes(x=Individual, y=z, fill=Kit)) +
+  geom_col() +
+  facet_wrap(~ Kit, labeller = labeller(Kit = label_function), nrow=1) +
+  scale_fill_manual(values = color_palette$kits, labels = label_function) +
+  labs(x='Sample', y='Weighted distance') ->
+figures[['pb_dist_table']]
+my_plot_save(image = figures[['pb_dist_table']], 
+             path = here('figures/3p/replicate_correlation/rep_cor_barchart.svg'), 
+             width = 10, height = 5)
 
 plotdata |> 
   gt::gt() |>
+  tab_header('Composition-weighted pseudobulk replicate distance') |>
   # cols_hide(c(low, high, avg)) |>
   # cols_label(Kit = 'Kit', text = 'Sample distance') |>
   data_color(columns = c("F1", 'F5'), method = 'numeric', palette = 'RdYlGn', reverse = TRUE) ->
