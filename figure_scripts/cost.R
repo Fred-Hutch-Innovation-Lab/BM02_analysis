@@ -191,6 +191,9 @@ plotdata |>
   labs(x='Kit', y='Cost per cell', fill = 'Kit', pattern = 'Cost group') ->
   figures[['price_per_cell']]
 
+plotdata |>
+  select(Assay, kit, cost, max_cells, baseline_cost_per_cell, expected_cells_fraction, recovery, cost_ratio, observed_cost) |>
+  write_plot_data(file = here('figure_data/cost_per_cell_table.txt'))
 my_plot_save(figures[['price_per_cell']],
              here('figures/cost/cost_per_cell.svg'),
              device ='svglite' ,
