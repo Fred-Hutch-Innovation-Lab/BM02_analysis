@@ -235,7 +235,7 @@ for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
   
-  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]],
+  filtered_counts <- file.path(config$base_dir, config$data_dir, data_dirs[[kit]], #'scale/downsampled_runs/ScaleRNA_no_multimapping',
                                'samples',
                                paste0(file, '.downsampled.filtered.matrix'))
   filtered_counts <- Read10X(filtered_counts)
