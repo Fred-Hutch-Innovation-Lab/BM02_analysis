@@ -60,7 +60,7 @@ plotdata |>
 my_plot_save(image = figures[['seq_eff_count']], 
              path = here('figures/3p/sequencing_efficiency/seq_eff_count.svg'), 
              width = 10, height = 5)
-write_plot_data(plotdata, here('figure_data/3p/seq_eff_count.txt'))
+# write_plot_data(plotdata, here('figure_data/3p/seq_eff_count.txt'))
 
 plotdata <- data2 |>
   as.data.table() |>
@@ -98,3 +98,4 @@ plotdata  |>
 my_plot_save(image = figures[['seq_eff_prop']], 
              path = here('figures/3p/sequencing_efficiency/seq_eff_prop.svg'), 
              width = 10.5, height = 4)
+write_plot_data(plotdata, here('figure_data/3p/seq_eff_count.txt'))
