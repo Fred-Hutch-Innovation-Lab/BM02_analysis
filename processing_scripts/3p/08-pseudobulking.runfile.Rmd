@@ -75,6 +75,9 @@ cellcounts_fine <- cellcounts_fine |>
 
 ```{r}
 # objs <- lapply(objs, subset, cell_labels.coarse != 'drop')
+## Testing downsampling 
+# objs <- lapply(objs, SetIdent, value='cell_labels.fine')
+# objs <- lapply(objs, subset, downsample = 1000)
 objs <- lapply(objs, AggregateExpression, 
                group.by = c('orig.ident', 'cell_labels.fine'),
                assays = 'RNA')
@@ -157,7 +160,7 @@ sampleDists <- dist(t(assay(assays(bp_obj)$vst))) |>
 plotdata <- sampleDists |>
   filter(celltype1 == celltype2) |>
   filter(Kit1 == Kit2) |>
-  mutate(value = value / max(value)) |> 
+  # mutate(value = value / max(value)) |> 
   group_by(Kit1, celltype1) |>
   summarize(y=mean(value)) |>
   rename(Kit1 = 'Kit', celltype1 = 'Celltype', y = 'y') |>
@@ -171,7 +174,7 @@ plotdata |>
   scale_size_continuous(range=c(5,12)) +
     scale_color_gradient2(low = "#4DAF4A",
                        mid="grey",
-                       high = "#FF0000", midpoint = 0.35, limits=c(0,.7)) +
+                       high = "#FF0000", midpoint = 100, limits=c(0,200), oob=scales::squish) +
   scale_x_discrete(labels = label_function) +
   theme_bw() +
   labs(x = 'Kit', y = 'Celltype',
