@@ -482,6 +482,58 @@ ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=value, fill=variable)) +
 figures[['cell_recovery_count_barchart']]
 ```
 
+# Metric distribution comparisons
+
+```{r}
+plotdata <- lapply(objs, function(x) {
+  x@meta.data |> 
+  as.data.frame() |> 
+  select(orig.ident, nCount_RNA, nFeature_RNA, log10GenesPerUMI, mtRatio, rbRatio)
+}) |> data.table::rbindlist() |>
+  merge(metadata, by.x='orig.ident', by.y='Sample')
+```
+
+## Kit means
+
+```{r}
+# tmp <- plotdata |>
+#   group_by(Kit, Individual, Replicate) |>
+#   select(-Sensitivity) 
+
+summary(lm(nCount_RNA ~ Kit + Individual + Replicate, data = plotdata))
+summary(lm(nFeature_RNA ~ Kit + Individual + Replicate, data = plotdata))
+summary(lm(log10GenesPerUMI ~ Kit + Individual + Replicate, data = plotdata))
+summary(lm(mtRatio ~ Kit + Individual + Replicate, data = plotdata))
+summary(lm(rbRatio ~ Kit + Individual + Replicate, data = plotdata))
+
+  # summarize(across(where(is.numeric), median, na.rm = TRUE), .groups = "drop") 
+  #|>
+  # group_by(Kit) |>
+  # summarize(across(where(is.numeric), list(mean = mean, sd = sd), na.rm = TRUE), .groups = "drop") 
+```
+
+
+## KW
+
+```{r}
+ks_res <- kruskal.test(nCount_RNA ~ Kit, plotdata)
+d_res1 <- dunn.test::dunn.test(plotdata$nCount_RNA,plotdata$Kit, method = 'bonferroni')
+d_res2 <- dunn.test::dunn.test(plotdata$nFeature_RNA,plotdata$Kit, method = 'bonferroni')
+d_res3 <- dunn.test::dunn.test(plotdata$log10GenesPerUMI,plotdata$Kit, method = 'bonferroni')
+d_res4 <- dunn.test::dunn.test(plotdata$mtRatio,plotdata$Kit, method = 'bonferroni')
+d_res5 <- dunn.test::dunn.test(plotdata$rbRatio,plotdata$Kit, method = 'bonferroni')
+```
+
+```{r}
+d_res1
+d_res2
+d_res3
+d_res4
+d_res5
+```
+
+
+
 # Save objs
 
 ```{r}
