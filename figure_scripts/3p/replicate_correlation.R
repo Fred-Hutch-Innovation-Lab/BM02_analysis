@@ -27,14 +27,14 @@ corr_dotplot <- function(corrdata) {
   corrdata |>
     ggplot(aes(x=Kit, y=Celltype)) +
     geom_point(aes(size=prop, color=y)) +
-    geom_text(aes(label=round(y, 2)), size=2) +
-    scale_size_continuous(range=c(5,12), breaks = c(0.05, 0.2, 0.35)) +
+    # geom_text(aes(label=round(y, 2)), size=2) +
+    scale_size_continuous(range=c(1,12), breaks = c(0.05, 0.2, 0.35)) +
     scale_color_gradient2(high = "#4DAF4A",
                           mid="grey",
                           low = "#FF0000", 
                           midpoint=0.5, oob=scales::squish) +
     scale_x_discrete(labels = label_function) +
-    theme_bw() +
+    # theme_bw() +
     labs(x = 'Kit', y = 'Celltype',
          color = 'Average\nreplicate\ndistance', 
          size = 'Proportion\nof cells\nfrom kit')
@@ -75,19 +75,20 @@ sampleDists <- dist(t(assay(assays(obj)$vsd))) |>
 plotdata <- sampleDists  |>
   # mutate(value = value / max(value)) |> 
   group_by(Kit, Celltype) |>
-  summarize(y=mean(value), prop = mean(prop)) #, prop = Count / sum(Count)
+  summarize(y=round(mean(value)), prop = mean(prop)) #, prop = Count / sum(Count)
 
 
 corr_dotplot(plotdata) +
   geom_hline(yintercept = 9.5, lty='dashed') +
   scale_color_gradient2(low = "#4DAF4A",
                         mid="grey",
-                        high = "#FF0000", midpoint = 100, limits=c(0,200), oob=scales::squish) ->
+                        high = "#FF0000", midpoint = 75, limits=c(0,150), oob=scales::squish,
+                        breaks = c(0,75,150), labels = c('0', '75', '150+')) ->
   figures[['sample_distance_dotplot']]
 write_plot_data(plotdata, here('figure_data/3p/replicate_correlation/rep_dist_dotplot.txt'))
 my_plot_save(image = figures[['sample_distance_dotplot']], 
              path = here('figures/3p/replicate_correlation/rep_dist_dotplot.svg'), 
-             width = 8, height = 5.5)
+             width = 10, height = 5.5)
 
 plotdata <- sampleDists |>
   filter(!Celltype %in% c('Erythrocyte', 'Granulocyte', 'Megakaryocyte')) |>
