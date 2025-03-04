@@ -2,6 +2,7 @@
 source(here('figure_scripts/utils.R'))
 # library(reshape2)
 # library(data.table)
+library(viridis)
 
 # Load data ----
 
@@ -27,8 +28,8 @@ confusion_plot <- function(plotdata, kit){
     filter(Kit == kit) |>
     ggplot(aes(x=cell_labels.fine, y=module, fill=value, label=ifelse(is.na(value), 'NA', value))) +
     geom_tile() +
-    geom_text() +
-    scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
+    geom_text(color='white') +
+    scale_fill_viridis(limits=c(0,1), option = 'A') + #low = "white", high = "red", 
     theme(axis.text.x = element_text(angle=45, hjust=1)) +
     labs(x='Cell label', y='Marker module', fill='Average\nmarker gene\nmodule score')
 }
@@ -59,11 +60,13 @@ plotdata |> filter(
   filter(!module %in% c('B', 'T', 'Monocyte')) |> 
   ggplot(aes(x=Kit, y=module, fill=value, label=ifelse(is.na(value), 'NA', value))) +
   geom_tile() +
-  geom_text() +
-  scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
+  geom_text(color='white') +
+  scale_fill_viridis(limits=c(0,1), option = 'A')  +
+  # scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
   scale_x_discrete(labels = label_function) +
   labs(x='Kit', y='Celltype', fill='Average\nmarker gene\nmodule score') +
   theme(axis.text.x = element_text(angle=45, hjust=1)) ->
+figures[['module_scores_kit_fine']] 
 figures[['module_scores_kit_fine']] 
 
 my_plot_save(image = figures[['module_scores_kit_fine']],
