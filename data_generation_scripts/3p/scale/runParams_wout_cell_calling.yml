@@ -1,0 +1,30 @@
+##### Required Analysis Parameters
+# See "nextflow.config" for all options and defaults
+
+##### Inputs
+### Sequencing data input can be either a Illumina sequencer RunFolder (bcl)
+# runFolder : /shared/ngs/illumina/FHIL/240828_A00613_0737_BHVVYWDMXY/CBCL/240828_A00613_0737_BHVVYWDMXY
+### or a directory with fastq files
+fastqDir : /fh/fast/_IRC/FHIL/grp/BM02_Scale_2024/fastqs/downsampled
+
+### A file listing all samples in the analysis with their RT barcodes and optional library information
+samples : /fh/fast/_IRC/FHIL/grp/BM02_Scale_2024/BM02_combined_downsampled/samples.csv
+
+#### Reference information
+### Version of the Scale Single Cell RNA assay used: "libV1.json" or "libV1.1.json"
+libStructure : libV1.1.json
+
+### Path to a .json file defining the reference genome
+genome : /fh/fast/_IRC/FHIL/grp/BM02_Scale_2024/Ref/grch38/grch38.json
+
+outDir : ScaleRNA_out_wout_cell_calling
+
+minUTC : 0
+topCellPercent : 99
+minCellRatio : 1000
+
+splitFastq : true
+fastqOut : false
+fastqc : false
+bamOut : false
+seurat : true

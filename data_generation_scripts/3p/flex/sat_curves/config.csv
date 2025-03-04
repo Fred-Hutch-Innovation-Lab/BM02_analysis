@@ -1,0 +1,16 @@
+[gene-expression]
+reference,/fh/fast/_IRC/FHIL/pub/ref/GRCh38/refdata-gex-GRCh38-2024-A
+probe-set,/fh/fast/_IRC/FHIL/grp/BM_paper/processing/bm02_wt_3p/flex/Chromium_Human_Transcriptome_Probe_Set_v1.0.1_GRCh38-2020-A.csv
+create-bam,FALSE
+no-secondary,TRUE
+
+[libraries]
+fastq_id,fastqs,lanes,physical_library_id,feature_types
+flex_downsampled_{{TARGET}},/fh/fast/_IRC/FHIL/grp/BM_paper/fastqs/bm02_wt_3p/flex/sat_curves/{{TARGET}},1|2|3|4,1367385,Gene Expression
+
+[samples]
+sample_id,probe_barcode_ids,description,force_cells
+F1A,BC001,NextGEM_B2-FL019,10024
+F1B,BC002,NextGEM_B2-FL019,10952
+F5A,BC003,NextGEM_B2-FL019,10397
+F5B,BC004,NextGEM_B2-FL019,9408
