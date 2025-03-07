@@ -203,36 +203,37 @@ my_plot_save(figures[['price_per_cell']],
 
 ## Table ----
 
-plotdata <- read_eff |>
-  dplyr::rename('read_conversion_eff' = eff) |>
+# plotdata <- read_eff |>
+#   dplyr::rename('read_conversion_eff' = eff) |>
   # rowwise() |>
   # mutate(max_umi = model_coef_u[[Kit]]['a',1],
   #        rd50 = model_coef_u[[Kit]]['c',1]) |>
-  merge(model_coef_u, by='Kit') |>
+  # merge(model_coef_u, by='Kit') |>
+plotdata <- model_coef_u |>
   dplyr::rename('rd50' = c, 'max_umi' = a) |>
   mutate(req_reads_2000_umi = readfit(2000, max_umi, rd50)) |>
   ungroup() |>
-  mutate(target_reads_per_cell = req_reads_2000_umi / read_conversion_eff) |>
-  mutate(seq_cost = target_reads_per_cell * ncells * nsamples * seq_cost_coef)  |>
+  # mutate(target_reads_per_cell = req_reads_2000_umi / read_conversion_eff) |>
+  mutate(seq_cost = req_reads_2000_umi * ncells * nsamples * seq_cost_coef)  |>
   mutate(Kit = factor(Kit, levels = c(
     'Flex', 'NextGEM5P', 'NextGEM3P', 'GEMX5P', 'GEMX3P',
     'Fluent_v4', 'Fluent_V', 'Parse_v2', 'Parse_v3', 'Scale'
   ))) |>
   arrange(Kit) |>
-  select(Kit, max_umi, rd50, req_reads_2000_umi, read_conversion_eff, target_reads_per_cell, seq_cost) 
+  select(Kit, max_umi, rd50, req_reads_2000_umi, seq_cost) 
 write_plot_data(plotdata, file = here('figure_data/seq_cost_table.txt'))
 gt(plotdata) |>
   cols_label(Kit = 'Kit',
              max_umi = 'Max UMI',
              rd50 = 'rd50',
-             req_reads_2000_umi = html('Mapped reads<br>needed for<br>2000 UMI'),
-             read_conversion_eff = html('Read<br>conversion<br>efficiency'),
-             target_reads_per_cell = html('Target<br>seq depth<br>per cell'),
+             req_reads_2000_umi = html('Reads<br>needed for<br>2000 UMI'),
+             # read_conversion_eff = html('Read<br>conversion<br>efficiency'),
+             # target_reads_per_cell = html('Target<br>seq depth<br>per cell'),
              seq_cost = html('Example<br>sequencing<br>cost')
   ) |>
   fmt_currency(c('seq_cost'), decimals = 0) |>
-  fmt_number(c('read_conversion_eff'), decimals = 2) |>
-  fmt_number(c('max_umi', 'rd50', 'target_reads_per_cell', 'req_reads_2000_umi'), decimals = 0) |>
+  # fmt_number(c('read_conversion_eff'), decimals = 2) |>
+  fmt_number(c('max_umi', 'rd50', 'req_reads_2000_umi'), decimals = 0) |>
   tab_footnote(
     footnote = paste0('Projected cost based on estimates for ', ncells, ' cells from ', nsamples, ' samples with a median UMI recovery of ', 2000, ' and an estimated sequencing cost of $', seq_cost_coef, ' per read'),
     locations = cells_column_labels(columns = seq_cost)
@@ -245,7 +246,7 @@ gt::gtsave(figures[['seq_cost_table']], here('figures/cost/seq_cost.html'))
 ### UMI ----
 seq_cost_modeling <- expand.grid(
   model_coef_u$Kit,
-  seq(100, 4000, by = 100)
+  seq(100, 7500, by = 100)
 ) |>
   dplyr::rename('Kit' = Var1, 'depth' = Var2) |>
   dplyr::rowwise() |>
@@ -255,7 +256,7 @@ seq_cost_modeling <- expand.grid(
                              model_coef_u[model_coef_u$Kit == Kit, 'c'])) |>
   ungroup() |>
   left_join(read_eff, by = 'Kit') |>
-  mutate(target_reads = req_reads / eff) |>
+  # mutate(target_reads = req_reads / eff) |>
   mutate(cost_per_cell = req_reads * seq_cost_coef) |>
   mutate(example_cost = cost_per_cell * 80000)
 
@@ -264,14 +265,15 @@ ggplot(seq_cost_modeling, aes(x=depth, y=cost_per_cell, color = Kit,
                                 Kit %in% kit_order_3p ~ "WT only",
                                 Kit %in% kit_order_5p ~ "TCR"))) + 
   geom_line() +
+  lims(x=c(0,7500)) +
   scale_color_manual(values = unlist(color_palette$kits), labels = label_function, breaks = kit_order_all) +
   scale_linetype_manual(values = c("TCR" = "dashed", "WT only" = "solid")) +
   scale_y_continuous(labels = scales::label_currency(),
                      sec.axis = sec_axis(~ . * 80000,
                                          labels = scales::label_currency(), 
-                                         name = 'Cost for 80k cells')) +
-  labs(x='UMI per cell', y='Sequencing cost per cell', color = 'Kit', linetype = 'Kit type') +
-  coord_cartesian(ylim=c(0,.1)) ->
+                                         name = 'Cost for 80k cells'), limits = c(0, .1)) +
+  labs(x='UMI per cell', y='Sequencing cost per cell', color = 'Kit', linetype = 'Kit type') ->#+
+  # coord_cartesian(ylim=c(0,.1)) ->
   figures[['seq_cost_curves_umi']]
 my_plot_save(figures[['seq_cost_curves_umi']],
              here('figures/cost/seq_cost_curves_umi.svg'),
@@ -282,7 +284,7 @@ my_plot_save(figures[['seq_cost_curves_umi']],
 ### Gene ----
 seq_cost_modeling <- expand.grid(
   model_coef_g$Kit,
-  seq(100, 2500, by = 10)
+  seq(100, 3000, by = 10)
 ) |>
   dplyr::rename('Kit' = Var1, 'depth' = Var2) |>
   dplyr::rowwise() |>
@@ -292,7 +294,7 @@ seq_cost_modeling <- expand.grid(
                              model_coef_g[model_coef_g$Kit == Kit, 'c']))|>
   ungroup() |>
   left_join(read_eff, by = 'Kit') |>
-  mutate(target_reads = req_reads / eff) |>
+  # mutate(target_reads = req_reads / eff) |>
   mutate(cost_per_cell = req_reads * seq_cost_coef) |>
   mutate(example_cost = cost_per_cell * 80000)
 
@@ -302,6 +304,7 @@ ggplot(seq_cost_modeling,
              Kit %in% kit_order_3p ~ "WT only",
              Kit %in% kit_order_5p ~ "TCR"))) + 
   geom_line() +
+  lims(x=c(0,3000)) +
   scale_color_manual(values = unlist(color_palette$kits), labels = label_function,
                      breaks = kit_order_all) +
   scale_linetype_manual(values = c("TCR" = "dashed", "WT only" = "solid")) +
@@ -310,9 +313,9 @@ ggplot(seq_cost_modeling,
   scale_y_continuous(labels = scales::label_currency(),
                      sec.axis = sec_axis(~ . * 80000,
                                          labels = scales::label_currency(), 
-                                         name = 'Cost for 80k cells')) +
-  labs(x='Genes per cell', y='Sequencing cost per cell', color = 'Kit', linetype = 'Kit type') +
-  coord_cartesian(ylim=c(0,.1)) ->
+                                         name = 'Cost for 80k cells'),limits = c(0,.1)) +
+  labs(x='Genes per cell', y='Sequencing cost per cell', color = 'Kit', linetype = 'Kit type') ->#+
+  # coord_cartesian(ylim=c(0,.1)) ->
   figures[['seq_cost_curves_gene']]
 my_plot_save(figures[['seq_cost_curves_gene']], 
              here('figures/cost/seq_cost_curves_gene.svg'),
