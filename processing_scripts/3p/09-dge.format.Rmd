@@ -13,66 +13,66 @@ output:
 
 ```{r, include=FALSE}
 library(knitr)
-knitr::opts_chunk$set(echo = FALSE,
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE,
                       fig.width = 8, fig.height = 6,
                       cache=FALSE, cache.lazy = FALSE) 
 ```
 
-Trying to quantify replicability across kits. I started with PCA as a visual inspection of replicate overlap
+<!-- Trying to quantify replicability across kits. I started with PCA as a visual inspection of replicate overlap -->
 
-# PCA
+<!-- # PCA -->
 
-## All kits
+<!-- ## All kits -->
 
-PCA of the top 2000 variable genes in all data.
+<!-- PCA of the top 2000 variable genes in all data. -->
 
-```{r}
-figures[['PCA_of_kits']]
-```
+<!-- ```{r} -->
+<!-- figures[['PCA_of_kits']] -->
+<!-- ``` -->
 
-## By kit {.tabset}
+<!-- ## By kit {.tabset} -->
 
-PCA of the top 2000 variable genes per kit.
+<!-- PCA of the top 2000 variable genes per kit. -->
 
-```{r, eval=TRUE, results='asis'}
-out <- NULL
-for (kit in unique(metadata$Kit)) {
-    chunktext <- '\n### {{kit}} {.unlist}\n
-    \n```{r, fig.width=7.5, fig.height=6}\n
-    figures[[paste0("PCA_", "{{kit}}")]]
-    \n```\n
-    '
-    out = c(out, knit_expand(text = chunktext))
-}
+<!-- ```{r, eval=TRUE, results='asis'} -->
+<!-- out <- NULL -->
+<!-- for (kit in unique(metadata$Kit)) { -->
+<!--     chunktext <- '\n### {{kit}} {.unlist}\n -->
+<!--     \n```{r, fig.width=7.5, fig.height=6}\n -->
+<!--     figures[[paste0("PCA_", "{{kit}}")]] -->
+<!--     \n```\n -->
+<!--     ' -->
+<!--     out = c(out, knit_expand(text = chunktext)) -->
+<!-- } -->
 
-cat(knit_child(text = out, quiet = TRUE), sep = '\n')
-```
+<!-- cat(knit_child(text = out, quiet = TRUE), sep = '\n') -->
+<!-- ``` -->
 
-# PCA distance
+<!-- # PCA distance -->
 
-I then tried to take the distance in PCA space as a quantification of difference between replicates. This is distance between replicates across 20 PCs, calculated at the kit level. 
+<!-- I then tried to take the distance in PCA space as a quantification of difference between replicates. This is distance between replicates across 20 PCs, calculated at the kit level.  -->
 
-```{r, fig.width=10, fig.height=6}
-figures[['pca_dist_euc_mean']]
-```
+<!-- ```{r, fig.width=10, fig.height=6} -->
+<!-- figures[['pca_dist_euc_mean']] -->
+<!-- ``` -->
 
-```{r, fig.width=13, fig.height=5}
-figures[['pca_dist_euc_pairs']]
-```
+<!-- ```{r, fig.width=13, fig.height=5} -->
+<!-- figures[['pca_dist_euc_pairs']] -->
+<!-- ``` -->
 
-# Expression correlation {.tabset}
+<!-- # Expression correlation {.tabset} -->
 
-Looking at the spearman correlation of gene expression. This is a measure of replicability across samples. Higher correlation indicates top genes are similarly ranked. The average of the two replicate pairs is shown here. 
+<!-- Looking at the spearman correlation of gene expression. This is a measure of replicability across samples. Higher correlation indicates top genes are similarly ranked. The average of the two replicate pairs is shown here.  -->
 
-I played with a few different sets of genes for this analysis. Using all genes led to high correlation across the board. This is likely driven by lowly or lowly-variant genes. So I then tried to subset to smaller sets of genes with more variance that might separate the kits more. However, I am also worried that if this set of genes isn't consistent across all kits that it may not be a fair comparison.  
+<!-- I played with a few different sets of genes for this analysis. Using all genes led to high correlation across the board. This is likely driven by lowly or lowly-variant genes. So I then tried to subset to smaller sets of genes with more variance that might separate the kits more. However, I am also worried that if this set of genes isn't consistent across all kits that it may not be a fair comparison.   -->
 
-## Across kits
+<!-- ## Across kits -->
 
-First, looking at the top 200 variable genes across all celltypes/samples (all samples use the same 200 genes). I think this is not the best way to analyze this, as the top variable genes across this comparison are likely more kit-variable than sample-variable. 
+<!-- First, looking at the top 200 variable genes across all celltypes/samples (all samples use the same 200 genes). I think this is not the best way to analyze this, as the top variable genes across this comparison are likely more kit-variable than sample-variable.  -->
 
-```{r, fig.width=8, fig.height=5}
-figures[['rep_corr_summary_all']]
-```
+<!-- ```{r, fig.width=8, fig.height=5} -->
+<!-- figures[['rep_corr_summary_all']] -->
+<!-- ``` -->
 
 <!-- ## Across individuals -->
 
@@ -82,167 +82,161 @@ figures[['rep_corr_summary_all']]
 <!-- figures[['rep_corr_summary_byind']] -->
 <!-- ``` -->
 
-## Within Kit {.active}
+<!-- ## Within Kit {.active} -->
 
-Finally, looking at the top 200 variable gene within cells from each kit. So each point here is using a different set of genes. While this does show stronger differenes, I'm not sure how fair it is to compare across kits since they are looking at different genes.
+<!-- Finally, looking at the top 200 variable gene within cells from each kit. So each point here is using a different set of genes. While this does show stronger differenes, I'm not sure how fair it is to compare across kits since they are looking at different genes. -->
 
-```{r, fig.width=8, fig.height=5}
-figures[['rep_corr_summary_bykit']]
-```
+<!-- ```{r, fig.width=8, fig.height=5} -->
+<!-- figures[['rep_corr_summary_bykit']] -->
+<!-- ``` -->
 
-```{r, eval=FALSE, results='asis'}
-#Then a breakdown of all kits (this may be excessive)
-out <- NULL
-for (kit in unique(metadata$Kit)) {
-    chunktext <- '\n## {{kit}} {.unlist}\n
-    \n```{r, fig.width=8, fig.height=5}\n
-    figures[[paste0("corr_mat_pearson", "{{kit}}")]]
-    \n```\n
-    '
-    out = c(out, knit_expand(text = chunktext))
-}
+<!-- ```{r, eval=FALSE, results='asis'} -->
+<!-- #Then a breakdown of all kits (this may be excessive) -->
+<!-- out <- NULL -->
+<!-- for (kit in unique(metadata$Kit)) { -->
+<!--     chunktext <- '\n## {{kit}} {.unlist}\n -->
+<!--     \n```{r, fig.width=8, fig.height=5}\n -->
+<!--     figures[[paste0("corr_mat_pearson", "{{kit}}")]] -->
+<!--     \n```\n -->
+<!--     ' -->
+<!--     out = c(out, knit_expand(text = chunktext)) -->
+<!-- } -->
 
-cat(knit_child(text = out, quiet = TRUE), sep = '\n')
-```
-
-
-# Total distance
-
-The purpose of using correlation was to ignore the subtle variations and instead focus on the relative expression of the genes through rank. However, this had the undesireable consequence of weighting all genes the same, regardless of the baseline expression. In practice, I think some weighting of the magnitude of expression and variance could help focus on more biologically relevant replicability. 
-
-I then came across the idea of just taking total distance across the entire original normalized expression matrix. This way, distance would automatically be weighted for the normalized expression (e.g., a smaller variance would have less distance than a more highly expressed gene). This is somewhat what I was trying to do with PCA, but applied more directly to the raw data. 
-
-**I think this is my preferred measure of sample replicability**, as it 
-
-a) includes all the data 
-
-b) has more direct consideration of the magnitude of differences across the replicates
-
-c) removes an additional intermediate calculation/transformation (PCA)
+<!-- cat(knit_child(text = out, quiet = TRUE), sep = '\n') -->
+<!-- ``` -->
 
 
-```{r, fig.width=8, fig.height=5}
-figures[['sample_distance_dotplot']]
-```
+<!-- # Total distance -->
 
-I could then weight the per-sample distance by the sample-level composition (multiply it by the proportion of cells) and come up with a kit-level distance measurement. I report it as a range, as it is 2 values per kit (F1 and F5). I'm not a huge fan of this, but it seems better than reporting the mean and variance. But maybe it makes sense to just show the 2 data points rather than report it as a range
+<!-- The purpose of using correlation was to ignore the subtle variations and instead focus on the relative expression of the genes through rank. However, this had the undesireable consequence of weighting all genes the same, regardless of the baseline expression. In practice, I think some weighting of the magnitude of expression and variance could help focus on more biologically relevant replicability.  -->
 
-```{r}
-figures[['pb_dist_table']]
-```
+<!-- I then came across the idea of just taking total distance across the entire original normalized expression matrix. This way, distance would automatically be weighted for the normalized expression (e.g., a smaller variance would have less distance than a more highly expressed gene). This is somewhat what I was trying to do with PCA, but applied more directly to the raw data.  -->
+
+<!-- **I think this is my preferred measure of sample replicability**, as it  -->
+
+<!-- a) includes all the data  -->
+
+<!-- b) has more direct consideration of the magnitude of differences across the replicates -->
+
+<!-- c) removes an additional intermediate calculation/transformation (PCA) -->
+
+
+<!-- ```{r, fig.width=8, fig.height=5} -->
+<!-- figures[['sample_distance_dotplot']] -->
+<!-- ``` -->
+
+<!-- I could then weight the per-sample distance by the sample-level composition (multiply it by the proportion of cells) and come up with a kit-level distance measurement. I report it as a range, as it is 2 values per kit (F1 and F5). I'm not a huge fan of this, but it seems better than reporting the mean and variance. But maybe it makes sense to just show the 2 data points rather than report it as a range -->
+
+<!-- ```{r} -->
+<!-- figures[['pb_dist_table']] -->
+<!-- ``` -->
 
 # DGE {.tabset}
 
 Since we don't have any experimental conditions, I figured it would be easiest to to DGE on celltypes. I looked at 4 contrasts. We don't have to use all or any of these, but I just wanted to explore.
 
 1. CD4+ T vs. CD8+ T 
-2. B naive vs. B memory 
-3. B memory vs. CD4+ T 
-4. B vs. T
+2. B vs. T
+3. T vs. Monocyte
+4. B vs. Monocyte
 
-I show the overlap significantly expressed genes and a few marker genes. I don't think more DGE is necessarily better or worse, as the validity of the results matter, hence why looking at 'ground truth' may be more valuable. However, these 'cannonical' genes were also used to call these celltypes during celltype annotation, so it becomes a bit circular. So I figured more high-level comparisons (e.g. B v T) may be better than the lower level comparisons. Even if detecting that signal is valuable, reporting on that in the pseudobulked data may be a bit redundant and subjective to the cell-calling difficulties. However, every kit SHOULD (and did) have good separation of T and B cells, so that *should* be a valid comparison. We could maybe do T v B, B v monocyte, and T v monocyte as those 3 tend to be easy to distinguish. 
+There's a 5th more dubious comparison of CD4 from one kit to all other kits. I'm not super confident in the contrast design at the moment, or if this is a fruitful comparison, so I don't focus on it too much for now. 
+
+I show the overlap significantly upregulated genes in a few comparisons. The counts are high and not very overlapping.
 
 ## CD4 v CD8 T
 
-<!-- :::: {class='fluid-row'} -->
+:::: {class='fluid-row'}
 
-<!-- ::: {class='col-md-4'} -->
+::: {class='col-md-4'}
 
-<!-- ```{r} -->
-<!-- figures[['euler_cd8vcd4']] -->
-<!-- ``` -->
+```{r}
+figures[['euler_cd8vcd4']]
+```
 
-<!-- ::: -->
+:::
 
-<!-- ::: {class='col-md-8'} -->
+::: {class='col-md-8'}
 
 ```{r}
 figures[['upset_cd4vcd8']]
 ```
 
-<!-- ::: -->
+:::
 
-<!-- :::: -->
-
-```{r, fig.width=10, fig.height=5}
-figures[['markers_cd4vcd8']]
-```
-
-## B naive v B mem
-
-<!-- :::: {class='fluid-row'} -->
-
-<!-- ::: {class='col-md-4'} -->
-
-<!-- ```{r} -->
-<!-- figures[['euler_bnaivevbmem']] -->
-<!-- ``` -->
-
-<!-- ::: -->
-
-<!-- ::: {class='col-md-8'} -->
-
-```{r}
-figures[['upset_bnaivevbmem']]
-```
-
-<!-- ::: -->
-
-<!-- :::: -->
-
-```{r, fig.width=8, fig.height=3.5}
-figures[['markers_bnaivevbmem']]
-```
-
-## B mem v CD4+ T
-
-<!-- :::: {class='fluid-row'} -->
-
-<!-- ::: {class='col-md-4'} -->
-
-<!-- ```{r} -->
-<!-- figures[['euler_bmemvcd4']] -->
-<!-- ``` -->
-
-<!-- ::: -->
-
-<!-- ::: {class='col-md-8'} -->
-
-```{r}
-figures[['upset_bmemvcd4']]
-```
-
-<!-- ::: -->
-
-<!-- :::: -->
-
-```{r, fig.width=10, fig.height=6}
-figures[['markers_bmemvcd4']]
-```
-
+::::
 
 ## B v T {.active}
 
-<!-- :::: {class='fluid-row'} -->
+:::: {class='fluid-row'}
 
-<!-- ::: {class='col-md-4'} -->
+::: {class='col-md-4'}
 
-<!-- ```{r} -->
-<!-- figures[['euler_bvt']] -->
-<!-- ``` -->
+```{r}
+figures[['euler_bvt']]
+```
 
-<!-- ::: -->
+:::
 
-<!-- ::: {class='col-md-8'} -->
+::: {class='col-md-8'}
 
 ```{r}
 figures[['upset_bvt']]
 ```
 
-<!-- ::: -->
+:::
 
-<!-- :::: -->
+::::
+
+# DGE volcanos {.tabset}
+
+```{r, eval=TRUE, results='asis'}
+#Then a breakdown of all kits (this may be excessive)
+out <- NULL
+for (contrast in contrast_matrix_formula$contrast_names) {
+  chunktext <- '\n## {{contrast}} {.tabset .unlist}\n'
+  out = c(out, knit_expand(text = chunktext))
+  for (kit in unique(metadata$Kit)) {
+    chunktext <- '\n### {{kit}} {.unlist}\n
+    \n```{r, fig.width=8, fig.height=5}\n
+    figures[["dge_volcano"]][[paste0("{{kit}}",".","{{contrast}}")]]
+    \n```\n
+    '
+    out = c(out, knit_expand(text = chunktext))
+  }
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+# GSEA
+
+We then turn to GSEA to see if we can make sense of the high numbers of DGE in the comparisons. We can look both at the total set of pathways tested to see if there are any strange positive results, and we can focus on expected positive results. A volcano plot may not be the best way to represent this data, as the two axes are not fully independent, but it works for now to highlight the point. **Note that while this says log fold change, it actually means Normalized Enrichment Score**
+
+## All pathways {.tabset}
+
+```{r, eval=TRUE, results='asis'}
+#Then a breakdown of all kits (this may be excessive)
+out <- NULL
+for (contrast in contrast_matrix_formula$contrast_names) {
+  chunktext <- '\n### {{contrast}} {.tabset .unlist}\n'
+  out = c(out, knit_expand(text = chunktext))
+  for (kit in unique(metadata$Kit)) {
+    chunktext <- '\n#### {{kit}} {.unlist}\n
+    \n```{r, fig.width=8, fig.height=5}\n
+    figures[["gsea_volcano"]][[paste0("{{kit}}",".","{{contrast}}")]]
+    \n```\n
+    '
+    out = c(out, knit_expand(text = chunktext))
+  }
+}
+
+cat(knit_child(text = out, quiet = TRUE), sep = '\n')
+```
+
+## Pathways of interest
 
 ```{r, fig.width=12, fig.height=6}
-figures[['markers_bvt']]
+figures[['gsea_dotplot']]
 ```
+

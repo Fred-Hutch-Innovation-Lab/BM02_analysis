@@ -16,7 +16,7 @@ library(yaml)       ## parses config yaml
 library(reshape2)   ## DF manipulation
 # library(clustree)   ## Resolution selection for clustering
 # library(ggraph)     ## To render clustree
-# library(ggforestplot) ## Striped lines for dotplots
+library(ggforestplot) ## Striped lines for dotplots
 # library(SingleCellExperiment)
 library(gridExtra)  ## arrange plots
 # library(janitor) ## Tabyl, adorn_rounding
@@ -30,6 +30,8 @@ library(UpSetR)
 rbindlist <- data.table::rbindlist
 # library(patchwork)
 library(gt)
+library(fgsea)
+library(msigdbr)
 set.seed(33)
 ```
 
@@ -45,129 +47,66 @@ figures <- list()
 
 
 ```{r}
-pb_obj <- readRDS(here('rds/3p/pseudobulk_obj3.Rds'))
-```
-
-```{r}
-cellcounts_fine <- lapply(objs, function(x) {
-  table(x$orig.ident, x$cell_labels.fine) |>
-    as.data.table() 
-}) |> rbindlist(idcol = 'Kit')
-colnames(cellcounts_fine) <- c('Kit', 'Sample', 'Celltype', 'Count')
-cellcounts_fine_kit <- cellcounts_fine |>
-  group_by(Kit) |> 
-    mutate(prop = Count / sum(Count)) |>
-  group_by(Kit, Celltype) |> 
-  summarize(prop = sum(prop), Count = sum(Count))
-write.table(cellcounts_fine, 
-            here('rds/3p/pb_cell_counts.txt'), sep='\t', 
-            quote=FALSE, row.names = FALSE)
-cellcounts_fine <- cellcounts_fine |>
-  group_by(Sample) |>
-  mutate(prop = Count / sum(Count))
+pb_obj <- readRDS(here('rds/3p/pseudobulk_obj4.Rds'))
 ```
 
 # Define contrast matrix
 
 ```{r}
+design_matrix  <- stats::model.matrix(pb_obj@design, data = pb_obj@colData)
 colnames(design_matrix) |> make.names()
 ```
 
 ```{r}
-resultsNames(deseq_obj)
-```
-
-```{r}
-contrast_matrix_expanded <- data.frame(
+# I make these very explicit to track all terms. They get simplified out at the end. See the output of this chunk
+contrast_matrix_formula <- data.frame(
   contrast_names = c(
-    'Flex.CD8.v.CD4',
-    'Flex.Bnaive.v.Bmem',
-    'Flex.Bmem.v.CD4T',
-    'Flex.B.v.T',
-    'NextGEM3P.CD8.v.CD4',
-    'NextGEM3P.Bnaive.v.Bmem',
-    'NextGEM3P.Bmem.v.CD4T',
-    'NextGEM3P.B.v.T',
-       'GEMX3P.CD8.v.CD4',
-    'GEMX3P.Bnaive.v.Bmem',
-    'GEMX3P.Bmem.v.CD4T',
-    'GEMX3P.B.v.T',
-       'Fluent_v4.CD8.v.CD4',
-    'Fluent_v4.Bnaive.v.Bmem',
-    'Fluent_v4.Bmem.v.CD4T',
-    'Fluent_v4.B.v.T',
-       'Fluent_V.CD8.v.CD4',
-    'Fluent_V.Bnaive.v.Bmem',
-    'Fluent_V.Bmem.v.CD4T',
-    'Fluent_V.B.v.T',
-       'Parse_v3.CD8.v.CD4',
-    'Parse_v3.Bnaive.v.Bmem',
-    'Parse_v3.Bmem.v.CD4T',
-    'Parse_v3.B.v.T',
-       'Scale.CD8.v.CD4',
-    'Scale.Bnaive.v.Bmem',
-    'Scale.Bmem.v.CD4T',
-    'Scale.B.v.T'
-  ), numerators = c(
-    'X.Intercept. + celltypeCD8..T',
-    'X.Intercept. + celltypeB.naive',
-    'X.Intercept. + celltypeB.memory',
-    'X.Intercept. + 0.5 * (celltypeB.memory + celltypeB.naive)',
-    'X.Intercept. + KitNextGEM3P + celltypeCD8..T   + KitNextGEM3P.celltypeCD8..T',
-    'X.Intercept. + KitNextGEM3P + celltypeB.naive  + KitNextGEM3P.celltypeB.naive',
-    'X.Intercept. + KitNextGEM3P + celltypeB.memory + KitNextGEM3P.celltypeB.memory',
-    'X.Intercept. + KitNextGEM3P + 0.5 * (celltypeB.memory + celltypeB.naive + KitNextGEM3P.celltypeB.memory + KitNextGEM3P.celltypeB.naive)',
-    'X.Intercept. + KitGEMX3P + celltypeCD8..T   + KitGEMX3P.celltypeCD8..T',
-    'X.Intercept. + KitGEMX3P + celltypeB.naive  + KitGEMX3P.celltypeB.naive',
-    'X.Intercept. + KitGEMX3P + celltypeB.memory + KitGEMX3P.celltypeB.memory',
-    'X.Intercept. + KitGEMX3P + 0.5 * (celltypeB.memory + celltypeB.naive + KitGEMX3P.celltypeB.memory + KitGEMX3P.celltypeB.naive)',
-    'X.Intercept. + KitFluent_v4 + celltypeCD8..T   + KitFluent_v4.celltypeCD8..T',
-    'X.Intercept. + KitFluent_v4 + celltypeB.naive  + KitFluent_v4.celltypeB.naive',
-    'X.Intercept. + KitFluent_v4 + celltypeB.memory + KitFluent_v4.celltypeB.memory',
-    'X.Intercept. + KitFluent_v4 + 0.5 * (celltypeB.memory + celltypeB.naive + KitFluent_v4.celltypeB.memory + KitFluent_v4.celltypeB.naive)',
-    'X.Intercept. + KitFluent_V + celltypeCD8..T   + KitFluent_V.celltypeCD8..T',
-    'X.Intercept. + KitFluent_V + celltypeB.naive  + KitFluent_V.celltypeB.naive',
-    'X.Intercept. + KitFluent_V + celltypeB.memory + KitFluent_V.celltypeB.memory',
-    'X.Intercept. + KitFluent_V + 0.5 * (celltypeB.memory + celltypeB.naive + KitFluent_V.celltypeB.memory + KitFluent_V.celltypeB.naive)',
-    'X.Intercept. + KitParse_v3 + celltypeCD8..T   + KitParse_v3.celltypeCD8..T',
-    'X.Intercept. + KitParse_v3 + celltypeB.naive  + KitParse_v3.celltypeB.naive',
-    'X.Intercept. + KitParse_v3 + celltypeB.memory + KitParse_v3.celltypeB.memory',
-    'X.Intercept. + KitParse_v3 + 0.5 * (celltypeB.memory + celltypeB.naive + KitParse_v3.celltypeB.memory + KitParse_v3.celltypeB.naive)',
-    'X.Intercept. + KitScale + celltypeCD8..T   + KitScale.celltypeCD8..T',
-    'X.Intercept. + KitScale + celltypeB.naive  + KitScale.celltypeB.naive',
-    'X.Intercept. + KitScale + celltypeB.memory + KitScale.celltypeB.memory',
-    'X.Intercept. + KitScale + 0.5 * (celltypeB.memory + celltypeB.naive + KitScale.celltypeB.memory + KitScale.celltypeB.naive)'
-  ), denominators = c(
-    'X.Intercept.',
-    'X.Intercept. + celltypeB.memory',
-    'X.Intercept.',
-    'X.Intercept. + 0.5 * (celltypeCD8..T)',
-    'X.Intercept. + KitNextGEM3P',
-    'X.Intercept. + KitNextGEM3P + celltypeB.memory + KitNextGEM3P.celltypeB.memory',
-    'X.Intercept. + KitNextGEM3P',
-    'X.Intercept. + KitNextGEM3P + 0.5 * (celltypeCD8..T + KitNextGEM3P.celltypeCD8..T)',
-    'X.Intercept. + KitGEMX3P',
-    'X.Intercept. + KitGEMX3P + celltypeB.memory + KitGEMX3P.celltypeB.memory',
-    'X.Intercept. + KitGEMX3P',
-    'X.Intercept. + KitGEMX3P + 0.5 * (celltypeCD8..T + KitGEMX3P.celltypeCD8..T)',
-    'X.Intercept. + KitFluent_v4',
-    'X.Intercept. + KitFluent_v4 + celltypeB.memory + KitFluent_v4.celltypeB.memory',
-    'X.Intercept. + KitFluent_v4',
-    'X.Intercept. + KitFluent_v4 + 0.5 * (celltypeCD8..T + KitFluent_v4.celltypeCD8..T)',
-    'X.Intercept. + KitFluent_V',
-    'X.Intercept. + KitFluent_V + celltypeB.memory + KitFluent_V.celltypeB.memory',
-    'X.Intercept. + KitFluent_V',
-    'X.Intercept. + KitFluent_V + 0.5 * (celltypeCD8..T + KitFluent_V.celltypeCD8..T)',
-    'X.Intercept. + KitParse_v3',
-    'X.Intercept. + KitParse_v3 + celltypeB.memory + KitParse_v3.celltypeB.memory',
-    'X.Intercept. + KitParse_v3',
-    'X.Intercept. + KitParse_v3 + 0.5 * (celltypeCD8..T + KitParse_v3.celltypeCD8..T)',
-    'X.Intercept. + KitScale',
-    'X.Intercept. + KitScale + celltypeB.memory + KitScale.celltypeB.memory',
-    'X.Intercept. + KitScale',
-    'X.Intercept. + KitScale + 0.5 * (celltypeCD8..T + KitScale.celltypeCD8..T)'
+    'B.vs.T',
+    'T.vs.M',
+    'M.vs.B',
+    'CD8.vs.CD4',
+    # 'CD4.F5.vs.F1',
+    'CD4.vs.otherCD4'
+  ),
+  numerators = c(
+    'X.Intercept. + Kit{{KIT}} + 0.5 * ( celltypeB.memory + celltypeB.naive + Kit{{KIT}}.celltypeB.memory + Kit{{KIT}}.celltypeB.naive )',
+    'X.Intercept. + Kit{{KIT}} + 0.5 * ( celltypeCD8..T + Kit{{KIT}}.celltypeCD8..T )',
+    'X.Intercept. + Kit{{KIT}} + 0.5 * ( celltypeNon.classical.monocyte + celltypeClassical.monocyte + Kit{{KIT}}.celltypeNon.classical.monocyte + Kit{{KIT}}.celltypeClassical.monocyte )',
+    'X.Intercept. + Kit{{KIT}} + celltypeCD8..T   + Kit{{KIT}}.celltypeCD8..T',
+    'X.Intercept. + Kit{{KIT}} + (1/6) * Kit{{KIT}}' # last term to cancel with denom
+  ),
+  denominators = c(
+    'X.Intercept. + Kit{{KIT}} + 0.5 * ( celltypeCD8..T + Kit{{KIT}}.celltypeCD8..T )',
+    'X.Intercept. + Kit{{KIT}} + 0.5 * ( celltypeNon.classical.monocyte + celltypeClassical.monocyte + Kit{{KIT}}.celltypeNon.classical.monocyte + Kit{{KIT}}.celltypeClassical.monocyte )',
+    'X.Intercept. + Kit{{KIT}} + 0.5 * ( celltypeB.memory + celltypeB.naive + Kit{{KIT}}.celltypeB.memory + Kit{{KIT}}.celltypeB.naive )',
+    'X.Intercept. + Kit{{KIT}}',
+    'X.Intercept. + (1/6) * ( KitNextGEM3P + KitGEMX3P + KitFluent_V + KitFluent_v4 + KitScale + KitParse_v3 )'
   )
 )
+contrast_matrix_expanded <- data.frame(
+  contrast_names = c(), 
+  numerators = c(),
+  denominators = c()
+)
+for (n in 1:nrow(contrast_matrix_formula)) {
+  contrast_name <- contrast_matrix_formula$contrast_names[n]
+  numerator <- contrast_matrix_formula$numerators[n]
+  denominator <- contrast_matrix_formula$denominators[n]
+  for (kit in kit_order_3p) {
+    numerator1 <- gsub('{{KIT}}', kit, numerator, fixed = TRUE)
+    denominator1 <- gsub('{{KIT}}', kit, denominator, fixed = TRUE)
+    if (kit == 'Flex') {
+      ## flex is reference level, doesn't have extra terms
+      numerator1 <- gsub('(?:\\+ \\(1\\/6\\)\\s*)*[+*] KitFlex\\S*', '', numerator1)
+      denominator1 <- gsub('(?:\\+ \\(1\\/6\\)\\s*)*[+*] KitFlex\\S*', '', denominator1)
+    } 
+    out <- data.frame(contrast_names = paste0(kit, '.', contrast_name),
+                      numerators = numerator1,
+                      denominators = denominator1)
+    contrast_matrix_expanded <- rbind(contrast_matrix_expanded, out)
+  }
+}
+contrast_matrix_expanded
 ```
 
 ```{r}
@@ -185,90 +124,63 @@ colnames(contrast_matrix) <- contrast_matrix_expanded$contrast_names
 contrast_matrix
 ```
 
-# Extract
+## Extract
 
 ```{r, eval = FALSE}
-model_results <- apply(contrast_matrix, 2, results, object = deseq_obj, alpha = 0.05)
-# tmp <- results(deseq_obj, contrast = contrast_matrix[,1])
+model_results <- apply(contrast_matrix, 2, results, object = pb_obj, alpha = 0.05)
+# tmp <- results(pb_obj, contrast = contrast_matrix[,1])
 names(model_results) <- colnames(contrast_matrix)
-saveRDS(model_results, here('rds/3p/dge_model_results.rds'))
+saveRDS(model_results, here('rds/3p/dge_model_results4.rds'))
 ```
 
 ```{r}
-model_results <- readRDS(here('rds/3p/dge_model_results.rds'))
+model_results <- readRDS(here('rds/3p/dge_model_results4.rds'))
 ```
 
-# External genes
+<!-- # External genes -->
 
-```{r}
-ext_cor <- function(result, ref=cellxgene_data) {
-  tmp <- result |>
-    as.data.frame() |>
-    rownames_to_column('Gene') |>
-    mutate(rank_stat = -log(padj + .Machine$double.xmin) * -log2FoldChange) |>
-    merge(ref, by='Gene')
-  cor(tmp$log2FoldChange, tmp$Log.Fold.Change)
-}
-```
+<!-- ```{r} -->
+<!-- ext_cor <- function(result, ref=cellxgene_data) { -->
+<!--   tmp <- result |> -->
+<!--     as.data.frame() |> -->
+<!--     rownames_to_column('Gene') |> -->
+<!--     mutate(rank_stat = -log(padj + .Machine$double.xmin) * -log2FoldChange) |> -->
+<!--     merge(ref, by='Gene') -->
+<!--   cor(tmp$log2FoldChange, tmp$Log.Fold.Change) -->
+<!-- } -->
+<!-- ``` -->
 
-# CD4 v CD8
+<!-- ## CD4 v CD8 -->
 
-```{r}
-cellxgene_data <- read.table(here('data/marker_genes/cd8_v_cd4.txt'), sep=',',  skip = 2, header=TRUE) |>
-  mutate(Adjusted.P.Value = Adjusted.P.Value + .Machine$double.xmin,
-         # rank_stat = Log.Fold.Change * -log(Adjusted.P.Value)
-         ) |>
-  filter(Gene %in% names(bp_obj@rowRanges))
+<!-- ```{r} -->
+<!-- cellxgene_data <- read.table(here('data/marker_genes/cd8_v_cd4.txt'), sep=',',  skip = 2, header=TRUE) |> -->
+<!--   mutate(Adjusted.P.Value = Adjusted.P.Value + .Machine$double.xmin, -->
+<!--          # rank_stat = Log.Fold.Change * -log(Adjusted.P.Value) -->
+<!--          ) |> -->
+<!--   filter(Gene %in% names(bp_obj@rowRanges)) -->
 
-ggplot(cellxgene_data, aes(x=Effect.Size, y=Log.Fold.Change)) + geom_point()
-ggplot(cellxgene_data, aes(x=Log.Fold.Change, y=-log(Adjusted.P.Value))) + geom_point()
-ggplot(cellxgene_data, aes(x=Effect.Size, y=-log(Adjusted.P.Value))) + geom_point()
-```
-
-
-```{r}
-lapply(model_results[names(model_results)[grepl('CD8.v.CD4', names(model_results))]], ext_cor)
-```
-
-## B vs T
-
-```{r}
-cellxgene_data <- read.table(here('data/marker_genes/bcell_v_tcell.txt'), sep=',',  skip = 2, header=TRUE) |>
-  mutate(Adjusted.P.Value = Adjusted.P.Value + .Machine$double.xmin,
-         rank_stat = Log.Fold.Change * -log(Adjusted.P.Value)) |>
-  filter(Gene %in% names(bp_obj@rowRanges))
-
-## Is the rank stat a good idea? not perfectly correlated with LFC
-# ggplot(cellxgene_data, aes(x=Effect.Size, y=rank_stat)) + geom_point()
-lapply(model_results[names(model_results)[grepl('B.v.T', names(model_results))]], ext_cor)
-```
+<!-- ggplot(cellxgene_data, aes(x=Effect.Size, y=Log.Fold.Change)) + geom_point() -->
+<!-- ggplot(cellxgene_data, aes(x=Log.Fold.Change, y=-log(Adjusted.P.Value))) + geom_point() -->
+<!-- ggplot(cellxgene_data, aes(x=Effect.Size, y=-log(Adjusted.P.Value))) + geom_point() -->
+<!-- ``` -->
 
 
-# GSEA
+<!-- ```{r} -->
+<!-- lapply(model_results[names(model_results)[grepl('CD8.v.CD4', names(model_results))]], ext_cor) -->
+<!-- ``` -->
 
-```{r}
-library(msigdbr)
-pathways <- msigdbr(species = "human", category = "C2")
-pathways <- pathways %>% dplyr::select(gene_symbol, gs_name) %>% unstack()
+<!-- ## B vs T -->
 
-# GSE11386_NAIVE_VS_MEMORY_BCELL_DN
-# GSE11386_NAIVE_VS_MEMORY_BCELL_UP
-```
+<!-- ```{r} -->
+<!-- cellxgene_data <- read.table(here('data/marker_genes/bcell_v_tcell.txt'), sep=',',  skip = 2, header=TRUE) |> -->
+<!--   mutate(Adjusted.P.Value = Adjusted.P.Value + .Machine$double.xmin, -->
+<!--          rank_stat = Log.Fold.Change * -log(Adjusted.P.Value)) |> -->
+<!--   filter(Gene %in% names(bp_obj@rowRanges)) -->
 
-```{r}
-library(fgsea)
-gsea_results <- list()
-for (result in names(model_results)){
-  ranked_genes <- model_results[[result]] %>% 
-    as.data.frame() |>
-    rownames_to_column('gene') |>
-    filter(!is.na(padj))
-  ranked_genes$stat <- ranked_genes$stat#ranked_genes$logFC * -log10(ranked_genes$padj + .Machine$double.xmin)
-  ranked_genes <- setNames(ranked_genes$stat, nm = ranked_genes$gene)
-  ranked_genes <- sort(ranked_genes)
-  gsea_results[[result]] <- fgsea::fgseaSimple(pathways, ranked_genes, nperm = 500)
-}
-```
+<!-- ## Is the rank stat a good idea? not perfectly correlated with LFC -->
+<!-- # ggplot(cellxgene_data, aes(x=Effect.Size, y=rank_stat)) + geom_point() -->
+<!-- lapply(model_results[names(model_results)[grepl('B.v.T', names(model_results))]], ext_cor) -->
+<!-- ``` -->
 
 
 # Vis DGE
@@ -306,20 +218,20 @@ intersections <- c(
 ### CD4 v CD8
 
 ```{r}
-plotdata_down <- dge_down[grepl('CD8.v.CD4', names(dge_down))]
-names(plotdata_down) <- lapply(names(plotdata_down),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist() 
-plotdata_down <- fromList(plotdata_down)
-plotdata_up <- dge_up[grepl('CD8.v.CD4', names(dge_up))]
+# plotdata_down <- dge_down[grepl('CD8.vs.CD4', names(dge_down))]
+# names(plotdata_down) <- lapply(names(plotdata_down),
+#                           function(x) {(strsplit(x, split='.', fixed=TRUE) |>
+#                                           unlist())[[1]] }) |>
+#   unlist() 
+# plotdata_down <- fromList(plotdata_down)
+plotdata_up <- dge_up[grepl('CD8.vs.CD4', names(dge_up))]
 names(plotdata_up) <- lapply(names(plotdata_up),
                           function(x) {(strsplit(x, split='.', fixed=TRUE) |>
                                           unlist())[[1]] }) |>
   unlist() 
 plotdata_up <- fromList(plotdata_up)
-plotdata <- rbind(plotdata_up, plotdata_down)
-upset(plotdata, 
+# plotdata <- rbind(plotdata_up, plotdata_down)
+upset(plotdata_up, 
       sets=levels(metadata$Kit),
       # nsets=8,
       # nintersects = 140, 
@@ -335,90 +247,23 @@ upset(plotdata,
 figures[['upset_cd4vcd8']]
 ```
 
-### B naive v B mem
-
-```{r}
-plotdata_down <- dge_down[grepl('Bnaive.v.Bmem', names(dge_down))]
-names(plotdata_down) <- lapply(names(plotdata_down),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist() 
-plotdata_down <- fromList(plotdata_down)
-plotdata_up <- dge_up[grepl('Bnaive.v.Bmem', names(dge_up))]
-names(plotdata_up) <- lapply(names(plotdata_up),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist() 
-plotdata_up <- fromList(plotdata_up)
-plotdata <- rbind(plotdata_up, plotdata_down)
-upset(plotdata, 
-      sets=levels(metadata$Kit),
-      # nsets=8,
-      # nintersects = 140, 
-      keep.order = TRUE,
-      intersections = intersections,
-      order.by='degree',
-      # cutoff=100,
-      decreasing = FALSE,
-      mainbar.y.label='Gene count',
-      number.angles = 0,
-      empty.intersections=FALSE) ->
-  figures[['upset_bnaivevbmem']]
-figures[['upset_bnaivevbmem']]
-```
-
-
-### Bmem.v.CD4T
-
-```{r}
-plotdata_down <- dge_down[grepl('Bmem.v.CD4T', names(dge_down))]
-names(plotdata_down) <- lapply(names(plotdata_down),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist() 
-plotdata_down <- fromList(plotdata_down)
-plotdata_up <- dge_up[grepl('Bmem.v.CD4T', names(dge_up))]
-names(plotdata_up) <- lapply(names(plotdata_up),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist() 
-plotdata_up <- fromList(plotdata_up)
-plotdata <- rbind(plotdata_up, plotdata_down)
-upset(plotdata, 
-      sets=levels(metadata$Kit),
-      # nsets=8,
-      # nintersects = 140, 
-      keep.order = TRUE,
-      intersections = intersections,
-      order.by='degree',
-      # cutoff=100,
-      decreasing = FALSE,
-      mainbar.y.label='Gene count',
-      number.angles = 0,
-      empty.intersections=FALSE) ->
-  figures[['upset_bmemvcd4']]
-figures[['upset_bmemvcd4']]
-```
-
-
-
 ### B.v.T
 
 ```{r}
-plotdata_down <- dge_down[grepl('B.v.T', names(dge_down))]
-names(plotdata_down) <- lapply(names(plotdata_down),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist() 
-plotdata_down <- fromList(plotdata_down)
-plotdata_up <- dge_up[grepl('B.v.T', names(dge_up))]
+# plotdata_down <- dge_down[grepl('B.vs.T', names(dge_down))]
+# names(plotdata_down) <- lapply(names(plotdata_down),
+#                           function(x) {(strsplit(x, split='.', fixed=TRUE) |>
+#                                           unlist())[[1]] }) |>
+#   unlist() 
+# plotdata_down <- fromList(plotdata_down)
+plotdata_up <- dge_up[grepl('B.vs.T', names(dge_up))]
 names(plotdata_up) <- lapply(names(plotdata_up),
                           function(x) {(strsplit(x, split='.', fixed=TRUE) |>
                                           unlist())[[1]] }) |>
   unlist() 
 plotdata_up <- fromList(plotdata_up)
-plotdata <- rbind(plotdata_up, plotdata_down)
-upset(plotdata, 
+# plotdata <- rbind(plotdata_up, plotdata_down)
+upset(plotdata_up, 
       sets=levels(metadata$Kit),
       # nsets=8,
       # nintersects = 140, 
@@ -430,9 +275,10 @@ upset(plotdata,
       mainbar.y.label='Gene count',
       number.angles = 0,
       empty.intersections=FALSE) ->
-  figures[['upset_bvt']]
-figures[['upset_bvt']]
+  figures[['upset_bvst']]
+figures[['upset_bvst']]
 ```
+
 
 
 
@@ -441,92 +287,53 @@ figures[['upset_bvt']]
 ### CD8 v CD4
 
 ```{r}
-plotdata_down <- dge_down[grepl('CD8.v.CD4', names(dge_down))]
-names(plotdata_down) <- lapply(names(plotdata_down),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist()
+# plotdata_down <- dge_down[grepl('CD8.v.CD4', names(dge_down))]
+# names(plotdata_down) <- lapply(names(plotdata_down),
+#                           function(x) {(strsplit(x, split='.', fixed=TRUE) |>
+#                                           unlist())[[1]] }) |>
+#   unlist()
 # plotdata_down <- lapply(plotdata_down, function(x) x$gene)
-plotdata_up <- dge_up[grepl('CD8.v.CD4', names(dge_up))]
+plotdata_up <- dge_up[grepl('CD8.vs.CD4', names(dge_up))]
 names(plotdata_up) <- lapply(names(plotdata_up),
                           function(x) {(strsplit(x, split='.', fixed=TRUE) |>
                                           unlist())[[1]] }) |>
   unlist()
 # plotdata_up <- lapply(plotdata_up, function(x) x$gene)
-keys <- unique(c(names(plotdata_up), names(plotdata_down)))
-plotdata <- setNames(mapply(c, plotdata_up[keys], plotdata_down[keys]), keys)
-figures[['euler_cd8vcd4']] <- plot(eulerr::euler(plotdata, shape='ellipse'))
-```
-
-### B naive v B mem
-
-```{r}
-plotdata_down <- dge_down[grepl('Bnaive.v.Bmem', names(dge_down))]
-names(plotdata_down) <- lapply(names(plotdata_down),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist()
-# plotdata_down <- lapply(plotdata_down, function(x) x$gene)
-plotdata_up <- dge_up[grepl('Bnaive.v.Bmem', names(dge_up))]
-names(plotdata_up) <- lapply(names(plotdata_up),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist()
-# plotdata_up <- lapply(plotdata_up, function(x) x$gene)
-keys <- unique(c(names(plotdata_up), names(plotdata_down)))
-plotdata <- setNames(mapply(c, plotdata_up[keys], plotdata_down[keys]), keys)
-figures[['euler_bnaivevbmem']] <- plot(eulerr::euler(plotdata, shape='ellipse'))
-```
-
-### Bmem v CD4
-
-```{r}
-plotdata_down <- dge_down[grepl('Bmem.v.CD4T', names(dge_down))]
-names(plotdata_down) <- lapply(names(plotdata_down),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist()
-# plotdata_down <- lapply(plotdata_down, function(x) x$gene)
-plotdata_up <- dge_up[grepl('Bmem.v.CD4T', names(dge_up))]
-names(plotdata_up) <- lapply(names(plotdata_up),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist()
-# plotdata_up <- lapply(plotdata_up, function(x) x$gene)
-keys <- unique(c(names(plotdata_up), names(plotdata_down)))
-plotdata <- setNames(mapply(c, plotdata_up[keys], plotdata_down[keys]), keys)
-figures[['euler_bmemvcd4']] <- plot(eulerr::euler(plotdata, shape='ellipse'))
+# keys <- unique(c(names(plotdata_up), names(plotdata_down)))
+# plotdata <- setNames(mapply(c, plotdata_up[keys], plotdata_down[keys]), keys)
+figures[['euler_cd8vcd4']] <- plot(eulerr::euler(plotdata_up, shape='ellipse'))
+figures[['euler_cd8vcd4']]
 ```
 
 ### B v T
 
 ```{r}
-plotdata_down <- dge_down[grepl('B.v.T', names(dge_down))]
-names(plotdata_down) <- lapply(names(plotdata_down),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist()
+# plotdata_down <- dge_down[grepl('B.vs.T', names(dge_down))]
+# names(plotdata_down) <- lapply(names(plotdata_down),
+#                           function(x) {(strsplit(x, split='.', fixed=TRUE) |>
+#                                           unlist())[[1]] }) |>
+#   unlist()
 # plotdata_down <- lapply(plotdata_down, function(x) x$gene)
-plotdata_up <- dge_up[grepl('B.v.T', names(dge_up))]
+plotdata_up <- dge_up[grepl('B.vs.T', names(dge_up))]
 names(plotdata_up) <- lapply(names(plotdata_up),
                           function(x) {(strsplit(x, split='.', fixed=TRUE) |>
                                           unlist())[[1]] }) |>
   unlist()
 # plotdata_up <- lapply(plotdata_up, function(x) x$gene)
-keys <- unique(c(names(plotdata_up), names(plotdata_down)))
-plotdata <- setNames(mapply(c, plotdata_up[keys], plotdata_down[keys]), keys)
-figures[['euler_bvt']] <- plot(eulerr::euler(plotdata, shape='ellipse'))
-# figures[['euler_bvt']] 
+# keys <- unique(c(names(plotdata_up), names(plotdata_down)))
+# plotdata <- setNames(mapply(c, plotdata_up[keys], plotdata_down[keys]), keys)
+figures[['euler_bvt']] <- plot(eulerr::euler(plotdata_up, shape='ellipse'))
+figures[['euler_bvt']]
 
-plot(eulerr::euler(plotdata_down, shape='ellipse'))
-plot(eulerr::euler(plotdata_up, shape='ellipse'))
-plot(eulerr::euler(plotdata, shape='ellipse'))
+# plot(eulerr::euler(plotdata_down, shape='ellipse'))
+# plot(eulerr::euler(plotdata_up, shape='ellipse'))
+# plot(eulerr::euler(plotdata, shape='ellipse'))
 ```
 
 ## Correlation
 
 ```{r}
-plotdata <- model_results[grepl('B.v.T', names(model_results))]
+plotdata <- model_results[grepl('B.vs.T', names(model_results))]
 plotdata <- lapply(plotdata, function(x) {
   x |> 
     as.data.frame() |>
@@ -548,6 +355,45 @@ ggplot(plotdata, aes(x=stat.x, y=stat.y)) +
   facet_grid(Kit.y ~ Kit.x, labeller = labeller(Kit.x = label_function, Kit.y = label_function))
 ```
 
+# Volcano plots
+
+```{r}
+generateVolcanoPlot <- function(result,
+                                labels = 20,
+                                FCcutoff = log2(1.3),
+                                pCutoff = 0.05,
+                                title = NULL,
+                                caption = NULL,
+                                subtitle = NULL,
+                                ...) {
+  volData <- result[!is.na(result$padj), ]
+  if (is.numeric(labels)) {
+    volData <- volData[order(volData$padj), ]
+    labels <- rownames(volData[1:labels, ])
+  }
+  volplot <- EnhancedVolcano::EnhancedVolcano(volData,
+    x = "log2FoldChange",
+    y = "padj",
+    lab = rownames(volData),
+    selectLab = labels,
+    drawConnectors = TRUE,
+    colConnectors = "lightgrey",
+    pCutoff = pCutoff,
+    FCcutoff = FCcutoff,
+    title = title,
+    caption = caption,
+    subtitle = subtitle,
+    ...
+  )
+  return(volplot)
+}
+```
+
+```{r}
+figures[['dge_volcano']] <- lapply(model_results, generateVolcanoPlot, xlim = c(-10,10))
+figures[['dge_volcano']]$Flex.B.vs.T
+```
+
 
 # Celltype markers
 
@@ -566,7 +412,7 @@ parse_marker_table <- function(celltype_dataframe) {
     #                        'Erythrocyte', 'Granulocyte',
     #                        'NK', 'Dendritic', 'Megakaryocyte', 'pDC')) %>%
     # select(gene_symbol, celltype) %>%
-    filter(gene_symbol %in% names(deseq_obj@rowRanges)) 
+    filter(gene_symbol %in% names(pb_obj@rowRanges)) 
 }
 celltype_markers <- parse_marker_table(celltype_markers)
 celltype_markers_cd8.cd4 <- celltype_markers |> 
@@ -592,7 +438,7 @@ celltype_markers_B.v.T <- celltype_markers |>
 # #                         Features(objs$Flex_F5A),
 # #                         Features(objs$Flex_F5B)))
 # # celltype_markers_modules <- lapply(celltype_markers, function(x)
-# #   x[x %in% shared_genes & x %in% names(deseq_obj@rowRanges)]
+# #   x[x %in% shared_genes & x %in% names(pb_obj@rowRanges)]
 # # )
 # celltype_markers_modules$`B memory` <- 
 #   c(celltype_markers_modules$`B memory`, celltype_markers_modules$B)
@@ -616,7 +462,7 @@ celltype_markers_B.v.T <- celltype_markers |>
 ## CD4 v CD8
 
 ```{r, fig.width=11, fig.height=6}
-plotdata <- model_results[grepl('CD8.v.CD4', names(model_results))]
+plotdata <- model_results[grepl('CD8.vs.CD4', names(model_results))]
 names(plotdata) <- lapply(names(plotdata),
                           function(x) {(strsplit(x, split='.', fixed=TRUE) |>
                                           unlist())[[1]] }) |>
@@ -640,64 +486,10 @@ plotdata |>
 figures[['markers_cd4vcd8']]
 ```
 
-## B naive v b mem
-
-```{r, fig.width=8, fig.height=4}
-plotdata <- model_results[grepl('Bnaive.v.Bmem', names(model_results))]
-names(plotdata) <- lapply(names(plotdata),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist()
-plotdata <- lapply(plotdata, function(x) {
-  x |> 
-    as.data.frame() |>
-    rownames_to_column('gene')
-}) |>
-  rbindlist(idcol = 'kit')
-plotdata <- plotdata |>
-  filter(gene %in% celltype_markers_Bnaive.v.Bmem$gene_symbol) 
-plotdata |> 
-  ggplot(aes(x=padj, y=log2FoldChange, color = kit)) +
-  geom_point(alpha=0.8) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
-  geom_vline(xintercept = 0.05, linetype='dashed') +
-  # scale_x_continuous(transform = 'log2') +
-  facet_wrap(~ gene) ->
-  figures[['markers_bnaivevbmem']]
-figures[['markers_bnaivevbmem']]
-```
-
-## Bmem.v.CD4T
-
-```{r, fig.width=12, fig.height=5}
-plotdata <- model_results[grepl('Bmem.v.CD4T', names(model_results))]
-names(plotdata) <- lapply(names(plotdata),
-                          function(x) {(strsplit(x, split='.', fixed=TRUE) |>
-                                          unlist())[[1]] }) |>
-  unlist()
-plotdata <- lapply(plotdata, function(x) {
-  x |> 
-    as.data.frame() |>
-    rownames_to_column('gene')
-}) |>
-  rbindlist(idcol = 'kit')
-plotdata <- plotdata |>
-  filter(gene %in% celltype_markers_Bmem.v.CD4T$gene_symbol) 
-plotdata |> 
-  ggplot(aes(x=padj, y=log2FoldChange, color = kit)) +
-  geom_point(alpha=0.8) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
-  geom_vline(xintercept = 0.05, linetype='dashed') +
-  # scale_x_continuous(transform = 'log2') +
-  facet_wrap(~ gene, nrow=2) ->
-  figures[['markers_bmemvcd4']]
-figures[['markers_bmemvcd4']]
-```
-
 ## B.v.T
 
 ```{r, fig.width=12, fig.height=5}
-plotdata <- model_results[grepl('B.v.T', names(model_results))]
+plotdata <- model_results[grepl('B.vs.T', names(model_results))]
 names(plotdata) <- lapply(names(plotdata),
                           function(x) {(strsplit(x, split='.', fixed=TRUE) |>
                                           unlist())[[1]] }) |>
@@ -717,8 +509,8 @@ plotdata |>
   geom_vline(xintercept = 0.05, linetype='dashed') +
   # scale_x_continuous(transform = 'log2') +
   facet_wrap(~ gene, nrow=2) ->
-  figures[['markers_bvt']]
-figures[['markers_bvt']]
+  figures[['markers_bvst']]
+figures[['markers_bvst']]
 ```
 
 # Significant gene correlation
@@ -742,8 +534,10 @@ dge_down <- lapply(model_results, function(x){
 #   unlist()
 ```
 
+## CD8 v CD4
+
 ```{r, fig.width=10, fig.height=10}
-plotdata <- rbindlist(dge_up[grepl('CD8.v.CD4', names(dge_up))], idcol = 'Kit') |>
+plotdata <- rbindlist(dge_up[grepl('CD8.vs.CD4', names(dge_up))], idcol = 'Kit') |>
   mutate(Kit = sub('([^\\.]+)\\..+', '\\1', Kit)) |>
   select(Kit, gene, stat) |>
   # tidyr::pivot_wider(names_from = Kit, values_from=stat) |> 
@@ -766,8 +560,270 @@ plotdata |>
   geom_point() +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black") +
   facet_grid(Kit.x ~ Kit.y, labeller = labeller(Kit.y = label_function, Kit.x = label_function)) +
-  geom_smooth(method = 'lm') 
+  geom_smooth(method = 'lm') ->
+  figures[['sig_gene_correlation_cd8vcd4']]
+figures[['sig_gene_correlation_cd8vcd4']]
 
+```
+
+## B vs T
+
+```{r, fig.width=10, fig.height=10}
+plotdata <- rbindlist(dge_up[grepl('B.vs.T', names(dge_up))], idcol = 'Kit') |>
+  mutate(Kit = sub('([^\\.]+)\\..+', '\\1', Kit)) |>
+  select(Kit, gene, stat) |>
+  # tidyr::pivot_wider(names_from = Kit, values_from=stat) |> 
+  # melt(variable.name = 'Kit', value.name = 'stat') |>
+  mutate(Kit = factor(Kit, levels = kit_order_3p))
+plotdata <- plotdata |> 
+    inner_join(plotdata, by = "gene") |>
+  filter(Kit.x != Kit.y) %>%  # Remove comparisons of the same kit
+  mutate(Comparison = paste(Kit.x, "vs", Kit.y))
+# kit_pairs <- combn(names(plotdata)[-1], 2, simplify = FALSE)
+# df_long <- bind_rows(lapply(kit_pairs, function(pair) {
+#   plotdata %>%
+#     select(gene, all_of(pair)) %>%
+#     dplyr::rename(X = pair[1], Y = pair[2]) %>%
+#     mutate(Comparison = paste(pair[1], "vs", pair[2]))  # Create facet label
+# }))
+
+plotdata |>
+  ggplot(aes(x=stat.x, y=stat.y)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black") +
+  facet_grid(Kit.x ~ Kit.y, labeller = labeller(Kit.y = label_function, Kit.x = label_function)) +
+  geom_smooth(method = 'lm') ->
+  figures[['sig_gene_correlation_bvst']]
+figures[['sig_gene_correlation_bvst']]
+
+```
+
+# GSEA
+
+```{r}
+pathways <- msigdbr(species = "human", category = "C2") |>
+  filter(gs_subcat  == 'CP:BIOCARTA')
+pathways <- pathways %>% dplyr::select(gene_symbol, gs_name) %>% unstack()
+```
+
+```{r}
+
+gsea_results <- list()
+for (result in names(model_results)){
+  ranked_genes <- model_results[[result]] %>% 
+    as.data.frame() |>
+    rownames_to_column('gene') |>
+    filter(!is.na(padj))
+  ranked_genes$stat <- ranked_genes$stat#ranked_genes$logFC * -log10(ranked_genes$padj + .Machine$double.xmin)
+  ranked_genes <- setNames(ranked_genes$stat, nm = ranked_genes$gene)
+  ranked_genes <- sort(ranked_genes)
+  res <- fgsea::fgseaSimple(pathways, ranked_genes, nperm = 5000) |>
+    mutate(name = gsub('BIOCARTA_(.+)_PATHWAY', '\\1', pathway))
+  gsea_results[[result]] <- res
+}
+```
+
+```{r}
+gsea_results$Flex.B.vs.T |>
+  arrange(pval)
+gsea_results$Parse_v3.B.vs.T |>
+  arrange(pval)
+## |>
+#   filter(pathway %in% c(
+#   'BIOCARTA_BLYMPHOCYTE_PATHWAY',
+#   'BIOCARTA_BCR_PATHWAY',
+#   'BIOCARTA_TCR_PATHWAY',
+#   'BIOCARTA_MONOCYTE_PATHWAY'))
+```
+
+```{r}
+
+gseaVolcanoPlot <- function(result,
+                                labels = 10,
+                                NEScutoff = 0.5,
+                                pCutoff = 0.05,
+                                title = NULL,
+                                caption = NULL,
+                                subtitle = NULL,
+                                ...) {
+  volData <- result[!is.na(result$padj), ] |> 
+      arrange(padj)
+  if (is.numeric(labels)) {
+    # tmp <- volData |> filter(padj < pCutoff) 
+    labels <- volData$name[1:labels]
+  }
+  volplot <- EnhancedVolcano::EnhancedVolcano(volData,
+    x = "NES",
+    y = "padj",
+    lab = volData$name,
+    selectLab = labels,
+    drawConnectors = TRUE,
+    colConnectors = "lightgrey",
+    pCutoff = pCutoff,
+    FCcutoff = NEScutoff,
+    title = title,
+    caption = caption,
+    subtitle = subtitle,
+    max.overlaps = 100,
+    xlim = c(-3,3),
+    ylim = c(0, 3),
+    ...
+  )
+  return(volplot)
+}
+```
+
+```{r}
+figures[['gsea_volcano']] <- lapply(gsea_results, gseaVolcanoPlot)
+figures[['gsea_volcano']]$Flex.B.vs.T
+```
+
+## GSEA dotplot
+
+```{r, fig.width=12, fig.height=6}
+pathways_of_interest <- c('TCR', 'TCRA', 'TCYTOTOXIC', 'CTL', 'LYMPHOCYTE', 'MONOCYTE', 'BCR')
+plotdata <- rbindlist(gsea_results, idcol='contrast') |>
+  mutate(kit = case_when(
+    grepl('Flex', contrast) ~ 'Flex',
+    grepl('NextGEM3P', contrast) ~ 'NextGEM3P',
+    grepl('GEMX3P', contrast) ~ 'GEMX3P',
+    grepl('Fluent_v4', contrast) ~ 'Fluent_v4',
+    grepl('Fluent_V', contrast) ~ 'Fluent_V',
+    grepl('Parse_v3', contrast) ~ 'Parse_v3',
+    grepl('Scale', contrast) ~ 'Scale',
+  ), comp = case_when(
+    grepl('B.vs.T', contrast) ~ 'B.vs.T',
+    grepl('T.vs.M', contrast) ~ 'T.vs.M',
+    grepl('M.vs.B', contrast) ~ 'M.vs.B',
+    grepl('CD8.vs.CD4', contrast) ~ 'CD8.vs.CD4',
+    .default = NA
+  )) |>
+  filter(!is.na(comp), name %in% pathways_of_interest) |>
+  mutate(name = factor(name, levels = pathways_of_interest),
+         sig = case_when(
+           padj < 0.0005 ~ '***',
+           padj < 0.005 ~ '**',
+           padj < 0.05 ~ '*',
+           .default = NA
+         ))
+ggplot(plotdata, aes(x=name, y=1, color=NES, size=-log(padj), label = sig)) +
+  geom_point() +
+  facet_grid(comp ~ kit) +
+    scale_color_gradient2(low="blue",
+                          mid="white",
+                          high="red",
+                          midpoint=0,
+                          breaks=c(-2,-1,0,1,2),
+                          limits=c(min(plotdata$NES,-2),
+                                   max(plotdata$NES,2))) +
+    # theme_classic(11) +
+    theme(panel.grid.major = element_line(colour = "grey92"),
+          panel.grid.minor = element_line(colour = "grey92"),
+          panel.grid.major.y = element_line(colour = "grey92"),#element_blank(),
+          panel.grid.minor.y = element_line(colour = "grey92")) +
+    theme(axis.text.x = element_text(angle = 45, 
+                                     # vjust = 0.5, 
+                                     hjust=1),
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank()) +
+    labs(x="Gene set", y=NULL,
+         color = "Normalized\nenrichment\nscore",
+         size="Adjusted p-value",
+         caption = '* indicates adjusted p-value <= 0.05') +
+   geom_text(na.rm = TRUE, color = 'white', size = 3) + 
+  scale_size_area(max_size = 6, breaks=c(1,2,3), labels = c(0.1, 0.01, 0.001)) ->
+  figures[['gsea_dotplot']]
+figures[['gsea_dotplot']]
+  
+```
+
+```{r}
+gseaDotplot_joint <- function(result,
+                              pathway_order = NULL,
+                              x_order = NULL,
+                              significance = c(0.05, 0.01, 0.001),
+                              breaks = c(0.1,0.01,0.001,0.0001),
+                              cap_pvalues = TRUE,
+                              p_val_col = 'pval',
+                              use_shortened_pathway_names = FALSE
+                              ){
+  if (use_shortened_pathway_names){
+    result$pathway <- result$pathway_short
+  }
+  if (!is.null(pathway_order)) {
+    if (all(pathway_order %in% unique(result$pathway))){
+      pathway_order <- order(factor(result$pathway, levels = pathway_order))
+      result$pathway <- .wrap_underscore_strings_balance(result$pathway,36)
+      ## reordering
+      result <- result[pathway_order,]
+      result$pathway <- factor(result$pathway, levels = unique(result$pathway))
+    } else {
+      warning('pathways specified in pathway_order not found, defaulting to arbitrary order')
+    }
+  } else {
+    result$pathway <- .wrap_underscore_strings_balance(result$pathway,36)
+  }
+  
+  if (!is.null(x_order)) {
+    if (all(x_order %in% unique(result$ID))){
+      result$ID <- factor(result$ID, levels = x_order)
+    } else {
+      warning('Specified x_order not all found in data, defaulting to arbitrary order')
+    }
+  }
+  
+  if (cap_pvalues) {
+    ## Set the minimum value to be 1/10th of the smallest label
+    cap_max = tail(breaks, 1)/10
+    result[[p_val_col]] <- pmax(cap_max, result[[p_val_col]])
+  }
+  range <- c(ceiling(-log(max(result[[p_val_col]]))),
+             floor(-log(min(result[[p_val_col]]))))+1
+  result$label <- NA
+  caption <- ''
+  if (!is.null(significance)) {
+    if (is.numeric(significance)) {
+      label <- '*'
+      for (cutoff in significance) {
+        result$label <- ifelse(result[[p_val_col]] < cutoff, label, result$label)
+        caption <- paste(caption, label, '<', cutoff, ';', sep = ' ')
+        label <- paste0(label, '*')
+      }
+      # result$label[is.numeric(result$label)] <- NA
+    } else {
+      stop('Significance argument should be a numeric vector')
+    }
+  } 
+  ggplot(result, aes(x=.data$ID, y=.data$pathway, size=.data[[p_val_col]],
+                           color=.data$NES, label = .data$label)) + 
+    geom_point() +
+    scale_color_gradient2(low="blue",
+                          mid="white",
+                          high="red",
+                          midpoint=0,
+                          breaks=c(-2,-1,0,1,2),
+                          limits=c(min(result$NES,-1),
+                                   max(result$NES,1))) +
+    theme_classic(11) +
+    theme(panel.grid.major = element_line(colour = "grey92"),
+          panel.grid.minor = element_line(colour = "grey92"),
+          panel.grid.major.y = element_line(colour = "grey92"),#element_blank(),
+          panel.grid.minor.y = element_line(colour = "grey92")) +
+    theme(axis.text.x = element_text(angle = 90, 
+                                     vjust = 0.5, 
+                                     hjust=1)) +
+    labs(x="Comparison",
+         y="Gene set", 
+         color = "Normalized\nenrichment\nscore",
+         size="p-value",
+         title="GSEA pathway enrichments",
+         caption = caption) +
+    scale_radius(range=range,
+                 trans=reverselog_trans(),
+                 breaks=breaks
+                 ) +
+    geom_text(na.rm = TRUE, color = 'white', size = 3)
+}
 ```
 
 
@@ -778,7 +834,7 @@ plotdata |>
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/3p/08-dge.format.Rmd'),
-                  output_file = '08-dge.html',
+rmarkdown::render(here('processing_scripts/3p/09-dge.format.Rmd'),
+                  output_file = '09-dge.html',
                   output_dir = here('reports/3p/'))
 ```
