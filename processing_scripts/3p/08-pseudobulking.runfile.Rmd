@@ -45,6 +45,14 @@ source(here('config/color_palette.R'))
 figures <- list()
 ```
 
+```{r}
+objs <- lapply(objs, function(x) {
+  x$ind <- ifelse(grepl('F1', x$orig.ident), 'F1', 'F5') 
+  x$group <- paste0(x$cell_labels.fine, '.', x$ind)
+  x
+})
+```
+
 
 ```{r}
 objs <- readRDS(here('rds/3p/07_post_module_scoring.rds'))
@@ -74,10 +82,14 @@ cellcounts_fine <- cellcounts_fine |>
 # pseudobulking 
 
 ```{r}
-# objs <- lapply(objs, subset, cell_labels.coarse != 'drop')
+## subsetting
+objs <- lapply(objs, subset, cell_labels.fine %in% c('CD4+ T', 'CD8+ T',
+                                                     'B naive', 'B memory',
+                                                     'Classical monocyte', 'Non-classical monocyte'))
 ## Testing downsampling 
 # objs <- lapply(objs, SetIdent, value='cell_labels.fine')
 # objs <- lapply(objs, subset, downsample = 1000)
+
 objs <- lapply(objs, AggregateExpression, 
                group.by = c('orig.ident', 'cell_labels.fine'),
                assays = 'RNA')
@@ -87,7 +99,7 @@ objs$Scale$RNA@x <- round(objs$Scale$RNA@x)
 
 
 
-bp_obj <- cbind(
+pb_obj <- cbind(
   objs$Flex$RNA,
   objs$Fluent_v4$RNA,
   objs$Fluent_V$RNA,
@@ -102,13 +114,13 @@ bp_obj <- cbind(
 
 ```{r}
 label_order <- c(
-    "CD4+ T", "CD8+ T", 'T', "NK",
-    "B naive", "B memory", 'B', "Megakaryocyte",
-    "Classical monocyte", "Non-classical monocyte", 'Monocyte',
-    "Dendritic", "pDC",
-    'Erythrocyte','Granulocyte', 'Unknown'
+    "CD4+ T", "CD8+ T", #'T', "NK",
+    "B naive", "B memory", #'B', "Megakaryocyte",
+    "Classical monocyte", "Non-classical monocyte"#, 'Monocyte',
+    # "Dendritic", "pDC",
+    # 'Erythrocyte','Granulocyte', 'Unknown'
 )
-coldata <- bp_obj@Dimnames[[2]] |> 
+coldata <- pb_obj@Dimnames[[2]] |> 
     as.data.table() |> 
     separate(V1, c('Sample', 'celltype'), '_', remove=FALSE) |>
     mutate(Sample = gsub('-', '_', Sample)) |>
@@ -116,27 +128,27 @@ coldata <- bp_obj@Dimnames[[2]] |>
   column_to_rownames('V1') |>
   mutate(celltype = factor(celltype, levels = label_order))
 
-design_formula <- as.formula('~ Kit + celltype + Individual')
+design_formula <- as.formula('~ Kit + celltype + Individual + Kit:celltype + Kit:Individual + celltype:Individual + Kit:celltype:Individual')
 design_matrix  <- stats::model.matrix(design_formula, data = coldata)
-coldata <- coldata[colnames(bp_obj),]
+coldata <- coldata[colnames(pb_obj),]
 colnames(design_matrix)
 ```
 
 ```{r}
-bp_obj <- DESeqDataSetFromMatrix(bp_obj,
+pb_obj <- DESeqDataSetFromMatrix(pb_obj,
                          colData = coldata,
                          design = design_formula,
                          tidy = FALSE)
 
 
-assays(bp_obj)$vst <- vst(bp_obj)
-# vsd <- assays(bp_obj)$vst
+assays(pb_obj)$vst <- vst(pb_obj)
+# vsd <- assays(pb_obj)$vst
 ```
 
 # Sample dist
 
 ```{r}
-sampleDists <- dist(t(assay(assays(bp_obj)$vst))) |>
+sampleDists <- dist(t(assay(assays(pb_obj)$vst))) |>
   as.matrix() |>
   as.data.table(keep.rownames = TRUE) |>
   # rownames_to_column('Sample1') |>
@@ -174,7 +186,7 @@ plotdata |>
   scale_size_continuous(range=c(5,12)) +
     scale_color_gradient2(low = "#4DAF4A",
                        mid="grey",
-                       high = "#FF0000", midpoint = 100, limits=c(0,200), oob=scales::squish) +
+                       high = "#FF0000", midpoint = 75, limits=c(0,150), oob=scales::squish) +
   scale_x_discrete(labels = label_function) +
   theme_bw() +
   labs(x = 'Kit', y = 'Celltype',
@@ -234,7 +246,7 @@ pca <- function(data, nfeatures=2000, npcs = 2) {
   pca <- stats::prcomp(t(data[var_feats,]))
   return(pca$x[,1:npcs])
 }
-plotdata <- pca(assay(assays(bp_obj)$vst), npcs=20, nfeatures = 200) |>
+plotdata <- pca(assay(assays(pb_obj)$vst), npcs=20, nfeatures = 200) |>
   as.data.frame() |>
   rownames_to_column('sample') |>
   separate(sample, c('Sample', 'celltype'), '_', remove = TRUE) |>
@@ -257,7 +269,7 @@ figures[['PCA_of_kits']]
 
 ```{r}
 for (kit in unique(metadata$Kit)) {
-  plotdata <- assay(assays(bp_obj)$vst)
+  plotdata <- assay(assays(pb_obj)$vst)
   plotdata <- plotdata[,grepl(kit, gsub('-', '_', colnames(plotdata)))]
   plotdata <- pca(plotdata) |>
     as.data.frame() |>
@@ -283,7 +295,7 @@ figures[['PCA_Flex']]
 
 ```{r}
 plotdata <- 
-  pca(assay(assays(bp_obj)$vst), nfeatures = 200, npcs = 20) |>
+  pca(assay(assays(pb_obj)$vst), nfeatures = 200, npcs = 20) |>
     dist() |>
     as.matrix() |>
     as.data.frame() |>
@@ -436,9 +448,9 @@ corr_dotplot <- function(corrdata) {
 ```{r}
 corr_data_all <- list()
 for (kit in unique(metadata$Kit)) {
-  for (celltype in unique(colData(bp_obj)$celltype)) {
+  for (celltype in unique(colData(pb_obj)$celltype)) {
     if (nrow(filter(cellcounts_fine_kit, Kit == kit, Celltype == celltype)) > 0){
-        plotdata <- obj_cor(assays(bp_obj)$vst, kit, celltype, ngenes=200,
+        plotdata <- obj_cor(assays(pb_obj)$vst, kit, celltype, ngenes=200,
                             method='spearman',
                             features_select = 'celltype'
                             ) |>
@@ -568,18 +580,18 @@ contrast_matrix
 ```
 
 
-```{r, eval=TRUE}
+```{r, eval=TRUE, fig.width=12, fig.height=4}
 corr_data_bykit <- tibble()
 for (kit in unique(metadata$Kit)) {
   plotdata <- tibble()
-  for (celltype in unique(colData(bp_obj)$celltype)) {
+  for (celltype in unique(colData(pb_obj)$celltype)) {
     if (nrow(filter(cellcounts_fine_kit, Kit == kit, Celltype == celltype)) > 0){
       # # var_genes <- adsf |>
       #   as.data.frame() |> 
       #   arrange(padj) |> 
       #   head(n=200) |> 
       #   rownames()
-      plotdata1 <- obj_cor(assays(bp_obj)$vst, kit, celltype, ngenes=2000, method='spearman', features_select = 'kit+celltype') |>
+      plotdata1 <- obj_cor(assays(pb_obj)$vst, kit, celltype, ngenes=2000, method='spearman', features_select = 'kit+celltype') |>
       filter(celltype1 == celltype2) |>
       # filter((Individual1 == 'F1A' & Individual2 == 'F1B') |
       #      (Individual1 == 'F5A' & Individual2 == 'F5B')) |>
@@ -607,7 +619,7 @@ for (kit in unique(metadata$Kit)) {
                        low = "#FF0000", 
                        midpoint=0.5) +
     labs(x = 'Sample 1', y = 'Sample 2', fill = 'Corr', title = label_function(kit)) +
-    facet_wrap(~ celltype1, drop = FALSE, ncol=4, nrow = 4) ->
+    facet_wrap(~ celltype1, drop = FALSE, ncol=6, nrow = 4) ->
     figures[[paste0('corr_mat_pearson', kit)]]
   print(figures[[paste0('corr_mat_pearson', kit)]])
 }
@@ -629,69 +641,68 @@ figures[['rep_corr_summary_bykit']]
 
 # DESeq
 
-## coarse grouping
+<!-- ## coarse grouping -->
 
-```{r}
-label_order <- c(
-    "B",
-    "T", 
-    "NK",
-    "Monocyte",
-    "Dendritic", "pDC"
-)
-```
+<!-- ```{r} -->
+<!-- label_order <- c( -->
+<!--     "B", -->
+<!--     "T",  -->
+<!--     "NK", -->
+<!--     "Monocyte", -->
+<!--     "Dendritic", "pDC" -->
+<!-- ) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- coarse_celltypes <- data.frame( -->
+<!--   fine = c("CD4+ T", "CD8+ T", 'T', -->
+<!--            "NK", -->
+<!--            "Classical monocyte", "Non-classical monocyte", "Monocyte", -->
+<!--            "Dendritic", -->
+<!--            "B naive", "B memory", 'B', -->
+<!--            "Megakaryocyte", -->
+<!--            "pDC",  -->
+<!--            "Granulocyte",  -->
+<!--            "Erythrocyte", -->
+<!--            "Unknown"), -->
+<!--   coarse =  c("CD4+ T", "CD8+ T", 'drop', -->
+<!--               "NK", -->
+<!--            "Classical monocyte", "Non-classical monocyte", "drop", -->
+<!--            "Dendritic", -->
+<!--            "B naive", "B memory", 'drop', -->
+<!--            "drop", -->
+<!--            "pDC",  -->
+<!--            "drop",  -->
+<!--            "drop", -->
+<!--            "drop") -->
+<!-- ) -->
+
+<!-- deseq_obj <- pb_obj -->
+<!-- deseq_obj$celltype <- plyr::mapvalues(deseq_obj$celltype, -->
+<!--                                        from = coarse_celltypes$fine, -->
+<!--                                        to = coarse_celltypes$coarse) -->
+<!-- deseq_obj <- deseq_obj[,deseq_obj$celltype != 'drop'] -->
+<!-- deseq_obj$celltype <- droplevels(deseq_obj$celltype) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- design_formula <- as.formula('~ Kit * celltype') -->
+<!-- design(deseq_obj) <- design_formula -->
 
 
-```{r}
-coarse_celltypes <- data.frame(
-  fine = c("CD4+ T", "CD8+ T", 'T',
-           "NK",
-           "Classical monocyte", "Non-classical monocyte", "Monocyte",
-           "Dendritic",
-           "B naive", "B memory", 'B',
-           "Megakaryocyte",
-           "pDC", 
-           "Granulocyte", 
-           "Erythrocyte",
-           "Unknown"),
-  coarse =  c("CD4+ T", "CD8+ T", 'drop',
-              "NK",
-           "Classical monocyte", "Non-classical monocyte", "drop",
-           "Dendritic",
-           "B naive", "B memory", 'drop',
-           "drop",
-           "pDC", 
-           "drop", 
-           "drop",
-           "drop")
-)
-
-deseq_obj <- bp_obj
-deseq_obj$celltype <- plyr::mapvalues(deseq_obj$celltype,
-                                       from = coarse_celltypes$fine,
-                                       to = coarse_celltypes$coarse)
-deseq_obj <- deseq_obj[,deseq_obj$celltype != 'drop']
-deseq_obj$celltype <- droplevels(deseq_obj$celltype)
-```
-
-```{r}
-design_formula <- as.formula('~ Kit * celltype')
-design(deseq_obj) <- design_formula
-
-
-design_matrix  <- stats::model.matrix(design_formula, data = deseq_obj@colData)
-# coldata <- coldata[colnames(bp_obj),]
-colnames(design_matrix)
-```
+<!-- design_matrix  <- stats::model.matrix(design_formula, data = deseq_obj@colData) -->
+<!-- # coldata <- coldata[colnames(pb_obj),] -->
+<!-- colnames(design_matrix) -->
+<!-- ``` -->
 
 
 ```{r, eval = FALSE}
-deseq_obj <- DESeq(deseq_obj)
-saveRDS(bp_obj, here('rds/3p/pseudobulk_obj3.Rds'), compress = FALSE)
+pb_obj <- DESeq(pb_obj)
+saveRDS(pb_obj, here('rds/3p/pseudobulk_obj4.Rds'), compress = FALSE)
 ```
 
 ```{r,eval=TRUE}
-bp_obj <- readRDS(here('rds/3p/pseudobulk_obj3.Rds'))
+pb_obj <- readRDS(here('rds/3p/pseudobulk_obj4.Rds'))
 ```
 
 # Render report
@@ -700,7 +711,7 @@ bp_obj <- readRDS(here('rds/3p/pseudobulk_obj3.Rds'))
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
-rmarkdown::render(here('processing_scripts/3p/08-dge.format.Rmd'),
-                  output_file = '08-dge.html',
+rmarkdown::render(here('processing_scripts/3p/08-pseudobulking.format.Rmd'),
+                  output_file = '08-pseudobulking.html',
                   output_dir = here('reports/3p/'))
 ```
