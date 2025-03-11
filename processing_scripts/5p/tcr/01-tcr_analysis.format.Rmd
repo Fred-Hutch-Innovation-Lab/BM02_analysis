@@ -15,24 +15,24 @@ knitr::opts_chunk$set(echo = FALSE,
                       cache=FALSE, cache.lazy = FALSE) 
 ```
 
-# clone recovery {.tabset}
+# Clone recovery {.tabset}
 
-## Reported
+<!-- ## Reported -->
 
-As reported by the pipelines. The TRA and TRB columns also include cells that had BOTH TRA/TRB, so they 
-reflect the total % of cells with that chain regardless of if the other was present. 
+<!-- As reported by the pipelines. The TRA and TRB columns also include cells that had BOTH TRA/TRB, so they  -->
+<!-- reflect the total % of cells with that chain regardless of if the other was present.  -->
 
-```{r}
-figures[['reported chain recovery']]
-```
+<!-- ```{r} -->
+<!-- figures[['reported chain recovery']] -->
+<!-- ``` -->
 
 
-## Calculated {.tabset}
+<!-- ## Calculated {.tabset} -->
 
 Calculated from the final output files. This has a more granular breakdown of chain recovery, distinguishing
 cells with multiple viable chains for either TRA or TRB
 
-### counts
+## counts
 
 Raw counts
 
@@ -40,30 +40,41 @@ Raw counts
 figures[['chain recovery count']]
 ```
 
-### proportions {.tabset}
-
-#### All T Cells
-
-```{r}
-figures[['chain recovery % all']]
-```
-
-#### Productive T cells
+## proportions {.active}
 
 ```{r}
 figures[['chain recovery % recovered']]
 ```
 
-# {- .unlisted}
+```{r}
+figures[['chain recovery stacked']]
+```
 
 ***
 
+# Unique clonotype recovery
+
+```{r}
+figures[['unique clone recovery count']]
+```
+
+***
 
 # Diversity
 
 A higher inverse Simpson index value indicates more unique members and more even distribution of presence.
 
+## All clones
+
 ```{r}
 figures[['simpson index']]
+```
+
+## Clean clones
+
+TRA:TRB perfect pairs only. No multiple or missing chains.
+
+```{r}
+figures[['simpson index perfect clones only']]
 ```
 

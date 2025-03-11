@@ -187,7 +187,7 @@ for (i in 1:nrow(samplesheets[[kit]])){
   sample <- samplesheets[[kit]][i,'Sample']
   file <- samplesheets[[kit]][i,'File']
   
-  vdj_data <- file.path(config$base_dir, config$data_dir,  data_dirs[[kit]],'TCR/COMBINED/', file, 'report/sample_all_stats.csv')
+  vdj_data <- file.path(config$base_dir, config$data_dir,  data_dirs[[kit]],'downsampled_runs/TCR/COMBINED/', file, 'report/sample_all_stats.csv')
   vdj_data <- read.csv(vdj_data)
   metric_summaries[[sample]] <- vdj_data |> select(statistic, combined)
 }
@@ -240,7 +240,30 @@ trimmed_metric_summaries <- rbind(trimmed_metric_summaries_10x, trimmed_metric_s
   mutate(Metric.Name = factor(Metric.Name, levels = c('Total cells', 'TRA & TRB', 'TRA', 'TRB')))
 ```
 
-# Cell recovery
+
+```{r}
+
+```
+
+
+
+# Save objs
+
+```{r, eval=FALSE}
+saveRDS(objs, here('rds/5p/tcr/tcr_paired.Rds'), compress=FALSE)
+write.table(trimmed_metric_summaries, here('rds/5p/tcr/metric_summaries.csv'), 
+            sep=',', row.names = FALSE, col.names = TRUE, quote = FALSE)
+```
+
+```{r}
+objs <- readRDS(here('rds/5p/tcr/tcr_paired.Rds'))
+for (pobj in c("Parse_v2_F1", "Parse_v2_F2", "Parse_v2_F4", "Parse_v2_F5")) {
+  objs[[pobj]]$data <- objs[[pobj]]$data |> 
+    group_by(clonotype_id) |> 
+    slice_max(Clones, with_ties = FALSE)
+}
+trimmed_metric_summaries <- read.csv(here('rds/5p/tcr/metric_summaries.csv'))
+```
 
 
 
@@ -255,8 +278,8 @@ ggplot(filter(plotdata, Metric.Name != 'Total cells'), aes(x=Metric.Name, y=pct)
   geom_beeswarm(aes(shape=Individual)) +
   facet_wrap(~ Kit) +
   labs(x='Chain(s)', y='Recovery (% of T cells)') ->
-figures[['reported chain recovery']]
-figures[['reported chain recovery']]
+figures[['reported chain recovery boxplot']]
+figures[['reported chain recovery boxplot']]
 ```
 
 ## counts
@@ -265,7 +288,7 @@ figures[['reported chain recovery']]
 plotdata <- data.table::rbindlist(lapply(objs, function(x) {
   x$data |>
     group_by(chain) |>
-    summarize(n=n())
+    summarize(n=sum(Clones))
 }), idcol = 'Sample') |>
   merge(metadata, by='Sample') |>
   mutate(chain = factor(chain, levels = c(
@@ -284,13 +307,13 @@ ggplot(plotdata, aes(x=chain, y=n)) +
   facet_wrap(~ Kit, scales='free_x') +
   theme(axis.text.x = element_text(angle=45, hjust=1, vjust=1)) +
   labs(x='Chain(s)', y='Cell count') ->
-  figures[['chain recovery count']]
-figures[['chain recovery count']]
+  figures[['chain recovery count boxplot']]
+figures[['chain recovery count boxplot']]
 ```
 
 ## proportions
 
-### All cells
+### Boxplot
 
 ```{r}
 return_total_cells <- function(sample){
@@ -303,7 +326,7 @@ return_total_cells <- function(sample){
 plotdata <- data.table::rbindlist(lapply(objs, function(x) {
   x$data |>
     group_by(chain) |>
-    summarize(n=n())
+    summarize(n=sum(Clones))
 }), idcol = 'Sample') |>
   merge(metadata, by='Sample') |>
   mutate(chain = factor(chain, levels = c(
@@ -324,20 +347,69 @@ ggplot(plotdata, aes(x=chain, y=prop)) +
   scale_y_continuous(labels=scales::percent) +
   facet_wrap(~ Kit, scales='free_x') +
   theme(axis.text.x = element_text(angle=45, hjust=1, vjust=1)) +
-  labs(x='Chain(s)', y='% of cells', caption='% of all detected T cells regardless of chain recovery') ->
-  figures[['chain recovery % all T']]
-figures[['chain recovery % all T']]
+  labs(x='Chain(s)', y='% of productive T cells') ->
+  figures[['chain recovery % boxplot']]
+figures[['chain recovery % boxplot']]
 ```
 
-### Cells with productive chains
+### Stacked
 
 ```{r}
+return_total_cells <- function(sample){
+  trimmed_metric_summaries$Metric.Value[
+    trimmed_metric_summaries$Sample == sample &
+    trimmed_metric_summaries$Metric.Name == 'Total cells'
+  ] 
+}
+
+plotdata <- data.table::rbindlist(lapply(objs, function(x) {
+  x$data |>
+    group_by(chain) |>
+    summarize(n=sum(Clones))
+}), idcol = 'Sample') |>
+  merge(metadata, by='Sample') |>
+  group_by(Sample)
+plotdata$prop <- plotdata$n / unlist(lapply(plotdata$Sample, return_total_cells))
+
+plotdata <- plotdata |> 
+  # group_by(Sample, File, Kit, Individual, Replicate) |>
+  # summarize(prop = 1-sum(prop)) |>
+  # mutate(chain = 'None') |>
+  # rbind(plotdata) |>
+  mutate(chain = factor(chain, levels = c(
+    'TRA;TRB',
+    'TRA',
+    'TRB',
+    'TRA;TRA;TRB',
+    'TRA;TRB;TRB',
+    'TRA;TRA',
+    'TRB;TRB',
+    'TRA;TRA;TRB;TRB',
+    'None'
+  ))) |>
+  arrange(Sample, chain)
+ggplot(plotdata, aes(x=Individual, y=prop, group = Individual, fill = chain)) +
+  geom_col() +
+  # geom_point(aes(shape = Individual)) +
+  scale_y_continuous(labels=scales::percent) +
+  scale_fill_brewer(type = 'qual') +
+  facet_wrap(~ Kit, scales='free_x') +
+  theme(axis.text.x = element_text(angle=45, hjust=1, vjust=1)) +
+  labs(x='Chain(s)', y='% of productive T cells') ->
+  figures[['chain recovery stacked']]
+figures[['chain recovery stacked']]
+```
+
+# Richness
+
+```{r, eval=TRUE}
 plotdata <- data.table::rbindlist(lapply(objs, function(x) {
   x$data |>
     group_by(chain) |>
     summarize(n=n())
 }), idcol = 'Sample') |>
   merge(metadata, by='Sample') |>
+  group_by(Sample) |>
   mutate(chain = factor(chain, levels = c(
     'TRA;TRB',
     'TRA',
@@ -348,37 +420,18 @@ plotdata <- data.table::rbindlist(lapply(objs, function(x) {
     'TRB;TRB',
     'TRA;TRA;TRB;TRB'
   ))) |>
-  group_by(Sample) |>
-  mutate(prop = n / sum(n))
-ggplot(plotdata, aes(x=chain, y=prop)) +
-  geom_boxplot() +
-  geom_point(aes(shape = Individual)) +
-  scale_y_continuous(labels=scales::percent) +
-  facet_wrap(~ Kit, scales='free_x') +
-  theme(axis.text.x = element_text(angle=45, hjust=1, vjust=1)) +
-  labs(x='Chain(s)', y='% of cells', caption='Only considering cells with recovered chains') ->
-  figures[['chain recovery % recovered']]
-figures[['chain recovery % recovered']]
-```
+  arrange(Sample, desc(chain))
 
-# Richness
 
-```{r, eval=FALSE}
-plotdata <- lapply(objs, function(x){
-  nrow(x$data)
-}) |>
-  as.data.table() |>
-  melt() |>
-  merge(metadata, by.x='variable', by.y='Sample') 
 
-plotdata$total_cells <- unlist(lapply(plotdata$variable, return_total_cells))
-plotdata$ratio <- plotdata$value / plotdata$total_cells
+plotdata$total_cells <- unlist(lapply(plotdata$Sample, return_total_cells))
 
 ggplot(plotdata, aes(x=Individual)) +
-  geom_col(aes(y=value)) + 
-  geom_point(aes(y=total_cells), shape=95, size=20, color = 'darkblue') +
-  facet_wrap(~ Kit) + 
-  labs(x= 'Sample', y='Unique clonotypes', caption='Blue line shows total T cells recovered (with or without productive chains') ->
+  geom_col(aes(y=n, fill=chain), position = position_stack(reverse = TRUE)) + 
+  geom_point(aes(y=total_cells), shape=95, size=15, color = 'darkblue') +
+  scale_fill_brewer(type = 'qual') +
+  facet_grid(~ Kit, scales='free_x',space = 'free_x' ) + 
+  labs(x= 'Sample', y='Unique clonotypes', caption='Blue line shows total productive T cells recovered') ->
   figures[['unique clone recovery count']]
 figures[['unique clone recovery count']]
 ```
@@ -414,20 +467,26 @@ plotdata <- lapply(objs, function(x) repDiversity(x$data, 'inv.simp')) |>
   merge(metadata, by.x='variable', by.y='Sample') 
 ggplot(plotdata, aes(x=Individual, y=value)) +
   geom_col() +
-  facet_wrap(~ Kit) +
+  facet_grid(~ Kit, space='free_x', scales = 'free_x') +
   labs(x='Individual', y='Inverse Simpson index') ->
   figures[['simpson index']]
 figures[['simpson index']]
 ```
 
-# Save objs
+## Complete clones
 
 ```{r}
-saveRDS(objs, here('rds/5p/tcr/tcr_paired.Rds'), compress=FALSE)
-write.table(trimmed_metric_summaries, here('rds/5p/tcr/metric_summaries.csv'), 
-            sep=',', row.names = FALSE, col.names = TRUE, quote = FALSE)
+plotdata <- lapply(objs, function(x) repDiversity(x$data |> filter(chain == 'TRA;TRB'), 'inv.simp')) |>
+  as.data.table() |>
+  melt() |>
+  merge(metadata, by.x='variable', by.y='Sample') 
+ggplot(plotdata, aes(x=Individual, y=value)) +
+  geom_col() +
+  facet_grid(~ Kit, space='free_x', scales = 'free_x') +
+  labs(x='Individual', y='Inverse Simpson index') ->
+  figures[['simpson index perfect clones only']]
+figures[['simpson index perfect clones only']]
 ```
-
 
 # Render report
 
