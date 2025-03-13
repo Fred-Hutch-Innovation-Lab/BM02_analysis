@@ -7,7 +7,7 @@ date: '`r Sys.Date()`'
 output: 
   rmdformats::robobook:
     fig_width: 9
-    toc_depth: 3
+    toc_depth: 1
     css: '../../config/robobook.css'
 ---
 
@@ -181,7 +181,7 @@ figures[['euler_bvt']]
 ::: {class='col-md-8'}
 
 ```{r}
-figures[['upset_bvt']]
+figures[['upset_bvst']]
 ```
 
 :::
@@ -208,6 +208,21 @@ for (contrast in contrast_matrix_formula$contrast_names) {
 
 cat(knit_child(text = out, quiet = TRUE), sep = '\n')
 ```
+
+# DGE correlation
+
+## CD4 v CD8 T
+
+```{r, fig.width=10, fig.height=10}
+figures[['sig_gene_correlation_cd8vcd4']]
+```
+
+## B v T
+
+```{r, fig.width=10, fig.height=10}
+figures[['sig_gene_correlation_bvst']]
+```
+
 
 # GSEA
 

@@ -122,11 +122,11 @@ c) removes an additional intermediate calculation/transformation (PCA)
 
 
 ```{r, fig.width=8, fig.height=5}
-figures[['sample_distance_dotplot']]
+figures[['sample_vst_distance_dotplot']]
 ```
 
 I could then weight the per-sample distance by the sample-level composition (multiply it by the proportion of cells) and come up with a kit-level distance measurement. I report it as a range, as it is 2 values per kit (F1 and F5). I'm not a huge fan of this, but it seems better than reporting the mean and variance. But maybe it makes sense to just show the 2 data points rather than report it as a range
 
 ```{r}
-figures[['pb_dist_table']]
+figures[['pb_vst_dist_table']]
 ```

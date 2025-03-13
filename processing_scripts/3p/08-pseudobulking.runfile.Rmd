@@ -46,18 +46,14 @@ figures <- list()
 ```
 
 ```{r}
+objs <- readRDS(here('rds/3p/07_post_module_scoring.rds'))
+genes <- Reduce(intersect, lapply(objs, Features))
+objs <- lapply(objs, subset, features = genes)
 objs <- lapply(objs, function(x) {
   x$ind <- ifelse(grepl('F1', x$orig.ident), 'F1', 'F5') 
   x$group <- paste0(x$cell_labels.fine, '.', x$ind)
   x
 })
-```
-
-
-```{r}
-objs <- readRDS(here('rds/3p/07_post_module_scoring.rds'))
-genes <- Reduce(intersect, lapply(objs, Features))
-objs <- lapply(objs, subset, features = genes)
 ```
 
 ```{r}
@@ -128,7 +124,7 @@ coldata <- pb_obj@Dimnames[[2]] |>
   column_to_rownames('V1') |>
   mutate(celltype = factor(celltype, levels = label_order))
 
-design_formula <- as.formula('~ Kit + celltype + Individual + Kit:celltype + Kit:Individual + celltype:Individual + Kit:celltype:Individual')
+design_formula <- as.formula('~ Kit + celltype + Kit:celltype')
 design_matrix  <- stats::model.matrix(design_formula, data = coldata)
 coldata <- coldata[colnames(pb_obj),]
 colnames(design_matrix)
@@ -641,67 +637,12 @@ figures[['rep_corr_summary_bykit']]
 
 # DESeq
 
-<!-- ## coarse grouping -->
-
-<!-- ```{r} -->
-<!-- label_order <- c( -->
-<!--     "B", -->
-<!--     "T",  -->
-<!--     "NK", -->
-<!--     "Monocyte", -->
-<!--     "Dendritic", "pDC" -->
-<!-- ) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- coarse_celltypes <- data.frame( -->
-<!--   fine = c("CD4+ T", "CD8+ T", 'T', -->
-<!--            "NK", -->
-<!--            "Classical monocyte", "Non-classical monocyte", "Monocyte", -->
-<!--            "Dendritic", -->
-<!--            "B naive", "B memory", 'B', -->
-<!--            "Megakaryocyte", -->
-<!--            "pDC",  -->
-<!--            "Granulocyte",  -->
-<!--            "Erythrocyte", -->
-<!--            "Unknown"), -->
-<!--   coarse =  c("CD4+ T", "CD8+ T", 'drop', -->
-<!--               "NK", -->
-<!--            "Classical monocyte", "Non-classical monocyte", "drop", -->
-<!--            "Dendritic", -->
-<!--            "B naive", "B memory", 'drop', -->
-<!--            "drop", -->
-<!--            "pDC",  -->
-<!--            "drop",  -->
-<!--            "drop", -->
-<!--            "drop") -->
-<!-- ) -->
-
-<!-- deseq_obj <- pb_obj -->
-<!-- deseq_obj$celltype <- plyr::mapvalues(deseq_obj$celltype, -->
-<!--                                        from = coarse_celltypes$fine, -->
-<!--                                        to = coarse_celltypes$coarse) -->
-<!-- deseq_obj <- deseq_obj[,deseq_obj$celltype != 'drop'] -->
-<!-- deseq_obj$celltype <- droplevels(deseq_obj$celltype) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- design_formula <- as.formula('~ Kit * celltype') -->
-<!-- design(deseq_obj) <- design_formula -->
-
-
-<!-- design_matrix  <- stats::model.matrix(design_formula, data = deseq_obj@colData) -->
-<!-- # coldata <- coldata[colnames(pb_obj),] -->
-<!-- colnames(design_matrix) -->
-<!-- ``` -->
-
-
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 pb_obj <- DESeq(pb_obj)
-saveRDS(pb_obj, here('rds/3p/pseudobulk_obj4.Rds'), compress = FALSE)
+saveRDS(pb_obj, here('rds/3p/pseudobulk_obj_no_ind.Rds'), compress = FALSE)
 ```
 
-```{r,eval=TRUE}
+```{r,eval=FALSE}
 pb_obj <- readRDS(here('rds/3p/pseudobulk_obj4.Rds'))
 ```
 
