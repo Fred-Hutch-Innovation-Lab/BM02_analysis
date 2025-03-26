@@ -61,5 +61,14 @@ write_plot_data <- function(plotdata, file, sep='\t', row.names = FALSE, quote =
   if (!dir.exists(dirname(file))) {
     dir.create(dirname(file), recursive=TRUE)
   }
+  
+  # Convert list columns to character vectors by concatenating elements
+  plotdata <- as.data.frame(plotdata) |>
+    mutate(across(where(is.list), 
+                  ~map_chr(., function(x) {
+                    if (is.null(x)) return(NA)
+                    paste(as.character(x), collapse = ";")
+                  })))
+  
   write.table(plotdata, quote = quote, sep = sep, row.names = row.names, file=file, ...)
 }
