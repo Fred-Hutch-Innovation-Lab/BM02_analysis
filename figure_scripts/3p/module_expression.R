@@ -28,7 +28,7 @@ confusion_plot <- function(plotdata, kit){
     filter(Kit == kit) |>
     ggplot(aes(x=cell_labels.fine, y=module, fill=value, label=ifelse(is.na(value), 'NA', value))) +
     geom_tile() +
-    geom_text(color='white') +
+    # geom_text(color='white') +
     scale_fill_viridis(limits=c(0,1), option = 'A') + #low = "white", high = "red", 
     theme(axis.text.x = element_text(angle=45, hjust=1)) +
     labs(x='Cell label', y='Marker module', fill='Average\nmarker gene\nmodule score')
@@ -86,7 +86,8 @@ plotdata <- lapply(fig_objs, function(x){
   mutate(module=gsub('(.+)_filtered_UCell', '\\1', variable)) |>
   select(-variable) |>
   mutate(module=factor(module, levels=c(label_order$fine)),
-         cell_labels.fine = factor(cell_labels.fine, levels = label_order$fine))
+         cell_labels.fine = factor(cell_labels.fine, levels = label_order$fine),
+         value = round(value, 2))
 
 for (kit in unique(metadata_3p$Kit)) {
   plots <- list()
@@ -97,3 +98,4 @@ for (kit in unique(metadata_3p$Kit)) {
                path= here('figures/3p/module_expression', paste0(kit, '_confusion_mat_fine.svg')),
                width = 9, height=8)
 }
+
