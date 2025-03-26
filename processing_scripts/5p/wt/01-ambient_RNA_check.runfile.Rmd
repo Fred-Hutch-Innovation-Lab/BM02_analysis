@@ -152,7 +152,7 @@ objs <- lapply(objs, function(x) {
 
 ## Save RDS
 
-```{r, eval=TRUE}
+```{r, eval=FALSE}
 saveRDS(objs, here('rds/5p/wt/01-soup_channels.rds'), compress=FALSE)
 ```
 
@@ -231,7 +231,7 @@ saveRDS(objs, here('rds/5p/wt/01_raw_objs.rds'), compress=FALSE)
 
 # Render report
 
-```{r, eval=FALSE}
+```{r, eval=TRUE}
 ## This only works if all the variables called in the format file 
 ## are in the current environment. Check the format file to tweak
 ## aesthetics 
