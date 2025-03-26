@@ -44,13 +44,13 @@ plotdata <- do.call(rbind, list(cell_loading_data, doublets, bad_cells)) %>%
 # Plot ----
 ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
   geom_col(position='stack') +
-  geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
+  geom_hline(data = target_cells, aes(yintercept = value), lty='dotted', color='black', size=1.5) +
   facet_wrap(~Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function)) +
   theme(axis.text.x = element_text(angle=45, vjust=0.5)) + 
   ggbreak::scale_y_break(c(130000, 200000), ticklabels = c(200000, 230000))+ 
   scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
                     labels = c('Remainder barcoded', 'Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
-  labs(x='Sample', y='Number of cells', fill='Classification') -> #, caption = 'Dashed lines indicate targeted cell recovery'
+  labs(x='Sample', y='Number of cells', fill='Classification') -> #, caption = 'dotted lines indicate targeted cell recovery'
   figures[['cell_recovery_counts_break']] 
 my_plot_save(image = figures[['cell_recovery_counts_break']] , 
              path = here('figures/3p/cell_recovery/cell_recovery_counts_break.svg'), 
@@ -58,7 +58,7 @@ my_plot_save(image = figures[['cell_recovery_counts_break']] ,
 
 ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
   geom_col(position='stack') +
-  geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
+  geom_hline(data = target_cells, aes(yintercept = value), lty='dotted', color='black', size=1.5) +
   facet_wrap(~Kit, scales = 'free_x', nrow=1, labeller = labeller(Kit = label_function)) +
   theme(axis.text.x = element_text(angle=45, vjust=0.5)) + 
   scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
@@ -71,7 +71,7 @@ my_plot_save(image = figures[['cell_recovery_counts']] ,
 
 ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
   geom_col(position='stack') +
-  geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
+  geom_hline(data = target_cells, aes(yintercept = value), lty='dotted', color='black', size=1.5) +
   facet_wrap(~Kit, scales = 'free', nrow=1, labeller = labeller(Kit = label_function)) +
   theme(axis.text.x = element_text(angle=45, vjust=0.5)) + 
   scale_fill_manual(values = c('darkgrey', '#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
@@ -90,11 +90,11 @@ plotdata <- plotdata %>%
 ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=difference, fill=variable)) +
   geom_col(position='stack') +
   theme(axis.text.x = element_text(angle=45, vjust=0.5)) + 
-  geom_hline(data = target_cells_fraction, aes(yintercept = 100*value), lty='dashed', color='black') +
+  geom_hline(data = target_cells_fraction, aes(yintercept = 100*value), lty='dotted', color='black', size=1.5) +
   facet_wrap(~Kit, scales = 'free_x', nrow=1, labeller = labeller(Kit = label_function)) +
   scale_fill_manual(values = c('#D7191C', '#FDAE61', '#e9e29c', '#39B185'),
                     labels = c('Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet')) +
-  labs(x='Sample', y='% of capture', fill='Classification') -> #, caption = 'Dashed lines indicate expected cell recovery'
+  labs(x='Sample', y='% of capture', fill='Classification') -> #, caption = 'dotted lines indicate expected cell recovery'
   figures[['cell_recovery_portions']] 
 my_plot_save(image = figures[['cell_recovery_portions']] , 
              path = here('figures/3p/cell_recovery/cell_recovery_portions.svg'), 
