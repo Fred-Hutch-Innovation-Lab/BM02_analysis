@@ -72,7 +72,7 @@ rd50_ribbon_u <- lapply(names(model_coef_g), function(kit) {
 #   #            aes(x=nreads, y=median_genes, color = Kit), size=.5) +
 #   geom_point(data = rd50_point_g, aes(x=nreads, y=genes, color=Kit), shape=108, size=9) +
 #   geom_ribbon(data = rd50_ribbon_g, aes(ymin=y-100, ymax=y+100, x=x, color=Kit, fill=Kit), linetype='dotted', alpha=0.25, show.legend = FALSE) +
-#   scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
+#   scale_color_manual(values = unlist(color_palette$kits), labels = label_function(mode='WT'), na.translate = FALSE) +
 #   scale_fill_manual(values = unlist(color_palette$kits)) +
 #   guides(color = guide_legend(override.aes = list(size = 2))) +
 #   labs(x='Average reads per cell', y='Median genes per cell', color = 'Kit') 
@@ -84,7 +84,7 @@ ggplot(filter(sat_curves, !is.na(median_genes)),
   geom_point(data = rd50_point_g, aes(x=nreads, y=genes, color=Kit),
              shape=43, size=14,
              inherit.aes = FALSE, show.legend = FALSE) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function) +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function(mode='WT')) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
   labs(x='Average reads per cell', y='Median genes per cell', linetype='Sample', color = 'Kit') ->
   figures[['sat_curves_genes']]
@@ -101,7 +101,7 @@ ggplot(filter(sat_curves, !is.na(median_umi)),
              shape=43, size=14,
              inherit.aes = FALSE, show.legend = FALSE) +
   lims(x=c(0,35000), y=c(0,9000)) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function(mode='WT'), na.translate = FALSE) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
   labs(x='Average reads per cell', y='Median transcripts per cell', linetype='Sample', color = 'Kit') ->
   figures[['sat_curves_umi']]
@@ -116,7 +116,7 @@ ggplot() +
              aes(x=nreads, y=median_genes, color = Kit), size=.5) +
   geom_point(data = rd50_point_g, aes(x=nreads, y=genes, color=Kit), shape=108, size=8) +
   geom_ribbon(data = rd50_ribbon_g, aes(ymin=y-100, ymax=y+100, x=x, color=Kit, fill=Kit), linetype='dotted', alpha=0.25, show.legend = FALSE) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function(mode='WT'), na.translate = FALSE) +
   scale_fill_manual(values = unlist(color_palette$kits)) +
   lims(x=c(0,35000), y=c(0,3000)) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
@@ -136,7 +136,7 @@ ggplot() +
              aes(x=nreads, y=median_umi, color = Kit), size=.5) +
   geom_point(data = rd50_point_u, aes(x=nreads, y=umi, color=Kit), shape=108, size=8) +
   geom_ribbon(data = rd50_ribbon_u, aes(ymin=y-350, ymax=y+350, x=x, color=Kit, fill=Kit), linetype='dotted', alpha=0.25, show.legend = FALSE) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function(mode='WT'), na.translate = FALSE) +
   scale_fill_manual(values = unlist(color_palette$kits)) +
   lims(x=c(0,35000), y=c(0,9000)) +
   guides(color = guide_legend(override.aes = list(size = 2))) +

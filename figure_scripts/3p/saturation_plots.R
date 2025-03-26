@@ -74,7 +74,7 @@ rd50_ribbon_u <- lapply(names(model_coef_g), function(kit) {
 #   #            aes(x=nreads, y=median_genes, color = Kit), size=.5) +
 #   geom_point(data = rd50_point_g, aes(x=nreads, y=genes, color=Kit), shape=108, size=9) +
 #   geom_ribbon(data = rd50_ribbon_g, aes(ymin=y-100, ymax=y+100, x=x, color=Kit, fill=Kit), linetype='dotted', alpha=0.25, show.legend = FALSE) +
-#   scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
+#   scale_color_manual(values = unlist(color_palette$kits), labels = label_function(), na.translate = FALSE) +
 #   scale_fill_manual(values = unlist(color_palette$kits)) +
 #   guides(color = guide_legend(override.aes = list(size = 2))) +
 #   labs(x='Average reads per cell', y='Median genes per cell', color = 'Kit') 
@@ -86,7 +86,7 @@ ggplot(filter(sat_curves, !is.na(median_genes)),
   geom_point(data = rd50_point_g, aes(x=nreads, y=genes, color=Kit),
              shape=43, size=14,
              inherit.aes = FALSE, show.legend = FALSE) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function) +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function()) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
   labs(x='Average reads per cell', y='Median genes per cell', linetype='Sample', color = 'Kit') ->
   figures[['sat_curves_genes']]
@@ -103,7 +103,7 @@ ggplot(filter(sat_curves, !is.na(median_umi)),
              shape=43, size=14,
              inherit.aes = FALSE, show.legend = FALSE) +
   lims(x=c(0,35000), y=c(0,9000)) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function(), na.translate = FALSE) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
   labs(x='Average reads per cell', y='Median transcripts per cell', linetype='Sample', color = 'Kit') ->
   figures[['sat_curves_umi']]
@@ -119,7 +119,7 @@ ggplot() +
   lims(x=c(0,35000), y=c(0,3000)) +
   geom_point(data = rd50_point_g, aes(x=nreads, y=genes, color=Kit), shape=108, size=8) +
   geom_ribbon(data = rd50_ribbon_g, aes(ymin=y-100, ymax=y+100, x=x, color=Kit, fill=Kit), linetype='dotted', alpha=0.25, show.legend = FALSE) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function(), na.translate = FALSE) +
   scale_fill_manual(values = unlist(color_palette$kits)) +
   guides(color = guide_legend(override.aes = list(size = 2))) +
   labs(x='Average reads per cell', y='Median genes per cell', color = 'Kit', 
@@ -132,27 +132,27 @@ my_plot_save(image = figures[['sat_curves_model_gene']],
              path = here('figures/3p/saturation_curves/saturation_curves_modeled_gene.svg'), 
              width = 7, height = 5)
 
-ggplot() +
-  geom_line(data = predicted_u, aes(x=nreads, y=median_umi, color=kit)) +
-  geom_point(data = filter(sat_curves, !is.na(median_umi)),
-             aes(x=nreads, y=median_umi, color = Kit), size=.5) +
-  lims(x=c(0,35000), y=c(0,9000)) +
-  geom_point(data = rd50_point_u, aes(x=nreads, y=umi, color=Kit), shape=108, size=8) +
-  geom_ribbon(data = rd50_ribbon_u, aes(ymin=y-350, ymax=y+350, x=x, color=Kit, fill=Kit), linetype='dotted', alpha=0.25, show.legend = FALSE) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function, na.translate = FALSE) +
-  scale_fill_manual(values = unlist(color_palette$kits)) +
-  guides(color = guide_legend(override.aes = list(size = 2))) +
-  labs(x='Average reads per cell', y='Median transcripts per cell', color = 'Kit', 
-       caption = 'Points indicate raw data, lines show modeled fit.
-       Vertical lines indicate RD50.
-       Shaded region indicates 95% confidence estimates.') ->
-  figures[['sat_curves_model_umi']]
-figures[['sat_curves_model_umi']]
-my_plot_save(image = figures[['sat_curves_model_umi']], 
-             path = here('figures/3p/saturation_curves/saturation_curves_modeled_umi.svg'), 
-             width = 7, height = 5)
-
-write_plot_data(sat_curves, here('figure_data/3p/sequencing_saturation/sat_curves_3p.txt'))
+# ggplot() +
+#   geom_line(data = predicted_u, aes(x=nreads, y=median_umi, color=kit)) +
+#   geom_point(data = filter(sat_curves, !is.na(median_umi)),
+#              aes(x=nreads, y=median_umi, color = Kit), size=.5) +
+#   lims(x=c(0,35000), y=c(0,9000)) +
+#   geom_point(data = rd50_point_u, aes(x=nreads, y=umi, color=Kit), shape=108, size=8) +
+#   geom_ribbon(data = rd50_ribbon_u, aes(ymin=y-350, ymax=y+350, x=x, color=Kit, fill=Kit), linetype='dotted', alpha=0.25, show.legend = FALSE) +
+#   scale_color_manual(values = unlist(color_palette$kits), labels = label_function(), na.translate = FALSE) +
+#   scale_fill_manual(values = unlist(color_palette$kits)) +
+#   guides(color = guide_legend(override.aes = list(size = 2))) +
+#   labs(x='Average reads per cell', y='Median transcripts per cell', color = 'Kit', 
+#        caption = 'Points indicate raw data, lines show modeled fit.
+#        Vertical lines indicate RD50.
+#        Shaded region indicates 95% confidence estimates.') ->
+#   figures[['sat_curves_model_umi']]
+# figures[['sat_curves_model_umi']]
+# my_plot_save(image = figures[['sat_curves_model_umi']], 
+#              path = here('figures/3p/saturation_curves/saturation_curves_modeled_umi.svg'), 
+#              width = 7, height = 5)
+# 
+# write_plot_data(sat_curves, here('figure_data/3p/sequencing_saturation/sat_curves_3p.txt'))
 
 # rd50_g <- lapply(names(model_coef_g), function(kit) {
 #   x <- model_coef_g[[kit]]['c', 'Estimate']
