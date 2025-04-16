@@ -2,6 +2,7 @@
 source(here('figure_scripts/utils.R')) 
 # library(readxl)
 library(ggpattern)
+library(immunarch)
 
 
 # Load data ----
@@ -130,6 +131,30 @@ read_eff <- rbind(
     summarize(eff = mean(prop)))
 read_eff
 
+## Clonotypes ----
+
+fig_objs <- readRDS(here('rds/5p/tcr/tcr_paired.Rds'))
+clonotype_counts <- data.table::rbindlist(lapply(fig_objs, function(x) {
+  x$data |>
+    group_by(chain) |>
+    summarize(n=n())
+}), idcol = 'Sample') |>
+  mutate(chain_group = case_when(
+    chain == 'TRA' ~ 'partial',
+    chain == 'TRB' ~ 'partial',
+    chain == 'TRA;TRA' ~ 'partial',
+    chain == 'TRB;TRB' ~ 'partial',
+    chain == 'TRA;TRB' ~ 'complete',
+    .default = 'complex'
+  )) |>
+  mutate(chain_group = factor(chain_group, levels=c('complete', 'complex', 'partial'))) |>
+  group_by(Sample, chain_group) |>
+  summarize(n = sum(n)) |>
+  mutate(total = cumsum(n))
+  
+# clonotype_counts$prop <- clonotype_counts$n / unlist(lapply(clonotype_counts$Sample, return_total_cells))
+
+
 # Prepare plotdata ----
 
 ## RD50
@@ -169,6 +194,26 @@ nsamples = 4
 seq_cost_coef = 1.5e-06 # 1,000,000,000 reads / $1,500
 
 # Plot ----
+
+## Per clonotype ----
+plotdata <- merge(clonotype_counts, metadata_5p, by='Sample') |>
+  left_join(cost_data_per_kit, join_by('Kit' =='Assay')) |>
+  mutate(cost_per_clonotype_group = cost / total) |>
+  select(Sample, chain_group, n, total, Kit, Individual, cost_per_clonotype_group)
+ggplot(plotdata, aes(x=chain_group, y=cost_per_clonotype_group, fill=Kit)) +
+  geom_boxplot() +
+  geom_point(aes(shape = Individual)) +
+  facet_wrap(~ Kit, labeller = label_function(mode='TCR')) +
+  scale_x_discrete(labels = str_to_title) + 
+  scale_fill_manual(values = color_palette$kits, labels = label_function(mode='TCR')) +
+  scale_y_continuous(labels = scales::label_currency()) +
+  labs(x='Clone type', y='Cost per clone', caption = "Complete = 1 TRA AND 1 TRB\nComplex = 1+ TRA AND 1+ TRB\nPartial = 1+ TRA XOR 1+ TRB") ->
+  figures[['price_per_clonotype']]
+write_plot_data(plotdata, file = here('figure_data/cost_per_clonotype.txt'))
+my_plot_save(figures[['price_per_clonotype']],
+             here('figures/cost/cost_per_clonotype.svg'),
+             device ='svglite' ,
+             width = 12, height = 5)
 
 ## Per cell/reagents ----
 plotdata <- cost_data_per_kit |>
