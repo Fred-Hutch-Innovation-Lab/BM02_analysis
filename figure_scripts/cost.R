@@ -137,21 +137,39 @@ fig_objs <- readRDS(here('rds/5p/tcr/tcr_paired.Rds'))
 clonotype_counts <- data.table::rbindlist(lapply(fig_objs, function(x) {
   x$data |>
     group_by(chain) |>
-    summarize(n=n())
+    summarize(clonotypes=n())
 }), idcol = 'Sample') |>
   mutate(chain_group = case_when(
     chain == 'TRA' ~ 'partial',
     chain == 'TRB' ~ 'partial',
     chain == 'TRA;TRA' ~ 'partial',
     chain == 'TRB;TRB' ~ 'partial',
-    chain == 'TRA;TRB' ~ 'complete',
-    .default = 'complex'
+    grepl('TRA;TRB', chain) ~ 'paired',
+    .default = '??'
   )) |>
-  mutate(chain_group = factor(chain_group, levels=c('complete', 'complex', 'partial'))) |>
+  mutate(chain_group = factor(chain_group, levels=c('paired', 'partial'))) |>
   group_by(Sample, chain_group) |>
-  summarize(n = sum(n)) |>
-  mutate(total = cumsum(n))
-  
+  summarize(clonotypes = sum(clonotypes)) |>
+  mutate(total_clonotypes = cumsum(clonotypes))
+
+## clones ----
+clone_counts <- data.table::rbindlist(lapply(fig_objs, function(x) {
+  x$data |>
+    group_by(chain) |>
+    summarize(Clones=sum(Clones))
+}), idcol = 'Sample') |>
+  mutate(chain_group = case_when(
+    chain == 'TRA' ~ 'partial',
+    chain == 'TRB' ~ 'partial',
+    chain == 'TRA;TRA' ~ 'partial',
+    chain == 'TRB;TRB' ~ 'partial',
+    grepl('TRA;TRB', chain) ~ 'paired',
+    .default = '??'
+  )) |>
+  mutate(chain_group = factor(chain_group, levels=c('paired', 'partial'))) |>
+  group_by(Sample, chain_group) |>
+  summarize(Clones = sum(Clones)) |>
+  mutate(total_clones = cumsum(Clones))
 # clonotype_counts$prop <- clonotype_counts$n / unlist(lapply(clonotype_counts$Sample, return_total_cells))
 
 
@@ -196,22 +214,84 @@ seq_cost_coef = 1.5e-06 # 1,000,000,000 reads / $1,500
 # Plot ----
 
 ## Per clonotype ----
-plotdata <- merge(clonotype_counts, metadata_5p, by='Sample') |>
+# plotdata <- merge(clonotype_counts, metadata_5p, by='Sample') |>
+#   left_join(cost_data_per_kit, join_by('Kit' =='Assay')) |>
+#   mutate(cost_per_clonotype_group = (cost / 4) / total) |>
+#   select(Sample, chain_group, n, total, cost, Kit, Individual, cost_per_clonotype_group)
+# ggplot(plotdata, aes(x=chain_group, y=cost_per_clonotype_group, fill=Kit)) +
+#   geom_boxplot() +
+#   geom_point(aes(shape = Individual)) +
+#   facet_wrap(~ Kit, labeller = label_function(mode='TCR')) +
+#   scale_x_discrete(labels = str_to_title) + 
+#   scale_fill_manual(values = color_palette$kits, labels = label_function(mode='TCR')) +
+#   scale_y_continuous(limits = c(0,1), labels = scales::label_currency()) +
+#   labs(x='Clone requirements', y='Cost per clone', caption = "Requirements for each category:\nPerfect = 1 TRA AND 1 TRB\nPaired = 1+ TRA AND 1+ TRB\nPartial = 1+ TRA OR 1+ TRB") ->
+#   figures[['price_per_clonotype']]
+# write_plot_data(plotdata, file = here('figure_data/cost_per_clonotype.txt'))
+# my_plot_save(figures[['price_per_clonotype']],
+#              here('figures/cost/cost_per_clonotype.svg'),
+#              device ='svglite' ,
+#              width = 12, height = 5)
+
+## Per clone ----
+# plotdata <- merge(clone_counts, metadata_5p, by='Sample') |>
+#   left_join(cost_data_per_kit, join_by('Kit' =='Assay')) |>
+#   mutate(cost_per_clone_group = (cost / 4) / total) |>
+#   select(Sample, chain_group, n, total, cost, Kit, Individual, cost_per_clone_group)
+# ggplot(plotdata, aes(x=chain_group, y=cost_per_clone_group, fill=Kit)) +
+#   geom_boxplot() +
+#   geom_point(aes(shape = Individual)) +
+#   facet_wrap(~ Kit, labeller = label_function(mode='TCR')) +
+#   scale_x_discrete(labels = str_to_title) + 
+#   scale_fill_manual(values = color_palette$kits, labels = label_function(mode='TCR')) +
+#   scale_y_continuous(limits = c(0,1), labels = scales::label_currency()) +
+#   labs(x='Clone requirements', y='Cost per clone', caption = "Requirements for each category:\nPerfect = 1 TRA AND 1 TRB\nPaired = 1+ TRA AND 1+ TRB\nPartial = 1+ TRA OR 1+ TRB") ->
+#   figures[['price_per_clone']]
+# write_plot_data(plotdata, file = here('figure_data/cost_per_clone.txt'))
+# my_plot_save(figures[['price_per_clonotype']],
+#              here('figures/cost/cost_per_clone.svg'),
+#              device ='svglite' ,
+#              width = 12, height = 5)
+## per clone and clonotype----
+plotdata <- merge(clone_counts, clonotype_counts, by=c('Sample', 'chain_group')) |>
+  merge(metadata_5p, by='Sample') |>
   left_join(cost_data_per_kit, join_by('Kit' =='Assay')) |>
-  mutate(cost_per_clonotype_group = cost / total) |>
-  select(Sample, chain_group, n, total, Kit, Individual, cost_per_clonotype_group)
-ggplot(plotdata, aes(x=chain_group, y=cost_per_clonotype_group, fill=Kit)) +
-  geom_boxplot() +
-  geom_point(aes(shape = Individual)) +
+  # group_by(Kit, chain_group) |>
+  # summarize(total_clones = mean(total_clones), 
+  #           total_clonotypes = mean(total_clonotypes),
+  #           n=n()) |>
+  # left_join(cost_data_per_kit, join_by('Kit' =='Assay')) |>
+  mutate(cost_per_sample = cost / 4) |> ## 4 samples per kit
+  mutate(cost_per_group = cost_per_sample / total_clonotypes,
+         cost_per_clone = cost_per_sample / total_clones) |>
+  group_by(Kit, chain_group) |>
+  summarize(total_clones = mean(total_clones),
+            total_clonotypes = mean(total_clonotypes),
+            cost_per_group = mean(cost_per_group),
+            cost_per_clone = mean(cost_per_clone),
+            n=n()) |>
+  select(chain_group, Kit, cost_per_group, cost_per_clone) |>
+  as.data.table() |>
+  melt() |>
+  mutate(chain_group = relevel(chain_group, 'partial')) 
+  # select(chain_group, total_clonotypes, total_clones, cost, Kit, cost_per_clone_group, cost_per_clone)
+
+ggplot(plotdata, aes(x=chain_group, y=value, group=variable, fill=Kit)) +
+  # geom_col(aes(alpha=variable), position='identity') + 
+  geom_col_pattern(aes(pattern=variable), position='identity', alpha=1, pattern_key_scale_factor = 0.5) +
   facet_wrap(~ Kit, labeller = label_function(mode='TCR')) +
   scale_x_discrete(labels = str_to_title) + 
   scale_fill_manual(values = color_palette$kits, labels = label_function(mode='TCR')) +
-  scale_y_continuous(labels = scales::label_currency()) +
-  labs(x='Clone type', y='Cost per clone', caption = "Complete = 1 TRA AND 1 TRB\nComplex = 1+ TRA AND 1+ TRB\nPartial = 1+ TRA XOR 1+ TRB") ->
-  figures[['price_per_clonotype']]
-write_plot_data(plotdata, file = here('figure_data/cost_per_clonotype.txt'))
-my_plot_save(figures[['price_per_clonotype']],
-             here('figures/cost/cost_per_clonotype.svg'),
+  scale_pattern_manual(values=c('none', 'stripe'), labels = c('Cloneotype', 'Clone'))  +
+  guides(fill = guide_legend(override.aes = list(pattern = 'none')),
+         pattern = guide_legend(override.aes = list(fill = 'white', color = 'black'))) +
+  scale_y_continuous(limits = c(0,0.5), labels = scales::label_currency()) +
+  labs(x='Chain recovery', y='Cost per unit', pattern='Cost per') ->
+  figures[['price_per_clone']]
+# figures[['price_per_clone']]
+write_plot_data(plotdata, file = here('figure_data/cost_per_clone.txt'))
+my_plot_save(figures[['price_per_clone']],
+             here('figures/cost/cost_per_clone.svg'),
              device ='svglite' ,
              width = 12, height = 5)
 

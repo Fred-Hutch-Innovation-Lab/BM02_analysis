@@ -260,11 +260,33 @@ objs <- readRDS(here('rds/5p/tcr/tcr_paired.Rds'))
 for (pobj in c("Parse_v2_F1", "Parse_v2_F2", "Parse_v2_F4", "Parse_v2_F5")) {
   objs[[pobj]]$data <- objs[[pobj]]$data |> 
     group_by(clonotype_id) |> 
-    slice_max(Clones, with_ties = FALSE)
+    slice_max(Clones, with_ties = FALSE) |>
+    mutate(Barcode = gsub(',', ';', cells)) |>
+    select(-cells)
 }
 trimmed_metric_summaries <- read.csv(here('rds/5p/tcr/metric_summaries.csv'))
 ```
 
+# Cell recovery
+
+```{r}
+any_cells <- lapply(objs, function(x) {
+  strsplit(x$data$Barcode, ';') |> 
+    unlist() |>
+    unique() |>
+    length()
+})
+cells_w_paired_chain <- lapply(objs, function(x) {
+  x <- x$data |>
+    filter(grepl('TRA;TRB', chain))
+  strsplit(x$Barcode, ';') |> 
+    unlist() |>
+    unique() |>
+    length()
+})
+cells_w_paired_chain
+any_cells
+```
 
 
 # clone recovery

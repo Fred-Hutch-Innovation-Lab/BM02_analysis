@@ -25,7 +25,9 @@ library(gridExtra)  ## arrange plots
 library(janitor) ## Tabyl, adorn_rounding
 library(ggrastr) ## Rasterize images for smaller size
 library(DT)     ## Datatables
+library(SeuratDisk) ## Exporting objects for sc3s
 library(igraph) ## leiden clustering
+library(ROGUE)
 rbindlist <- data.table::rbindlist
 set.seed(33)
 ```
@@ -84,35 +86,33 @@ kit_level_objs <- lapply(kit_level_objs, function(obj) {
     RunPCA(reduction.name='PCA_allgenes') |> 
     RunUMAP(reduction='PCA_allgenes', dims=1:20, reduction.name='UMAP_allgenes')
   
-  whitelisted_genes <- 
-    FindVariableFeatures(obj, selection.method = "vst",
-                         nfeatures = 2000+length(blacklist_genes)) |>
-    Seurat::VariableFeatures() |>
-    setdiff(blacklist_genes)
-  whitelisted_genes <- whitelisted_genes[1:2000]
-  obj <- obj |>
-    # ScaleData() |>
-    RunPCA(features = whitelisted_genes, reduction.name='PCA_blacklisted') |> 
-    RunUMAP(reduction='PCA_blacklisted',dims=1:20, reduction.name='UMAP_blacklisted')
+  # whitelisted_genes <- 
+  #   FindVariableFeatures(obj, selection.method = "vst",
+  #                        nfeatures = 2000+length(blacklist_genes)) |>
+  #   Seurat::VariableFeatures() |>
+  #   setdiff(blacklist_genes)
+  # whitelisted_genes <- whitelisted_genes[1:2000]
+  # obj <- obj |>
+  #   # ScaleData() |>
+  #   RunPCA(features = whitelisted_genes, reduction.name='PCA_blacklisted') |> 
+  #   RunUMAP(reduction='PCA_blacklisted',dims=1:20, reduction.name='UMAP_blacklisted')
   obj
 })
-
-# for (sample in unique(metadata$Sample)) {
-#   kit <- metadata$Kit[metadata$Sample==sample]
-#   umap <- kit_level_objs[[kit]]@reductions[['kit_level_UMAP']]
-#   umap <- umap[Cells(objs[[sample]]),]
-# }
-# kit_level_umap_embeddings <- lapply(setNames(unique(metadata$Kit), unique(metadata$Kit)), function(kit){
-#   
-#   
-# })
 ```
 
 ```{r}
-DimPlot(kit_level_objs$Flex, group.by = 'orig.ident', reduction = 'UMAP_blacklisted')
+## Blacklisted didn't look any better
+# DimPlot(kit_level_objs$Flex, group.by = 'orig.ident', reduction = 'UMAP_blacklisted')
 DimPlot(kit_level_objs$Flex, group.by = 'orig.ident', reduction = 'UMAP_allgenes')
 ```
 
+```{r}
+kit_level_objs <- lapply(kit_level_objs,
+                         FindNeighbors, 
+                         dims=1:20, reduction='PCA_allgenes',
+                         compute.SNN=TRUE, #return.neighbor=TRUE, 
+                         graph.name=c('RNA_nn', 'RNA_snn'))
+```
 
 ## Shared space
 
@@ -120,6 +120,68 @@ DimPlot(kit_level_objs$Flex, group.by = 'orig.ident', reduction = 'UMAP_allgenes
 DimPlot(objs$Flex_F1A, reduction = 'ref.umap')
 DimPlot(objs$Flex_F1B, reduction = 'ref.umap')
 ```
+
+# Cellcounts
+
+```{r}
+cellcounts <- lapply(kit_level_objs, function(x) {
+  table(x$cell_labels.fine) |>
+    as.data.table() 
+}) |> rbindlist(idcol = 'Kit') |>
+  # mutate(Individual = gsub('.+_(F.).','\\1',V1)) |>
+  group_by(Kit) |>
+  mutate(prop = N / sum(N))
+colnames(cellcounts) <- c('Kit', 'Celltype', 'Count', 'prop')
+```
+
+
+# SC3
+
+R library not supported anymore
+
+## Export objs
+
+```{r, eval=FALSE}
+# export to anndata for python sc3 implementation
+for (kit in names(kit_level_objs)[2:7]) {
+  #https://github.com/mojaveazure/seurat-disk/issues/184
+  obj <- DietSeurat(kit_level_objs[[kit]], assays='RNA', dimreducs = 'PCA_allgenes')
+  obj[['RNA3']] <- as(object = obj[["RNA"]], Class = "Assay")
+  DefaultAssay(obj) <- "RNA3"
+  obj[["RNA"]] <- NULL
+  obj <- RenameAssays(obj, RNA3 = 'RNA')
+  # save_file <- paste0("sample1.h5Seurat")
+  
+  SaveH5Seurat(obj,
+               filename = here('rds/3p/sc3_anndata/', paste0(kit, ".h5Seurat")),
+               overwrite = FALSE)
+  
+  Convert(here('rds/3p/sc3_anndata/', paste0(kit, ".h5Seurat")),
+          assay = 'RNA', dest = "h5ad", overwrite = FALSE)  
+}
+```
+
+## import results
+
+```{r}
+sc3s_results <- lapply(setNames(names(kit_level_objs), names(kit_level_objs)), function(kit){
+  read.csv(here('rds/3p/sc3s_results/', paste0(kit, '_sc3s_results.csv')))
+})
+```
+
+## Plot
+
+```{r}
+for (i in 5:29) {
+  obj.tmp <- kit_level_objs$Flex
+  clusters <- sc3s_results$Flex[[paste0('k', i)]]
+  names(clusters) <- sc3s_results$Flex$X
+  clusters <- clusters[Cells(obj.tmp)]
+  obj.tmp$clusters <- clusters
+  print(DimPlot(obj.tmp, group.by = 'clusters') + ggtitle(paste0('k', i)))
+}
+```
+
 
 # Leiden Igraph
 
@@ -205,7 +267,8 @@ tune_leiden_resolution <- function(
   reduction='pca',
   k=30,          # Target number of clusters
   start_resolution = 0.0001, # Initial resolution value
-  initial_step = 0.0001,     # Initial step size for adjusting resolution
+  initial_step = 0.00001,     # Initial step size for adjusting resolution
+  lowest_res = 1e-10,
   max_iterations = 400,    # Maximum iterations to prevent infinite loops
   tolerance = 0         # Tolerance around target cluster number
 ) {
@@ -220,6 +283,7 @@ tune_leiden_resolution <- function(
   graph <- PrepareGraph(obj@graphs[[graph_name]])
   
   while (iterations < max_iterations) {
+    # message(current_resolution)
     # Perform Leiden clustering with the current resolution
     clusters <- cluster_leiden(graph, resolution_parameter = current_resolution)
     ids <- clusters$membership
@@ -250,36 +314,339 @@ tune_leiden_resolution <- function(
       }
       current_resolution <- current_resolution + step_size
     } else {
+      if (num_clusters - k < 3) {
+        step_size <- step_size / 2  # Decrease step size to refine the search
+      }
       current_resolution <- current_resolution - step_size
-      step_size <- step_size / 2  # Decrease step size to refine the search
     }
-    
-    # Increment iteration count
-    iterations <- iterations + 1
+    if (current_resolution < lowest_res) {
+      current_resolution <- current_resolution + step_size
+      step_size <- step_size / 2
+      current_resolution <- current_resolution - step_size
+      # current_resolution <- best_resolution
+      # iterations <- max_iterations - 1
+      # return(list(clusters = clusters, resolution = best_resolution))
+    } else {
+      iterations <- iterations + 1
+    }
   }
   # Return the best result if max iterations are reached
   cat("Max iterations reached. Returning the closest found result.\n")
   clusters <- cluster_leiden(graph, resolution_parameter = best_resolution)
   return(list(clusters = clusters, resolution = best_resolution))
 }
+
+
 ```
+
+## Test multiple res
+
+```{r, eval=FALSE}
+# Run Leiden resolution tuning for different target Ks
+target_ks <- c(10:30)  # Range of target cluster numbers to try
+# leiden_tuning_results <- list()
+
+for (kit in names(kit_level_objs)[4:7]) {
+  init_res <- 0.0001
+  leiden_tuning_results[[kit]] <- list()
+  for (i in 1:length(target_ks)) {
+    k = target_ks[i]
+    cat(sprintf("Tuning Leiden resolution for %s with target K=%d\n", kit, k))
+    leiden_tuning_results[[kit]][[as.character(k)]] <- tune_leiden_resolution(
+      kit_level_objs[[kit]], 
+      start_resolution = init_res,
+      k = k,
+      reduction = 'PCA_allgenes',
+      tolerance = 0  # Allow for some flexibility in the number of clusters
+    )
+    init_res <- leiden_tuning_results[[kit]][[as.character(k)]]$resolution + 0.00001
+  }
+}
+saveRDS(leiden_tuning_results, here('rds/3p/leiden_tuning_results_5-30.rds'))
+```
+
+```{r, eval=FALSE}
+leiden_tuning_results <- readRDS(here('rds/3p/leiden_tuning_results.rds'))
+```
+
 
 ```{r}
-kit_level_objs <- lapply(kit_level_objs,
-                         FindNeighbors, 
-                         dims=1:20, reduction='PCA_allgenes',
-                         compute.SNN=TRUE, #return.neighbor=TRUE, 
-                         graph.name=c('RNA_nn', 'RNA_snn'))
+# Create a summary table of results
+tuning_summary <- lapply(names(leiden_tuning_results), function(kit) {
+  lapply(names(leiden_tuning_results[[kit]]), function(k) {
+    result <- leiden_tuning_results[[kit]][[k]]
+    data.frame(
+      Kit = kit,
+      Target_K = as.numeric(k),
+      Achieved_K = length(unique(result$clusters$membership)),
+      Resolution = result$resolution
+    )
+  }) |> rbindlist()
+}) |> rbindlist()
+
+# Display results
+print(tuning_summary)
+# 
+# # Save summary
+# write_plot_data(tuning_summary, file = here('figure_data/3p/leiden_tuning_summary.txt'))
 ```
 
+## Target 30
 
-```{r, eval=TRUE}
+```{r, eval=FALSE}
 res_30k_kit_level <- lapply(kit_level_objs, tune_leiden_resolution, reduction='PCA_allgenes')
 saveRDS(res_30k_kit_level, here('rds/3p/leiden_sweep_res.rds'), compress=FALSE)
 ```
 
-```{r}
+
+```{r, eval=FALSE}
 res_30k_kit_level <- readRDS(here('rds/3p/leiden_sweep_res.rds'))
+```
+
+## Silhouette width
+
+```{r}
+calculate_silhouette <- function(seurat_obj,
+                                 cluster_col = "clusters", 
+                                 reduction = "PCA_allgenes",
+                                 downsample = 1000,
+                                 dims = 20
+                                 ) {
+  # Extract cell embeddings
+  Idents(seurat_obj) <- seurat_obj@meta.data[[cluster_col]]
+  if (!is.na(downsample)) { 
+    seurat_obj <- subset(seurat_obj, downsample = downsample)
+ }
+  embeddings <- Embeddings(seurat_obj, reduction = reduction)[, 1:dims]
+  
+  # Get cluster assignments
+  cluster_ids <- seurat_obj@meta.data[[cluster_col]]
+  
+  # Compute distance matrix (using Euclidean distance for PCA space)
+  dist_matrix <- dist(embeddings)
+  
+  # Compute silhouette scores
+  sil <- silhouette(as.integer(cluster_ids), dist_matrix)
+  sil[,'cluster'] <- plyr::mapvalues(
+    sil[,'cluster'], 
+    sort(unique(sil[,'cluster'])),
+    levels(cluster_ids)
+  )
+  sil[,'sil_width'] <- as.numeric(sil[,'sil_width'])
+  return(sil)
+}
+silhouette_by_celltype <- lapply(kit_level_objs, calculate_silhouette, cluster_col = 'cell_labels.fine')
+silhouette_by_clus <- lapply(kit_level_objs, calculate_silhouette, cluster_col = 'clusters')
+```
+
+### By celltype
+
+```{r, fig.width=16}
+source(here('config/color_palette.R'))
+plotdata <- lapply(silhouette_by_celltype, as.data.frame) |>
+  rbindlist(idcol = 'Kit') |>
+  mutate(sil_width = as.numeric(sil_width)) |>
+  group_by(Kit, cluster) |>
+  summarize(n=n(), med = median(sil_width), mean = mean(sil_width)) |>
+  mutate(label = ifelse(cluster == 'pDC', 'pDC', NA)) |>
+  merge(cellcounts, by.x = c('Kit', 'cluster'), by.y=c('Kit', 'Celltype'))
+  # filter(prop <= 0.01) |>
+ggplot(plotdata, aes(x=prop, y=mean, label=label)) +
+  geom_point(aes(size=n, color=cluster)) +
+  ggrepel::geom_text_repel(show.legend = FALSE) +
+  scale_size(range=c(2,10)) +
+  scale_x_continuous(labels = scales::percent) +
+  geom_hline(yintercept = 0, color='red', lty='dotted') +
+  geom_vline(xintercept = 0.01, color='darkblue', lty='dotted') +
+  scale_color_manual(values = color_palette$cell_colors,
+                     breaks = names(color_palette$cell_colors),
+                     drop=FALSE) + 
+  facet_wrap(~ Kit, nrow=1) +
+  labs(x='Percent of total cells', y = 'Average silhouette width', color = 'Cell type', size = 'Number of cells')
+```
+
+### By cluster
+
+```{r}
+cellcounts_by_cluster <- lapply(kit_level_objs, function(x) {
+  table(x$cluster) |>
+    as.data.table() 
+}) |> rbindlist(idcol = 'Kit') |>
+  # mutate(Individual = gsub('.+_(F.).','\\1',V1)) |>
+  group_by(Kit) |>
+  mutate(prop = N / sum(N))
+colnames(cellcounts_by_cluster) <- c('Kit', 'cluster', 'Count', 'prop')
+```
+
+
+```{r, fig.width=16}
+source(here('config/color_palette.R'))
+plotdata <- lapply(silhouette_by_cluster, as.data.frame) |>
+  rbindlist(idcol = 'Kit') |>
+  mutate(sil_width = as.numeric(sil_width)) |>
+  group_by(Kit, cluster) |>
+  summarize(n=n(), med = median(sil_width), mean = mean(sil_width)) |>
+  mutate(label = ifelse(cluster == 'pDC', 'pDC', NA)) |>
+  merge(cellcounts_by_cluster, by = c('Kit', 'cluster'))
+  # filter(prop <= 0.01) |>
+ggplot(plotdata, aes(x=prop, y=mean, label=label)) +
+  geom_point(aes(size=n)) +
+  ggrepel::geom_text_repel(show.legend = FALSE) +
+  scale_size(range=c(2,10)) +
+  scale_x_continuous(labels = scales::percent) +
+  geom_hline(yintercept = 0, color='red', lty='dotted') +
+  geom_vline(xintercept = 0.01, color='darkblue', lty='dotted') +
+  facet_wrap(~ Kit, nrow=1) +
+  labs(x='Percent of total cells', y = 'Average silhouette width', size = 'Number of cells')
+```
+
+## Optimal resolution
+
+```{r}
+library(mclust)
+library(cluster)
+
+optimize_leiden_resolution <- function(
+  obj,
+  ndim = 20,
+  graph_name = 'RNA_snn',
+  reduction = 'PCA_allgenes',
+  res_30k,
+  res_span = 30
+  # Range of resolutions to test
+) {
+  resolutions = seq(0.0001, res_30k*1.5, length.out = res_span) 
+  # pca <- obj@reductions[[reduction]]@cell.embeddings[, 1:ndim]
+  graph <- PrepareGraph(obj@graphs[[graph_name]])
+  
+  cluster_results <- list()
+  ari_scores <- numeric(length(resolutions) - 1)
+  silhouette_scores <- numeric(length(resolutions))
+  dist_matrix <- dist(Embeddings(obj, reduction))
+  for (i in seq_along(resolutions)) {
+    res <- resolutions[i]
+    
+    # Leiden clustering at this resolution
+    clusters <- cluster_leiden(graph, resolution_parameter = res)
+    ids <- clusters$membership
+    names(ids) <- Cells(obj)
+    
+    # Handle singletons and relevel clusters
+    ids <- GroupSingletons(ids, obj@graphs[[graph_name]])
+    ids <- relevel_clusters(ids)
+    names(ids) <- Cells(obj)
+    
+    # Store clustering results
+    cluster_results[[as.character(res)]] <- ids
+    
+    # Compute silhouette score
+    sil <- silhouette(as.integer(ids), dist_matrix)
+    silhouette_scores[i] <- mean(sil[, 3])  # Mean silhouette score
+    
+    # Compute ARI with previous resolution (if not the first iteration)
+    if (i > 1) {
+      prev_res <- resolutions[i - 1]
+      prev_ids <- cluster_results[[as.character(prev_res)]]
+      ari_scores[i - 1] <- adjustedRandIndex(as.integer(prev_ids), as.integer(ids))
+    }
+  }
+  
+  # Identify best resolutions
+  # optimal_ari_res <- resolutions[which.max(ari_scores)]
+  # optimal_silhouette_res <- resolutions[which.max(silhouette_scores)]
+  ari_ranks <- rank(-ari_scores, na.last = "keep")  # Negative to rank higher ARI better
+  silhouette_ranks <- rank(-silhouette_scores, na.last = "keep")  # Negative for higher scores
+  
+  # Compute average rank for each resolution
+  avg_ranks <- (ari_ranks + silhouette_ranks) / 2
+  
+  # Select the resolution with the lowest average rank
+  final_optimal_res <- resolutions[which.min(avg_ranks)]
+  # final_optimal_res <- mean(c(optimal_ari_res, optimal_silhouette_res))
+  
+  # Plot results
+  par(mfrow = c(1, 2))
+  plot(resolutions[-length(resolutions)], ari_scores, type = "b", pch = 19, col = "red",
+       xlab = "Resolution", ylab = "ARI (Stability)",
+       main = "ARI vs. Resolution")
+  abline(v = final_optimal_res, col = "blue", lty = 2)
+  
+  plot(resolutions, silhouette_scores, type = "b", pch = 19, col = "green",
+       xlab = "Resolution", ylab = "Silhouette Score",
+       main = "Silhouette vs. Resolution")
+  abline(v = final_optimal_res, col = "blue", lty = 2)
+  
+  # Return the best clustering result
+  best_clusters <- cluster_results[[as.character(final_optimal_res)]]
+  
+  # cat("Optimal resolution (ARI):", optimal_ari_res, "\n")
+  # cat("Optimal resolution (Silhouette):", optimal_silhouette_res, "\n")
+  cat("Final selected resolution:", final_optimal_res, "\n")
+  
+  return(list(
+    best_clusters = best_clusters,
+    resolution = final_optimal_res,
+    resolutions = resolutions,
+    ari_scores = ari_scores,
+    silhouette_scores = silhouette_scores
+  ))
+}
+# debug(optimize_leiden_resolution)
+tmp1 <- optimize_leiden_resolution(kit_level_objs$Flex, res_30k = res_30k_kit_level$Flex$resolution)
+```
+
+
+```{r}
+compute_optimal_resolution <- function(seurat_obj, res_30k, res_span=30) {
+  resolutions = seq(0.000001, res_30k, length.out = )
+  output <- as.data.frame(matrix(numeric(length(resolutions)) * 3, ncol=3))
+  colnames(output) <- c('resolution', 'modularity', 'nclus')
+    # modularity_scores <- numeric(length(resolutions))
+    graph <- PrepareGraph(obj@graphs[['RNA_snn']])
+    for (i in seq_along(resolutions)) {
+        res <- resolutions[i]
+        clusters <- cluster_leiden(graph, resolution_parameter = res)
+        ids <- clusters$membership
+        names(ids) <- Cells(obj)
+        ids <- GroupSingletons(ids, obj@graphs[['RNA_snn']])
+        ids <- relevel_clusters(ids)
+        names(ids) <- Cells(obj)
+        clusters$membership <- ids
+        num_clusters <- length(unique(clusters$membership))
+        
+        # # Perform clustering
+        # seurat_obj <- FindClusters(seurat_obj, resolution = res)
+        # 
+        # # Extract graph and cluster assignments
+        # 
+        # graph <- seurat_obj@graphs$RNA_snn
+        # cluster_assignments <- as.integer(Idents(seurat_obj))
+        
+        # Compute modularity score
+        output[i,'modularity'] <- modularity(graph, as.Integer(ids))
+        output[i,'resolution'] <- resolutions[i]
+        output[i,'nclus'] <- num_clusters
+        
+    }
+    return(output)
+}
+
+plot_optimal_res <- function(input) {
+    # Identify the resolution where modularity stops increasing significantly
+    optimal_index <- which.max(diff(input$modularity) < 0.01)
+    optimal_resolution <- ifelse(length(optimal_index) > 0, input$resolution[optimal_index], input$resolution[nrow(input)])
+
+    # Plot results
+    plot(input$resolution, input$modularity, type = "b", pch = 19, col = "blue",
+         xlab = "Resolution", ylab = "Modularity Score",
+         main = "Modularity vs. Resolution")
+    abline(v = optimal_resolution, col = "red", lty = 2)
+    
+    cat("Optimal resolution based on modularity plateau:", optimal_resolution, "\n")
+    
+    return(optimal_resolution)
+}
+
 ```
 
 
@@ -300,6 +667,101 @@ for (kit in unique(metadata$Kit)) {
 
 ```{r}
 lapply(kit_level_objs, DimPlot, label=TRUE, reduction='UMAP_blacklisted')
+```
+
+# Rogue
+
+```{r}
+run_rogue <- function(kit_name, k=5:29) {
+  obj <- kit_level_objs[[kit_name]]
+  data <- obj@assays$RNA@layers$counts
+  colnames(data) <- Cells(obj)
+  rownames(data) <- Features(obj)
+  # data <- matr.filter(data, min.cells = 1, min.genes = 1)
+  out <- lapply(setNames(k, k), function(k){
+    labels <- sc3s_results[[kit_name]][[paste0('k',k)]]
+    names(labels) <- sc3s_results[[kit_name]][['X']]
+    labels <- labels[colnames(data)]
+    rogue.res <- rogue(data,
+                       labels = labels,
+                       filter=FALSE,
+                       samples = case_when(grepl('F1', obj$orig.ident) ~ 'F1',
+                                           grepl('F5', obj$orig.ident) ~ 'F5'),
+                       platform = "UMI", span = 0.75)
+    rogue.res
+    # clusters <- 1:length(unique(labels)) - 1
+    # tmp <- lapply(setNames(clusters, clusters), function(clus) {
+    #   # out <- as.data.frame(matrix(nrow=clus, ncol=2))
+    #   # rownames(out) <- 1:clus
+    #   # colnames(out) <- c('F1', 'F5')
+    #   cells <- names(labels[labels == clus])
+    #   out <- list(F1=NA, F5=NA)
+    #   for (ind in c('F1', 'F5')) {
+    #     cells.sub <- cells[grepl(ind, cells)]
+    #     if (length(cells.sub) > 10) {
+    #       tryCatch({
+    #         data.sub <- data[,cells.sub]
+    #         ent.res <- SE_fun(data.sub)
+    #         rogue.value <- CalculateRogue(ent.res, platform = "UMI")
+    #       }, error = function(e) {
+    #         message(paste0('Error calculating ROGUE for cluster ', clus,
+    #                        ' of individual ', ind, ' for kit ', kit_name, ' with k=', k))
+    #         rogue.value <- NA
+    #       })
+    #     } else {
+    #       rogue.value <- NA
+    #     }
+    #     out[[ind]] <- rogue.value
+    #   }
+    #   out
+    #   # obj.sub <- subset(obj, cells = cells)
+    #   # data <- obj.sub@assays$RNA@layers$counts
+    #   
+    # }) |>
+    #   melt() |>
+    #   dplyr::rename(cluster = L1, ind=L2)
+  }) #|>
+    # melt() |>
+    # dplyr::rename(target_clusters=L1)
+  out
+    # obj.sub <- subset(obj, cells = )
+    
+    
+    # labels <- leiden_tuning_results[[kit_name]][[k]]$clusters$membership
+    # labels <- sc3s_results[[kit_name]][[paste0('k',k)]]
+    # names(labels) <- sc3s_results[[kit_name]][['X']]
+    # labels <- labels[colnames(data)]
+    # rogue.res <- rogue(data,
+    #                    labels = labels,
+    #                    samples = obj$orig.ident,
+    #                    platform = "UMI", span = 0.6)
+    # rogue.res
+
+}
+
+
+
+# rogue_results <- run_rogue('Flex', k=5:29)
+# rogue_results2 <- run_rogue('Fluent_V', k=5:29)
+rogue_results <- lapply(setNames(names(kit_level_objs), names(kit_level_objs)), run_rogue)
+saveRDS(rogue_results, here('rds/3p/rogue.Rds'))
+```
+
+```{r, fig.width=15, fig.height=6}
+lapply(rogue_results, function(x) {
+  rbindlist(lapply(x, function(x) {
+    colMeans(x) |> melt() |> rownames_to_column('cluster')
+  }), idcol = 'K')
+}) |>
+  rbindlist(idcol='Kit') |>
+  # filter(Kit == 'Flex') |>
+  mutate(K = factor(K, levels=as.character(5:29))) |>
+ggplot(aes(x=K, y=value)) +
+  ggbeeswarm::geom_beeswarm(aes(color=as.numeric(cluster))) +
+  geom_boxplot() +
+  scale_x_discrete(breaks=c('5','10','15','20','25')) +
+  facet_grid(~ Kit)
+  labs()
 ```
 
 

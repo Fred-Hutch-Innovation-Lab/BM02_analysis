@@ -213,7 +213,7 @@ View(contrast_matrix)
 
 ## Extract
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 model_results <- lapply(objs, function(x) {
   kit <- as.character(unique(x$Kit))
   out <- apply(contrast_matrix, 2, results, object = x, alpha = 0.05)
@@ -618,7 +618,7 @@ pathways <- msigdbr(species = "human", category = "C2") |>
 pathways <- pathways %>% dplyr::select(gene_symbol, gs_name) %>% unstack()
 ```
 
-```{r, eval=TRUE}
+```{r, eval=FALSE}
 
 gsea_results <- list()
 for (result in names(model_results)){
@@ -639,7 +639,7 @@ saveRDS(gsea_results, here('rds/3p/gsea_results.rds'))
 ```
 
 ```{r}
-readRDS(here('rds/3p/gsea_results.rds'))
+gsea_results <- readRDS(here('rds/3p/gsea_results.rds'))
 ```
 
 ```{r}
@@ -662,7 +662,7 @@ for (contrast in contrast_matrix_formula$contrast_names) {
   plotdata <- gsea_results[grepl(contrast, names(gsea_results))]
   plotdata <- lapply(plotdata, function(x){
     x <- x |>
-      filter(padj <= 0.1) |>
+      filter(padj <= 0.05) |>
       mutate(x = paste0(name, ifelse(ES < 0, '-', '+')))
     x$x
   })
@@ -683,7 +683,7 @@ for (contrast in contrast_matrix_formula$contrast_names) {
   plotdata <- gsea_results[grepl(contrast, names(gsea_results))]
   plotdata <- lapply(plotdata, function(x){
     x <- x |>
-      filter(padj <= 0.1) |>
+      filter(padj <= 0.05) |>
       mutate(x = paste0(name, ifelse(ES < 0, '-', '+')))
     x$x
   })
@@ -706,7 +706,7 @@ for (contrast in contrast_matrix_formula$contrast_names) {
         empty.intersections=FALSE) ->
     figures[[paste0('upset_gsea_', contrast)]]
 }
-figures[['upset_gsea_B.vs.T']]
+figures[['upset_gsea_T.vs.M']]
 ```
 
 

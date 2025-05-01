@@ -49,7 +49,7 @@ lapply(detected_genes_kit_level, length) %>%
   geom_col() +
   # geom_point(aes(shape=paste0(Individual, Replicate))) +
   # facet_wrap(~ Kit, scales='free_x') + 
-  scale_x_discrete(labels = label_function) +
+  scale_x_discrete(labels = label_function()) +
   labs(x = 'Kit', y='Genes detected', caption = 'Genes detected in at least 10 cells in 3+ samples') ->
   figures[['usable_genes_kit']]
 my_plot_save(image = figures[['usable_genes_kit']], 

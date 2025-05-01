@@ -263,6 +263,35 @@ for (kit in unique(metadata$Kit)) {
 figures[['annotation_confusion_mat_fine']][[kit]]
 ```
 
+# Cell typist
+
+```{r}
+object <- objs$Flex
+calls <- read.csv(here('rds/publish/bm01-Flex-cell-typist.csv'), row.names = 1)
+colnames(calls) <- paste0('celltypist.', colnames(calls))
+object@meta.data <- merge(object@meta.data, calls, by='row.names', suffices=c('', '.celltypist'))
+```
+
+```{r}
+object@meta.data |>
+  select(clusters, cell_labels.fine, annotations,starts_with("celltypist")
+         # all_of(starts_with('celltypist') & where(is.numeric))
+         ) |>
+  select(-c(celltypist.over_clustering)) |>
+  pivot_longer(cols=where(is.numeric) & starts_with("celltypist")) |>
+  group_by(clusters, cell_labels.fine, annotations, name) |>
+  summarize(value = mean(value)) |>
+  group_by(name) |>
+  filter(median(value > 0.01) | max(value) > 0.35) |>
+  ungroup() |>
+  mutate(name = gsub('celltypist.', '\\1', name)) |>
+  mutate(annotations = as.character(annotations)) |>
+  arrange(annotations) |>
+  mutate(annotations = as.factor(annotations)) |>
+  ggplot(aes(x=annotations, y=name, fill=value)) +
+  geom_tile() +
+  theme(axis.text.x = element_text(angle=45, hjust=1))
+```
 
 
 # Marker dotplots

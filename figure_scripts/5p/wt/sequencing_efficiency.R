@@ -32,7 +32,7 @@ plotdata  |>
                                'Aligned and\nassigned to cell')) +
   scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
   # scale_x_discrete(labels = label_function) +
-  facet_wrap(~ Kit, scales='free_x', nrow=1, labeller = labeller(Kit = label_function)) +
+  facet_wrap(~ Kit, scales='free_x', nrow=1, labeller = labeller(Kit = label_function())) +
   theme(axis.text.x = element_text(angle=45, hjust = 1)) +
   # theme(axis.text.x = element_blank(), 
   #       axis.ticks.x = element_blank(),
@@ -43,3 +43,4 @@ plotdata  |>
 my_plot_save(image = figures[['seq_eff_prop']], 
              path = here('figures/5p/sequencing_efficiency/seq_eff_prop.svg'), 
              width = 6.5, height = 4)
+write_plot_data(plotdata, here('figure_data/5p/wt/seq_eff_count.txt'))
