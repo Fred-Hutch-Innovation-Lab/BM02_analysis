@@ -103,10 +103,10 @@ get_color_palette <- function(invert = FALSE,
 plotdata[c('Flex', 'NextGEM', 'GEM-X', 'Fluent v4', 'Fluent V', 'Parse v3', 'Scale'),] |>
   select(-c(cost_per_recovered_paired_clone, proportion_of_cells_with_paired_clones)) |>
   gt(rownames_to_stub = TRUE) |>
-  tab_header(
-    title = html('<b>Table 2</b><br>Result summaries'),
-    subtitle = NA,
-  ) |>
+  # tab_header(
+  #   title = html('<b>Table 2</b><br>Result summaries'),
+  #   subtitle = NA,
+  # ) |>
   ## labeling
   cols_label(
     high_quality_cell_recovery = "High quality cell recovery",

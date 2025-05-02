@@ -10,10 +10,10 @@ plotdata <- read.csv(here('figure_data/table_1.txt'), sep='\t') |>
          ~ as.numeric(gsub("[$,]", "", .))))
 
 figures[['table_1']] <- gt(plotdata) |>
-  tab_header(
-    title = html('<b>Table 1</b><br>Protocol summaries'),
-    subtitle = NA,
-  ) |>
+  # tab_header(
+  #   title = html('<b>Table 1</b><br>Protocol summaries'),
+  #   subtitle = NA,
+  # ) |>
   tab_footnote(
     'Does not incuded indices',
     locations= cells_column_labels(c(Kit.Cost.per.sample..n.4., Kit.cost.per.cell))
