@@ -57,6 +57,26 @@ my_plot_save <- function(image, path, width, height, device='svglite'){
   }
 }
 
+prettyprint_vector <- function(console_output, line_width = 80) {
+  # Combine input into a single string if it's a vector of lines
+  if (length(console_output) > 1) {
+    console_output <- paste(console_output, collapse = " ")
+  }
+  
+  # Remove [index] markers
+  cleaned <- gsub("\\[\\d+\\]", "", console_output)
+  
+  # Split by whitespace, preserving quoted strings (e.g., character vectors)
+  elements <- strsplit(cleaned, "(?<!\\\\)\\s+(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", perl = TRUE)[[1]]
+  elements <- trimws(elements)
+  elements <- elements[nzchar(elements)]  # Drop empty strings
+  
+  # Collapse and wrap
+  full <- paste(elements, collapse = ", ")
+  formatted <- strwrap(full, width = line_width)
+  cat(paste0("c(\n  ", paste(formatted, collapse = "\n  "), "\n)"))
+}
+
 write_plot_data <- function(plotdata, file, sep='\t', row.names = FALSE, quote = FALSE, ...){
   if (!dir.exists(dirname(file))) {
     dir.create(dirname(file), recursive=TRUE)
