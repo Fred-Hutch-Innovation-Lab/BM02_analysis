@@ -91,9 +91,9 @@ plotdata <- lapply(fig_objs, function(x) repDiversity(x$data |> filter(chain == 
   merge(metadata_5p, by.x='variable', by.y='Sample') 
 ggplot(plotdata, aes(x=Individual, y=value, fill=Kit)) +
   geom_col() +
-  scale_fill_manual(values = color_palette$kits, labels = label_function(mode='TCR'), breaks = kit_order_5p) +
+  scale_fill_manual(values = color_palette$kits, labels = label_function(mode='clean'), breaks = kit_order_5p) +
   facet_grid(~ Kit, scales='free_x', space='free_x',
-             labeller = labeller(Kit = label_function(mode='TCR', wrap = TRUE, width = 10))) +
+             labeller = labeller(Kit = label_function(mode='clean', wrap = TRUE, width = 10))) +
   labs(x='Individual', y='Inverse Simpson index', caption = 'TRA;TRB clones only') ->
   figures[['simpson index']]
 figures[['simpson index']]
@@ -134,7 +134,7 @@ ggplot(plotdata, aes(x=Individual, y=prop, group = Individual, fill = chain)) +
   # geom_point(aes(shape = Individual)) +
   scale_y_continuous(labels=scales::percent) +
   scale_fill_brewer(type = 'qual') +
-  facet_wrap(~ Kit, scales='free_x', labeller = label_function(mode='TCR', wrap=TRUE, width=10)) +
+  facet_wrap(~ Kit, scales='free_x', labeller = label_function(mode='clean', wrap=TRUE, width=10)) +
   theme(axis.text.x = element_text(angle=45, hjust=1, vjust=1)) +
   labs(x='Chain(s)', y='% of T cells') ->
   figures[['chain recovery stacked']]
@@ -169,7 +169,7 @@ ggplot(plotdata, aes(x=Individual)) +
   geom_col(aes(y=n, fill=chain), position = position_stack(reverse = TRUE)) + 
   geom_point(aes(y=total_cells), shape=95, size=15, color = 'darkblue') +
   scale_fill_brewer(type = 'qual') +
-  facet_grid(~ Kit, scales='free_x',space = 'free_x' , labeller = label_function(mode='TCR', wrap=TRUE, width=10)) + 
+  facet_grid(~ Kit, scales='free_x',space = 'free_x' , labeller = label_function(mode='clean', wrap=TRUE, width=10)) + 
   labs(x= 'Sample', y='Unique clonotypes', caption='Blue line shows total T cells recovered') ->
   figures[['unique clone recovery count']]
 figures[['unique clone recovery count']]

@@ -7,6 +7,8 @@ library(ggbreak)
 
 # Load data ----
 fig_objs <- readRDS(here('rds/5p/wt/02-objs_post_cell_filtering.rds'))
+fig_objs$NextGEM5P_F4 <- NULL
+fig_objs$NextGEM5P_F5 <- NULL
 cell_loading_data <- read.csv(here('data/5p/loaded_cells.csv')) |>
   as.data.table() |>
   melt(id='Sample')
@@ -45,7 +47,7 @@ plotdata <- do.call(rbind, list(cell_loading_data, doublets, bad_cells)) %>%
 ggplot(plotdata, aes(x=Individual, y=difference, fill=variable)) +
   geom_col(position='stack') +
   geom_hline(data = target_cells, aes(yintercept = value), lty='dashed', color='black') +
-  facet_grid(~ Kit, scales='free_x', space='free_x', labeller = labeller(Kit = label_function(wrap = TRUE, width = 10))) +
+  facet_grid(~ Kit, scales='free_x', space='free_x', labeller = label_function(mode='clean')) +
   theme(text = element_text(size = 16, family = 'sans'),
         axis.text.x = element_text(angle=45, vjust=0.5)) + 
   scale_fill_manual(values = c('#D7191C', '#FDAE61', '#e9e29c', '#39B185', 'darkgreen'),
@@ -67,7 +69,7 @@ ggplot(plotdata, aes(x=Individual, y=difference, fill=variable)) +
   theme(text = element_text(size = 16, family = 'sans'),
         axis.text.x = element_text(angle=45, vjust=0.5)) + 
   geom_hline(data = target_cells_fraction, aes(yintercept = 100*value), lty='dashed', color='black') +
-  facet_grid(~ Kit, scales='free_x', space='free_x', labeller = labeller(Kit = label_function(wrap = TRUE, width = 10))) +
+  facet_grid(~ Kit, scales='free_x', space='free_x', labeller = label_function(mode='clean')) +
   scale_fill_manual(values = c('#D7191C', '#FDAE61', '#e9e29c', '#39B185', 'darkgreen'),
                     labels = c('Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet', 'Clean TRA;TRB\npaired T cells')) +
   labs(x='Sample', y='% of sample', fill='Classification') -> 
