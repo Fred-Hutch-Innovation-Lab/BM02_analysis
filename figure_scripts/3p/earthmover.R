@@ -17,7 +17,8 @@ plotdata <-
     .groups = "drop"
   ) |> arrange(mean) |>
   mutate(Kit = factor(Kit, levels = kit_order_3p),
-         ci = mean - conf_low)
+         ci = mean - conf_low) |>
+  arrange(Kit, Individual)
 
 # Calculate EMD
 write_plot_data(plotdata, here('figure_data/3p/earthmover.txt'))
