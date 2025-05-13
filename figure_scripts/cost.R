@@ -279,9 +279,9 @@ plotdata <- merge(clone_counts, clonotype_counts, by=c('Sample', 'chain_group'))
 ggplot(plotdata, aes(x=chain_group, y=value, group=variable, fill=Kit)) +
   # geom_col(aes(alpha=variable), position='identity') + 
   geom_col_pattern(aes(pattern=variable), position='identity', alpha=1, pattern_key_scale_factor = 0.5) +
-  facet_wrap(~ Kit, labeller = label_function(mode='TCR')) +
+  facet_wrap(~ Kit, labeller = label_function(mode='clean')) +
   scale_x_discrete(labels = str_to_title) + 
-  scale_fill_manual(values = color_palette$kits, labels = label_function(mode='TCR')) +
+  scale_fill_manual(values = color_palette$kits, labels = label_function(mode='clean')) +
   scale_pattern_manual(values=c('none', 'stripe'), labels = c('Cloneotype', 'Clone'))  +
   guides(fill = guide_legend(override.aes = list(pattern = 'none')),
          pattern = guide_legend(override.aes = list(fill = 'white', color = 'black'))) +
@@ -307,8 +307,8 @@ ggplot(aes(x=Assay, y=value,
              fill=Assay, group=variable )) +
   geom_col_pattern(aes(pattern=variable), position='identity', alpha=1, pattern_key_scale_factor = 0.1) +
   facet_grid(~ kit_family, scales='free_x') +
-  scale_x_discrete(labels = label_function(mode='WT')) + 
-  scale_fill_manual(values = color_palette$kits, labels = label_function(mode='WT'), breaks = kit_order_all) +
+  scale_x_discrete(labels = label_function(mode='clean')) + 
+  scale_fill_manual(values = color_palette$kits, labels = label_function(mode='clean'), breaks = kit_order_all) +
   scale_pattern_manual(values=c('stripe', 'none'), labels = c('Expected', 'Observed'))  +
   scale_y_continuous(labels = scales::label_currency()) +
   guides(fill = guide_legend(override.aes = list(pattern = 'none')),
@@ -389,11 +389,11 @@ seq_cost_modeling <- expand.grid(
 ggplot(seq_cost_modeling, aes(x=depth, y=cost_per_cell, color = Kit,
                               linetype = case_when(
                                 Kit %in% kit_order_3p ~ "3'",
-                                Kit %in% kit_order_5p ~ "5' (WT only)"))) + 
+                                Kit %in% kit_order_5p ~ "5'"))) + 
   geom_line() +
   lims(x=c(0,7500)) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function(mode='WT'), breaks = kit_order_all) +
-  scale_linetype_manual(values = c("3'" = "solid", "5' (WT only)" = "dashed")) +
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function(mode='clean'), breaks = kit_order_all) +
+  scale_linetype_manual(values = c("3'" = "solid", "5'" = "dashed")) +
   scale_y_continuous(labels = scales::label_currency(),
                      sec.axis = sec_axis(~ . * 80000,
                                          labels = scales::label_currency(), 
@@ -424,12 +424,12 @@ ggplot(seq_cost_modeling,
        aes(x=depth, y=cost_per_cell, color = Kit,
            linetype = case_when(
              Kit %in% kit_order_3p ~ "3'",
-             Kit %in% kit_order_5p ~ "5' (WT only)"))) + 
+             Kit %in% kit_order_5p ~ "5'"))) + 
   geom_line() +
   lims(x=c(0,3000)) +
-  scale_color_manual(values = unlist(color_palette$kits), labels = label_function(mode='WT'),
+  scale_color_manual(values = unlist(color_palette$kits), labels = label_function(mode='clean'),
                      breaks = kit_order_all) +
-  scale_linetype_manual(values = c("3'" = "solid", "5' (WT only)" = "dashed")) +
+  scale_linetype_manual(values = c("3'" = "solid", "5'" = "dashed")) +
   # scale_linetype_manual(c(setNames(rep('solid', length(kit_order_3p)), kit_order_3p),
   #                         setNames(rep('dashed', length(kit_order_5p)), kit_order_5p))) +
   scale_y_continuous(labels = scales::label_currency(),
