@@ -18,6 +18,7 @@ figures[['table_1']] <- gt(plotdata) |>
     'Does not incuded indices',
     locations= cells_column_labels(c(Kit.Cost.per.sample..n.4., Kit.cost.per.cell))
   ) |> 
+  tab_style(style = cell_text(align = "right"),locations = cells_footnotes()) |>
   ## Grouping rows
   tab_row_group(
     id = "5'",
@@ -53,25 +54,49 @@ figures[['table_1']] <- gt(plotdata) |>
   fmt_currency(c(Kit.cost.per.cell), decimals = 2) |>
   fmt_currency(c(Instrument.cost, Kit.cost, Kit.Cost.per.sample..n.4.), decimals = 0) |>
   fmt_integer(c(Cell.Target.Per.Sample, Recommended.Cell.Loading)) |>
+  cols_align(
+    align = 'right', 
+    columns = c(Read.1, Read.2, Index.1, Index.2)
+  ) |>
   ## Spanners
+  tab_spanner(
+    "Assay details",
+    columns = c(
+      Protocol,
+      Kit.Abbreviation,
+      Assay.Type,
+      Sample.Type,
+      Sample.Process,
+      Detection.Method
+    )) |>
   tab_spanner(
     "Cost",
     columns = c(
-      # Cell.Target.Per.Sample, 
-      # Recommended.Cell.Loading,
       Instrument.cost, 
       Kit.cost, 
       Kit.Cost.per.sample..n.4.,
       Kit.cost.per.cell
     )) |>
   tab_spanner(
-    'Read length (nt)',
+    "Cell recovery",
+    columns = c(
+      Cell.Target.Per.Sample,
+      Recommended.Cell.Loading
+    )) |>
+  tab_spanner(
+    'Sequencing read length (nt)',
     columns = c(
       Read.1,
       Index.1,
       Index.2,
       Read.2
     )
+  ) |>
+  ## column spacing
+  tab_style(
+    style = cell_borders(sides = "left", color = "grey", weight = px(5), style = "solid"),
+    locations = cells_body(
+      columns = c(Read.1, Cell.Target.Per.Sample, Instrument.cost))
   )
 
 gtsave(figures[['table_1']], here('figures/tables/table_1.html'))
