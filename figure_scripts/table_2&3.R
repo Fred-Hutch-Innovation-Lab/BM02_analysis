@@ -241,10 +241,10 @@ plotdata[c('Flex', "NextGEM 3'", "GEM-X 3'", 'Fluent v4', 'Fluent V', 'Parse v3'
     locations = cells_body(
       columns = c(reads_mapped_to_transcriptome, median_genes_per_cell, emd_low))
   ) -> 
-  figures[['table_2_bm01']]
-figures[['table_2_bm01']]
+  figures[['table_2']]
+figures[['table_2']]
 
-gtsave(figures[['table_2_bm01']], here('figures/tables/table_2_bm01.html'))
+gtsave(figures[['table_2']], here('figures/tables/table_2.html'))
 # my_plot_save(figures[['table_1']], here('figures/tables/table_1.svg'), width = 7, height = 13)
 
 # BM2 ----
@@ -361,8 +361,8 @@ tab_spanner("Cell recovery",columns = c(high_quality_cell_recovery, cost_per_cel
     locations = cells_body(
       columns = c(reads_mapped_to_transcriptome, median_genes_per_cell, cost_per_recovered_paired_clone))
   ) -> 
-  figures[['table_2_bm02']]
-figures[['table_2_bm02']]
+  figures[['table_3']]
+figures[['table_3']]
 
-gtsave(figures[['table_2_bm02']], here('figures/tables/table_2_bm02.html'))
+gtsave(figures[['table_3']], here('figures/tables/table_3.html'))
 # my_plot_save(figures[['table_1']], here('figures/tables/table_1.svg'), width = 7, height = 13)
