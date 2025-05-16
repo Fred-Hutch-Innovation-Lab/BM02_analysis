@@ -1,3 +1,0 @@
-parse v2 shallow of 25k reads, but we only care about the TCR. This is Tcells only
-
-Dropping NextGEM5P F4A F5A due to poor quality samples
