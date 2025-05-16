@@ -231,52 +231,6 @@ saveRDS(model_results, here('rds/3p/dge_model_results_splitkit_downsampled_coars
 model_results <- readRDS(here('rds/3p/dge_model_results_splitkit_downsampled_coarse_celltypes.rds'))
 ```
 
-<!-- # External genes -->
-
-<!-- ```{r} -->
-<!-- ext_cor <- function(result, ref=cellxgene_data) { -->
-<!--   tmp <- result |> -->
-<!--     as.data.frame() |> -->
-<!--     rownames_to_column('Gene') |> -->
-<!--     mutate(rank_stat = -log(padj + .Machine$double.xmin) * -log2FoldChange) |> -->
-<!--     merge(ref, by='Gene') -->
-<!--   cor(tmp$log2FoldChange, tmp$Log.Fold.Change) -->
-<!-- } -->
-<!-- ``` -->
-
-<!-- ## CD4 v CD8 -->
-
-<!-- ```{r} -->
-<!-- cellxgene_data <- read.table(here('data/marker_genes/cd8_v_cd4.txt'), sep=',',  skip = 2, header=TRUE) |> -->
-<!--   mutate(Adjusted.P.Value = Adjusted.P.Value + .Machine$double.xmin, -->
-<!--          # rank_stat = Log.Fold.Change * -log(Adjusted.P.Value) -->
-<!--          ) |> -->
-<!--   filter(Gene %in% names(bp_obj@rowRanges)) -->
-
-<!-- ggplot(cellxgene_data, aes(x=Effect.Size, y=Log.Fold.Change)) + geom_point() -->
-<!-- ggplot(cellxgene_data, aes(x=Log.Fold.Change, y=-log(Adjusted.P.Value))) + geom_point() -->
-<!-- ggplot(cellxgene_data, aes(x=Effect.Size, y=-log(Adjusted.P.Value))) + geom_point() -->
-<!-- ``` -->
-
-
-<!-- ```{r} -->
-<!-- lapply(model_results[names(model_results)[grepl('CD8.v.CD4', names(model_results))]], ext_cor) -->
-<!-- ``` -->
-
-<!-- ## B vs T -->
-
-<!-- ```{r} -->
-<!-- cellxgene_data <- read.table(here('data/marker_genes/bcell_v_tcell.txt'), sep=',',  skip = 2, header=TRUE) |> -->
-<!--   mutate(Adjusted.P.Value = Adjusted.P.Value + .Machine$double.xmin, -->
-<!--          rank_stat = Log.Fold.Change * -log(Adjusted.P.Value)) |> -->
-<!--   filter(Gene %in% names(bp_obj@rowRanges)) -->
-
-<!-- ## Is the rank stat a good idea? not perfectly correlated with LFC -->
-<!-- # ggplot(cellxgene_data, aes(x=Effect.Size, y=rank_stat)) + geom_point() -->
-<!-- lapply(model_results[names(model_results)[grepl('B.v.T', names(model_results))]], ext_cor) -->
-<!-- ``` -->
-
-
 # Vis DGE counts
 
 ```{r}
