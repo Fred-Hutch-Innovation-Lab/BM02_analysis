@@ -74,6 +74,7 @@ ggplot(plotdata, aes(x=Individual, y=difference, fill=variable)) +
                     labels = c('Unrecovered cells', 'Low quality cells', 'Multiplets', 'High quality singlet', 'Clean TRA;TRB\npaired T cells')) +
   labs(x='Sample', y='% of sample', fill='Classification') -> 
   figures[['cell_recovery_portions']] 
+figures[['cell_recovery_portions']]
 my_plot_save(image = figures[['cell_recovery_portions']], 
              path = here('figures/5p/wt/cell_recovery/tcell_recovery_portions.svg'), 
              width = 11, height = 7)

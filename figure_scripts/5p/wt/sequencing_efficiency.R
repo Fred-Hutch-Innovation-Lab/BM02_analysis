@@ -32,7 +32,7 @@ plotdata  |>
                                'Aligned and\nassigned to cell')) +
   scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
   # scale_x_discrete(labels = label_function) +
-  facet_wrap(~ Kit, scales='free_x', nrow=1, labeller = labeller(Kit = label_function())) +
+  facet_wrap(~ Kit, scales='free_x', nrow=1, labeller = labeller(Kit = label_function(mode='clean'))) +
   theme(axis.text.x = element_text(angle=45, hjust = 1)) +
   # theme(axis.text.x = element_blank(), 
   #       axis.ticks.x = element_blank(),

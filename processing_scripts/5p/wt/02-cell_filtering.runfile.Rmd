@@ -426,7 +426,7 @@ plotdata <- lapply(objs_filt, function(x) {
   group_by(Sample) %>%
   mutate(value = value / sum(value),
          variable = factor(variable, levels = c('bad_cells', 'multiplet', 'good_cells'))) %>%
-  merge(metadata_5p, by='Sample')
+  merge(metadata, by='Sample')
 ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=value, fill=variable)) +
   geom_col(position='stack') +
   facet_wrap(~Kit, scales = 'free_x', nrow=1) +

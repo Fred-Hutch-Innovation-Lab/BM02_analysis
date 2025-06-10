@@ -15,11 +15,11 @@ QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', caption=NA) {
   ggplot(plotdata, aes(y=value, x=Individual, fill = Kit)) +
     rasterize(geom_jitter(alpha=0.1, size=.1), dpi=100) +
     geom_violin(draw_quantiles = 0.5) +
-    scale_fill_manual(values = color_palette$kits, labels = label_function(mode='WT')) +
+    scale_fill_manual(values = color_palette$kits, labels = label_function(mode='clean')) +
     theme(text = element_text(size = 20),
           panel.spacing=unit(0, "lines"),
           axis.text.x = element_text(angle=45, vjust=0.5)) + 
-    facet_grid(~ Kit, scales='free_x', space='free_x', labeller = labeller(Kit = label_function(mode='WT'))) +
+    facet_grid(~ Kit, scales='free_x', space='free_x', labeller = labeller(Kit = label_function(mode='clean'))) +
     labs(x='Sample', y = ylab)
 }
 
@@ -49,6 +49,7 @@ for (i in 1:nrow(labels)) {
 }
 plt <- figures[['nFeature_RNA_vln']] + figures[['nCount_RNA_vln']] + figures[['rbRatio_vln']] + figures[['mtRatio_vln']] +
   plot_layout(nrow=2, ncol=2, guides = 'collect', axes = 'collect_x', axis_titles = 'collect_x')
+plt
 my_plot_save(image = plt, 
              path = here('figures/5p/wt/qc_vln_plots_after_filtering/QC_metrics_combined.svg'), 
              width = 20, height = 12)
