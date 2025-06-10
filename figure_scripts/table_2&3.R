@@ -240,7 +240,12 @@ plotdata[c('Flex', "NextGEM 3'", "GEM-X 3'", 'Fluent v4', 'Fluent V', 'Parse v3'
     style = cell_borders(sides = "left", color = "black", weight = px(8), style = "solid"),
     locations = cells_body(
       columns = c(reads_mapped_to_transcriptome, median_genes_per_cell, emd_low))
-  ) -> 
+  ) |>
+  ## Title
+  tab_header(
+    title = "Table 2: Summary metrics for benchmark 1"
+  ) |> 
+  opt_align_table_header(align = c("left")) -> 
   figures[['table_2']]
 figures[['table_2']]
 
@@ -360,7 +365,12 @@ tab_spanner("Cell recovery",columns = c(high_quality_cell_recovery, cost_per_cel
     style = cell_borders(sides = "left", color = "black", weight = px(8), style = "solid"),
     locations = cells_body(
       columns = c(reads_mapped_to_transcriptome, median_genes_per_cell, cost_per_recovered_paired_clone))
-  ) -> 
+  ) |>
+  ## Title
+  tab_header(
+    title = "Table 3: Summary metrics for benchmark 2"
+  ) |> 
+  opt_align_table_header(align = c("left")) -> 
   figures[['table_3']]
 figures[['table_3']]
 

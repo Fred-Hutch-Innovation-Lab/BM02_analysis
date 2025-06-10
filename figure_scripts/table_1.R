@@ -97,7 +97,12 @@ figures[['table_1']] <- gt(plotdata) |>
     style = cell_borders(sides = "left", color = "grey", weight = px(5), style = "solid"),
     locations = cells_body(
       columns = c(Read.1, Cell.Target.Per.Sample, Instrument.cost))
-  )
+  ) |>
+  ## Title
+  tab_header(
+    title = "Table 1: Platform metrics and descriptions"
+  ) |> 
+  opt_align_table_header(align = c("left"))
 
 gtsave(figures[['table_1']], here('figures/tables/table_1.html'))
 # my_plot_save(figures[['table_1']], here('figures/tables/table_1.svg'), width = 7, height = 13)
