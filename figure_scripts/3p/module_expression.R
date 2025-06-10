@@ -30,7 +30,7 @@ confusion_plot <- function(plotdata, kit){
     geom_tile() +
     # geom_text(color='white') +
     scale_fill_viridis(limits=c(0,1), option = 'A') + #low = "white", high = "red", 
-    theme(axis.text.x = element_text(angle=45, hjust=1)) +
+    theme(axis.text.x = element_text(angle=30, hjust=1)) +
     labs(x='Cell label', y='Marker module', fill='Average\nmarker gene\nmodule score')
 }
 
@@ -63,7 +63,7 @@ plotdata |> filter(
   geom_text(color='white') +
   scale_fill_viridis(limits=c(0,1), option = 'A')  +
   # scale_fill_gradient(low = "white", high = "red", limits=c(0,1)) +
-  scale_x_discrete(labels = label_function) +
+  scale_x_discrete(labels = label_function()) +
   labs(x='Kit', y='Celltype', fill='Average\nmarker gene\nmodule score') +
   theme(axis.text.x = element_text(angle=45, hjust=1)) ->
 figures[['module_scores_kit_fine']] 
@@ -92,10 +92,18 @@ plotdata <- lapply(fig_objs, function(x){
 for (kit in unique(metadata_3p$Kit)) {
   plots <- list()
   figures[['confusion_mat_fine']][[kit]] <- 
-    confusion_plot(plotdata, kit) +
-    ggtitle(label_function(kit))
+    confusion_plot(plotdata, kit) #+
+    # ggtitle(label_function()(kit))
   my_plot_save(image = figures[['confusion_mat_fine']][[kit]],
                path= here('figures/3p/module_expression', paste0(kit, '_confusion_mat_fine.svg')),
                width = 9, height=8)
 }
 
+library(ggpubr)
+shared_plot <- ggarrange(plotlist = figures[['confusion_mat_fine']], labels = names(figures$confusion_mat_fine),
+  common.legend = TRUE, ncol=2, nrow=4
+)
+
+ggexport(shared_plot,
+             filename= here('figures/3p/module_expression', 'confusion_mat_all.svg'), 
+         width=unit(11, 'in'), height=unit(14, 'in'))
