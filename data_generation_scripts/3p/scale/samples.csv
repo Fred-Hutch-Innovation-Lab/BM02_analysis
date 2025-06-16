@@ -1,0 +1,6 @@
+sample,barcodes,libName
+ScalePBMC,1A-1D,bothruns
+F1A,2A-2H;3A-3H;4A-4G,bothruns
+F1B,5A-5H;6A-6H;7A-7G,bothruns
+F5A,8A-8H;9A-9H;10A-10G,bothruns
+F5B,1E-1H;4H;7H;10H;11A-11H;12A-12H,bothruns
