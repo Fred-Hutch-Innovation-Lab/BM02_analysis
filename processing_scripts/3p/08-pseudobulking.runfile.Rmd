@@ -48,13 +48,13 @@ figures <- list()
 
 ```{r}
 objs <- readRDS(here('rds/3p/07_post_module_scoring.rds'))
-# genes <- Reduce(intersect, lapply(objs, Features))
-# objs <- lapply(objs, subset, features = genes)
-# objs <- lapply(objs, function(x) {
-#   x$ind <- ifelse(grepl('F1', x$orig.ident), 'F1', 'F5') 
-#   x$group <- paste0(x$cell_labels.fine, '.', x$ind)
-#   x
-# })
+genes <- Reduce(intersect, lapply(objs, Features))
+objs <- lapply(objs, subset, features = genes)
+objs <- lapply(objs, function(x) {
+  x$ind <- ifelse(grepl('F1', x$orig.ident), 'F1', 'F5')
+  x$group <- paste0(x$cell_labels.fine, '.', x$ind)
+  x
+})
 objs <- lapply(objs, function(x) {
   x$cell_labels.coarse <- case_when(
     x$cell_labels.fine == 'CD4+ T' ~ 'T',
@@ -112,14 +112,14 @@ objs$Scale$RNA@x <- round(objs$Scale$RNA@x)
 
 
 
-# pb_obj <- cbind(
-#   objs$Flex$RNA,
-#   objs$Fluent_v4$RNA,
-#   objs$Fluent_V$RNA,
-#   objs$GEMX3P$RNA,
-#   objs$NextGEM3P$RNA,
-#   objs$Parse_v3$RNA, 
-#   objs$Scale$RNA)
+pb_obj <- cbind(
+  objs$Flex$RNA,
+  objs$Fluent_v4$RNA,
+  objs$Fluent_V$RNA,
+  objs$GEMX3P$RNA,
+  objs$NextGEM3P$RNA,
+  objs$Parse_v3$RNA,
+  objs$Scale$RNA)
 # rm(objs)
 ```
 
@@ -389,6 +389,23 @@ figures[['PCA_Flex']]
 <!-- } -->
 <!-- ``` -->
 
+# Corr scatterplot
+
+```{r}
+corr_scatterplot <- function() {
+  plotdata <- assays(pb_obj)$vst |> 
+    assay() |> 
+    melt() |> 
+    dplyr::rename(Gene = Var1) |>
+    separate(Var2, into = c('Sample', 'Celltype'), sep='_') |>
+    mutate(Sample = gsub('-', '_', Sample, fixed=TRUE)) |>
+    merge(metadata, by='Sample')
+  plotdata <- merge(plotdata, plotdata, by = c('Kit', 'Gene'))
+  ggplot(plotdata, aes(x=))
+}
+```
+
+
 # Corr mat
 
 ## funcs
@@ -467,14 +484,10 @@ corr_dotplot_byind <- function(corrdata, midpoint = 0.5) {
 }
 ```
 
-## Pathway genes
+## Invidiual variance genes
 
 ```{r}
-library(msigdbr)
-pathways <- msigdbr(species = "human", category = "C2") |>
- filter(gs_subcat  == 'CP:BIOCARTA')
-pathways <- pathways %>% dplyr::select(gene_symbol, gs_name) %>% unstack()
-features <- unname(unlist(pathways[c('BIOCARTA_MONOCYTE_PATHWAY', 'BIOCARTA_TCR_PATHWAY', 'BIOCARTA_BCR_PATHWAY')]))
+features <- results(pb_obj, name = 'Individual_F5_vs_F1') |> as.data.frame() |> arrange(padj) |> head(n=500) |> rownames()
 for (kit in unique(metadata$Kit)) {
   plotdata <- tibble()
   for (celltype in unique(colData(objs[[kit]])$celltype)) {
@@ -485,6 +498,57 @@ for (kit in unique(metadata$Kit)) {
       #   head(n=200) |> 
       #   rownames()
       plotdata1 <- obj_cor(assays(objs[[kit]])$vst, kit, celltype, ngenes=200, method='pearson', features=features, features_select = 'kit+celltype') |>
+      filter(celltype1 == celltype2) |>
+      # filter((Individual1 == 'F1A' & Individual2 == 'F1B') |
+      #      (Individual1 == 'F5A' & Individual2 == 'F5B')) |>
+      mutate(celltype1 = factor(celltype1, levels=label_order),
+             celltype2 = factor(celltype2, levels=label_order)) |>
+      arrange(celltype1, celltype2) |>
+      distinct()
+      plotdata <- rbind(plotdata, plotdata1)
+    }
+  }
+  corr_data_bykit <- rbind(corr_data_bykit, plotdata)
+  
+  
+  ggplot(distinct(plotdata),
+         # aes(x=paste0(Sample1, '_', celltype1),
+         #     y=paste0(Sample2, '_', celltype2), 
+         aes(x=Individual1,
+             y=Individual2,
+             label=round(value,2),
+             fill=value)) +
+    geom_tile() +
+    geom_text() +
+    scale_fill_gradient2(high = "#4DAF4A",
+                       mid="#FFFFCC",
+                       low = "#FF0000", 
+                       midpoint=0.95) +
+    labs(x = 'Sample 1', y = 'Sample 2', fill = 'Corr', title = kit) +
+    facet_wrap(~ celltype1, drop = FALSE, ncol=6, nrow = 4) ->
+    figures[[paste0('corr_mat_pearson', kit)]]
+  print(figures[[paste0('corr_mat_pearson', kit)]])
+}
+```
+
+## Pathway genes
+
+```{r}
+# library(msigdbr)
+pathways <- msigdbr(species = "human", category = "C2") |>
+ filter(gs_subcat  == 'CP:BIOCARTA')
+pathways <- pathways %>% dplyr::select(gene_symbol, gs_name) %>% unstack()
+features <- unique(unname(unlist(pathways)))
+for (kit in unique(metadata$Kit)) {
+  plotdata <- tibble()
+  for (celltype in unique(colData(objs[[kit]])$celltype)) {
+    if (nrow(filter(cellcounts_coarse_kit, Kit == kit, Celltype == celltype)) > 0){
+      # # var_genes <- adsf |>
+      #   as.data.frame() |> 
+      #   arrange(padj) |> 
+      #   head(n=200) |> 
+      #   rownames()
+      plotdata1 <- obj_cor(assays(objs[[kit]])$vst, kit, celltype, ngenes=2000, method='pearson', features=features, features_select = 'kit+celltype') |>
       filter(celltype1 == celltype2) |>
       # filter((Individual1 == 'F1A' & Individual2 == 'F1B') |
       #      (Individual1 == 'F5A' & Individual2 == 'F5B')) |>
@@ -554,6 +618,7 @@ corr_data_all <- corr_data_all |>
 
 ```{r, fig.height=5, fig.width=12}
 corr_data_all |>
+  mutate(y=round(y,2)) |>
   corr_dotplot_byind(midpoint = 0.85) ->
   figures[['rep_corr_summary_all']]
 figures[['rep_corr_summary_all']]
