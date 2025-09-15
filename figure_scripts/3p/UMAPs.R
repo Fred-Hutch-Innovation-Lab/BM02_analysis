@@ -52,7 +52,7 @@ for (kit in unique(metadata_3p$Kit)) {
   figures[[paste0(kit, '_fine')]] <-
     my_dimplot(fig_objs[[kit]],
                group.by = 'cell_labels.fine') +
-    ggtitle(label_function(kit))
+    ggtitle(unlist(label_function()(kit)))
 
   my_plot_save(image = figures[[paste0(kit, '_fine')]],
                path = here('figures/3p/UMAPs', paste0(kit, '_cell_labels.svg')),
@@ -63,7 +63,7 @@ for (kit in unique(metadata_3p$Kit)) {
     my_dimplot(fig_objs[[kit]], group.by = 'cell_labels.fine') +
     my_dimplot(fig_objs[[kit]], group.by = 'individual',
                colors = color_palette$samples, color_label='Sample', alpha=0.5) +
-    ggtitle(label_function(kit))
+    ggtitle(unlist(label_function()(kit)))
   my_plot_save(image = figures[[paste0(kit, '_fine_&_individual')]],
                path = here('figures/3p/UMAPs', paste0(kit, '_cell_and_individual_labels.svg')),
                width = 12, height = 4)
@@ -71,7 +71,7 @@ for (kit in unique(metadata_3p$Kit)) {
     my_dimplot(fig_objs[[kit]], group.by = 'cell_labels.fine', drop=FALSE, big = TRUE) +
     my_dimplot(fig_objs[[kit]], group.by = 'individual', 
                colors = color_palette$samples, color_label='Sample', alpha=0.5, big = TRUE) +
-  ggtitle(label_function(kit))
+  ggtitle(label_function()(kit))
 }
 p1 <- 
   figures[['Flex_for_merging']] +

@@ -32,8 +32,8 @@ label_function <- function(mode = 'both', wrap = FALSE, width = 20) {
         grepl('Flex', value) ~ "NextGEM Flex",
         grepl('NextGEM3P', value) ~ "NextGEM 3'",
         grepl('GEMX3P', value) ~ "GEM-X 3'",
-        grepl('Fluent_v4', value) ~ "Pipseek v4",
-        grepl('Fluent_V', value) ~ "Pipseek V",
+        grepl('Fluent_v4', value) ~ "PIPseq v4",
+        grepl('Fluent_V', value) ~ "PIPseq V",
         grepl('Parse_v3', value) ~ "Parse v3",
         grepl('Parse_v2', value) ~ case_when(
           mode == 'TCR' ~ "Parse v2 TCR",

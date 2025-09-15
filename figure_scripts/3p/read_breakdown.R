@@ -84,7 +84,7 @@ plotdata |>
   )) + 
   theme(axis.text.x = element_text(angle=45, vjust=0.5),
         panel.spacing=unit(0, "lines")) + 
-  facet_wrap(~ Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function)) +
+  facet_wrap(~ Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function())) +
   labs(y='Percent of total reads', x='Sample', fill='Feature biotype'#, 
     # caption = paste(
     #   'Only showing reads assigned to genes found in all kits',
@@ -140,7 +140,7 @@ plotdata |>
   scale_y_continuous(labels = scales::percent) +
   theme(axis.text.x = element_text(angle=45, vjust=0.5),
         panel.spacing=unit(0, "lines")) + 
-  facet_wrap(~ Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function)) +
+  facet_wrap(~ Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function())) +
   labs(y='Percent of total reads', x='Sample', fill='Feature biotype'#, 
 # caption = paste(
 #   'Only showing genes not found in all kits.',
@@ -201,7 +201,7 @@ plotdata |>
   scale_y_continuous(labels = scales::percent) +
   theme(axis.text.x = element_text(angle=45, vjust=0.5),
         panel.spacing=unit(0, "lines")) + 
-  facet_wrap(~ Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function)) +
+  facet_wrap(~ Kit, nrow=1, scales='free_x', labeller = labeller(Kit = label_function())) +
   labs(y='Percent of total reads', x='Sample', fill='Feature biotype'#, 
        # caption = paste('"Not shared" indicates a gene is not found in all kits.',
        #                  'All other features are identified in all kits.',

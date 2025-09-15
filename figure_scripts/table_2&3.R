@@ -114,7 +114,7 @@ get_color_palette <- function(invert = FALSE,
 }
 
 # BM1 ----
-plotdata[c('Flex', "NextGEM 3'", "GEM-X 3'", 'Fluent v4', 'Fluent V', 'Parse v3', 'Scale'),] |>
+plotdata[c('NextGEM Flex', "NextGEM 3'", "GEM-X 3'", 'PIPseq v4', 'PIPseq V', 'Parse v3', 'Scale'),] |>
   gt(rownames_to_stub = TRUE) |>
   ## Hide columns ----
   cols_hide(columns = c(
@@ -139,9 +139,9 @@ plotdata[c('Flex', "NextGEM 3'", "GEM-X 3'", 'Fluent v4', 'Fluent V', 'Parse v3'
     cost_per_cell_recovered = "Cost per high quality cell",
     reads_mapped_to_transcriptome = "Reads mapped to transcriptome", 
     reads_mapped_and_in_called_cells = "Reads contributing to counts matrix",
-    maximum_gene_recovery_estimate = "Estimatated maximum gene recovery",
+    maximum_gene_recovery_estimate = "Projected maximum gene recovery",
     rd50_gene = "rd50 gene",
-    maximum_umi_recovery_estimate = "Estimated maximum transcript recovery",
+    maximum_umi_recovery_estimate = "Projected maximum transcript recovery",
     rd50_umi = "rd50 transcripts",
     median_genes_per_cell = "Median genes per cell",
     median_umi_per_cell = "Median transcripts per cell",
@@ -274,9 +274,9 @@ cols_label(
   cost_per_cell_recovered = "Cost per high quality cell",
   reads_mapped_to_transcriptome = "Reads mapped to transcriptome", 
   reads_mapped_and_in_called_cells = "Reads contributing to counts matrix",
-  maximum_gene_recovery_estimate = "Estimatated maximum gene recovery",
+  maximum_gene_recovery_estimate = "Projected maximum gene recovery",
   rd50_gene = "rd50 gene",
-  maximum_umi_recovery_estimate = "Estimated maximum transcript recovery",
+  maximum_umi_recovery_estimate = "Projected maximum transcript recovery",
   rd50_umi = "rd50 transcripts",
   median_genes_per_cell = "Median genes per cell",
   median_umi_per_cell = "Median transcripts per cell",

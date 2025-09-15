@@ -26,7 +26,7 @@ QC_metric_VlnPlot <- function(objs, metric, ylab = 'metric_value', caption=NA) {
 # Plot ----
 labels <- data.frame(
   metric = c('nFeature_RNA', 'nCount_RNA', 'rbRatio', 'mtRatio'),
-  label  = c('Feature count', 'UMI count', 'Ribosomal read %', 'Mitochondrial read %'),
+  label  = c('Feature count', 'Transcript count', 'Ribosomal read %', 'Mitochondrial read %'),
   logscale = c(FALSE, FALSE, FALSE, FALSE),
   pctscale = c(FALSE, FALSE, TRUE, TRUE)
 )

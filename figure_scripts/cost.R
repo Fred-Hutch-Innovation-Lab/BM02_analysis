@@ -16,8 +16,8 @@ cell_loading_data <- merge(cell_loading_data_3p, cell_loading_data_5p, all=TRUE,
   summarize(recovery = sum(after_doublet_filtering) / sum(cells_loaded)) |>
   dplyr::rename(Assay = Kit) |>
   mutate(kit_family = case_when(
-    grepl('Fluent', Assay) ~ 'Fluent',
-    Assay == 'Flex' ~ 'Flex',
+    grepl('Fluent', Assay) ~ 'PIPseek',
+    Assay == 'Flex' ~ 'NextGEM Flex',
     grepl('NextGEM', Assay) ~ 'NextGEM',
     grepl('GEMX', Assay) ~ 'GEMX',
     Assay == 'Parse_v3' ~ 'Parse_WT',
@@ -118,18 +118,18 @@ model_coef_u <- lapply(models_u, parse_coef) |>
 
 
 ## Conversion efficiency ----
-read_eff <- rbind(
-  read.csv(here('data/3p/sequencing_efficiency_2.txt'), sep='\t') |>
-    mutate(prop = reads_in_matrix / reads_in_fastqs) |>
-    merge(metadata_3p, by='Sample') |>
-    group_by(Kit) |>
-    summarize(eff = mean(prop)),
-  read.csv(here('data/5p/sequencing_efficiency.txt'), sep='\t') |>
-    mutate(prop = reads_in_matrix / reads_in_fastqs) |>
-    merge(metadata_5p, by='Sample') |>
-    group_by(Kit) |>
-    summarize(eff = mean(prop)))
-read_eff
+# read_eff <- rbind(
+#   read.csv(here('data/3p/sequencing_efficiency.txt'), sep='\t') |>
+#     mutate(prop = reads_in_matrix / reads_in_fastqs) |>
+#     merge(metadata_3p, by='Sample') |>
+#     group_by(Kit) |>
+#     summarize(eff = mean(prop)),
+#   read.csv(here('data/5p/sequencing_efficiency.txt'), sep='\t') |>
+#     mutate(prop = reads_in_matrix / reads_in_fastqs) |>
+#     merge(metadata_5p, by='Sample') |>
+#     group_by(Kit) |>
+#     summarize(eff = mean(prop)))
+# read_eff
 
 ## Clonotypes ----
 
@@ -306,7 +306,8 @@ data.table::melt(id.vars = c('kit_family', 'Assay')) |>
 ggplot(aes(x=Assay, y=value, 
              fill=Assay, group=variable )) +
   geom_col_pattern(aes(pattern=variable), position='identity', alpha=1, pattern_key_scale_factor = 0.1) +
-  facet_grid(~ kit_family, scales='free_x') +
+  facet_wrap(~ kit_family, scales='free_x', labeller = label_function(mode='clean'), nrow = 1) +
+  # facet_grid(~ kit_family, scales='free_x', label_function) +
   scale_x_discrete(labels = label_function(mode='clean')) + 
   scale_fill_manual(values = color_palette$kits, labels = label_function(mode='clean'), breaks = kit_order_all) +
   scale_pattern_manual(values=c('stripe', 'none'), labels = c('Expected', 'Observed'))  +
@@ -316,14 +317,13 @@ ggplot(aes(x=Assay, y=value,
   theme(axis.text.x = element_text(angle=45, hjust=1)) +
   labs(x='Kit', y='Cost per cell', fill = 'Kit', pattern = 'Cost group') ->
   figures[['price_per_cell']]
-
 plotdata |>
   # select(Assay, kit, cost, max_cells, baseline_cost_per_cell, expected_cells_fraction, recovery, cost_ratio, observed_cost) |>
   write_plot_data(file = here('figure_data/cost_per_cell_table.txt'))
 my_plot_save(figures[['price_per_cell']],
              here('figures/cost/cost_per_cell.svg'),
              device ='svglite' ,
-             width = 10, height = 5)
+             width = 12, height = 5)
 
 ## Sequencing ----
 
@@ -382,7 +382,7 @@ seq_cost_modeling <- expand.grid(
   left_join(model_coef_u, by = 'Kit') |>
   filter(depth < a) |>
   mutate(req_reads = readfit(depth, a, c)) |>
-  left_join(read_eff, by = 'Kit') |>
+  # left_join(read_eff, by = 'Kit') |>
   mutate(cost_per_cell = req_reads * seq_cost_coef) |>
   mutate(example_cost = cost_per_cell * 80000)
 
@@ -404,7 +404,7 @@ ggplot(seq_cost_modeling, aes(x=depth, y=cost_per_cell, color = Kit,
 my_plot_save(figures[['seq_cost_curves_umi']],
              here('figures/cost/seq_cost_curves_umi.svg'),
              device ='svglite' ,
-             width = 8, height = 5)
+             width = 12, height = 5)
 
 
 ### Gene ----
@@ -416,7 +416,7 @@ seq_cost_modeling <- expand.grid(
   left_join(model_coef_g, by = 'Kit') |>
   filter(depth < a) |>
   mutate(req_reads = readfit(depth, a, c)) |>
-  left_join(read_eff, by = 'Kit') |>
+  # left_join(read_eff, by = 'Kit') |>
   mutate(cost_per_cell = req_reads * seq_cost_coef) |>
   mutate(example_cost = cost_per_cell * 80000)
 
@@ -442,5 +442,5 @@ ggplot(seq_cost_modeling,
 my_plot_save(figures[['seq_cost_curves_gene']], 
              here('figures/cost/seq_cost_curves_gene.svg'),
              device ='svglite' ,
-             width = 8, height = 5)
+             width = 12, height = 5)
 

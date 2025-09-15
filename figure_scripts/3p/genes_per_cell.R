@@ -35,7 +35,7 @@ lapply(detected_genes_sample_level, length) %>%
   ggplot(aes(x=Kit, y=values)) +
   geom_boxplot() +
   geom_point(aes(shape=paste0(Individual, Replicate))) +
-  scale_x_discrete(labels = label_function) +
+  scale_x_discrete(labels = label_function()) +
   labs(x = 'Kit', y='Genes detected', shape='Sample', caption = 'Genes detected in at least 10 cells') ->
   figures[['usable_genes_sample']]
 my_plot_save(image = figures[['usable_genes_sample']], 

@@ -27,12 +27,12 @@ ggplot(plotdata, aes(x = Kit, y = percent,
          # sep='\n')
 ) +
   scale_shape_manual(values = c(1:5))+ 
-  scale_color_manual(values=color_palette$kits, labels = label_function(mode = 'WT')) +
+  scale_color_manual(values=color_palette$kits, labels = label_function(mode = 'clean')) +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
   facet_grid(~ factor(variable), scales='free_y') +
   theme(strip.text.x = element_text(size = 10)) ->
   figures[['composition_boxplot']]
-figures[['composition_boxplot']]
+# figures[['composition_boxplot']]
 
 my_plot_save(image = figures[['composition_boxplot']], 
              path = here('figures/3p/composition_coarse_labels.svg'), 

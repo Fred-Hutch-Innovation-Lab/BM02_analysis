@@ -24,18 +24,18 @@ plotdata <-
 write_plot_data(plotdata, here('figure_data/3p/earthmover.txt'))
 
 # Plot ----
-plotdata <-
-  emd_summary |>
-  select(-c(conf_low, conf_high)) |>
-  # data.table::as.data.table() |> 
-  # knitr::kable() |>
-  janitor::adorn_rounding(digits = 3) |>
-  mutate(EMD = paste0(mean, ' ± ', ci)) |>
-  group_by(Kit) |>
-  mutate(tmp = mean(mean)) |>
-  arrange(tmp, Individual) |>
-  select(-c(tmp, ci)) |>
-  as.data.table() #|>
+# plotdata <-
+#   emd_summary |>
+#   select(-c(conf_low, conf_high)) |>
+#   # data.table::as.data.table() |> 
+#   # knitr::kable() |>
+#   janitor::adorn_rounding(digits = 3) |>
+#   mutate(EMD = paste0(mean, ' ± ', ci)) |>
+#   group_by(Kit) |>
+#   mutate(tmp = mean(mean)) |>
+#   arrange(tmp, Individual) |>
+#   select(-c(tmp, ci)) |>
+#   as.data.table() #|>
 # plotdata |> 
 #   dcast(Kit ~ Individual)  |>
 #   gt::gt() |>
@@ -67,8 +67,8 @@ plotdata |>
   ggplot(aes(x = Individual, y=mean, fill=Kit)) +
   geom_bar(stat = 'identity') +
   geom_errorbar(aes(ymin = conf_low, ymax = conf_high), width=0.4, colour="black", alpha=0.9) +
-  scale_fill_manual(values = color_palette$kits, labels = label_function) +
-  facet_wrap(~ Kit, labeller = labeller( Kit = label_function), nrow=1) +
+  scale_fill_manual(values = color_palette$kits, labels = label_function()) +
+  facet_wrap(~ Kit, labeller = labeller( Kit = label_function()), nrow=1) +
   labs(x='Individual', y='EMD') ->
   figures[['emd_barchart']]
 figures[['emd_barchart']]
@@ -76,4 +76,4 @@ figures[['emd_barchart']]
 my_plot_save(figures[['emd_barchart']],
              here('figures/3p/emd.svg'),
              device ='svglite' ,
-             width = 10, height = 5)
+             width = 12, height = 5)

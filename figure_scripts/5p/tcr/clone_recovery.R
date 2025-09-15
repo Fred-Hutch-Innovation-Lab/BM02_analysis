@@ -99,7 +99,7 @@ ggplot(plotdata, aes(x=Individual, y=value, fill=Kit)) +
 figures[['simpson index']]
 my_plot_save(image = figures[['simpson index']], 
              path = here('figures/5p/tcr/simpson_index.svg'), 
-             width = 9, height = 4)
+             width = 12, height = 5.5)
 write_plot_data(plotdata, file=here('figure_data/5p/tcr/simpson_index.txt'))
 
 ## recovery proportion stacked ----
@@ -141,7 +141,7 @@ ggplot(plotdata, aes(x=Individual, y=prop, group = Individual, fill = chain)) +
 figures[['chain recovery stacked']]
 my_plot_save(image = figures[['chain recovery stacked']], 
              path = here('figures/5p/tcr/expanded_clone_recovery_proportions.svg'), 
-             width = 7, height = 4)
+             width = 12, height = 5.5)
 write_plot_data(plotdata, file=here('figure_data/5p/tcr/expanded_clone_recovery_proportions.txt'))
 
 ## Richness ----
@@ -176,5 +176,5 @@ figures[['unique clone recovery count']]
 
 my_plot_save(image = figures[['unique clone recovery count']], 
              path = here('figures/5p/tcr/expanded_clone_recovery_counts.svg'), 
-             width = 7, height = 4)
+             width = 12, height = 5.5)
 write_plot_data(plotdata, file=here('figure_data/5p/tcr/expanded_clone_recovery_counts.txt'))

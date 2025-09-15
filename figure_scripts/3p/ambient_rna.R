@@ -20,7 +20,7 @@ ggplot(plotdata, aes(x=paste0(Individual, Replicate), y=rho)) +
   geom_col() +
   geom_errorbar(aes(ymin=rho_low, ymax=rho_high), width=0.4) +
   facet_grid(~ Kit, scales='free_x',
-             labeller = labeller(Kit = label_function)
+             labeller = labeller(Kit = label_function())
                ) +
   scale_y_continuous(labels = scales::percent) +
   labs(x='Sample', y='Ambient RNA') ->
