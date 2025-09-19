@@ -16,10 +16,10 @@ cell_loading_data <- merge(cell_loading_data_3p, cell_loading_data_5p, all=TRUE,
   summarize(recovery = sum(after_doublet_filtering) / sum(cells_loaded)) |>
   dplyr::rename(Assay = Kit) |>
   mutate(kit_family = case_when(
-    grepl('Fluent', Assay) ~ 'PIPseek',
+    grepl('Fluent', Assay) ~ 'PIPseq',
     Assay == 'Flex' ~ 'NextGEM Flex',
     grepl('NextGEM', Assay) ~ 'NextGEM',
-    grepl('GEMX', Assay) ~ 'GEMX',
+    grepl('GEMX', Assay) ~ 'GEM-X',
     Assay == 'Parse_v3' ~ 'Parse_WT',
     Assay == 'Parse_v2' ~ 'Parse_TCR',
     Assay == 'Scale' ~ 'Scale'
@@ -35,10 +35,10 @@ expected_recovery_3p <- read.csv(here('data/3p/loaded_cells.csv')) |>
   filter(variable == 'target_cells_fraction') |>
   summarize(expected_cells_fraction = mean(value)) |>
   mutate(kit_family = case_when(
-    grepl('Fluent', Kit) ~ 'Fluent',
-    Kit == 'Flex' ~ 'Flex',
+    grepl('Fluent', Kit) ~ 'PIPseq',
+    Kit == 'Flex' ~ 'NextGEM Flex',
     grepl('NextGEM', Kit) ~ 'NextGEM',
-    grepl('GEMX', Kit) ~ 'GEMX',
+    grepl('GEMX', Kit) ~ 'GEM-X',
     Kit == 'Parse_v3' ~ 'Parse_WT',
     Kit == 'Parse_v2' ~ 'Parse_TCR',
     Kit == 'Scale' ~ 'Scale'
@@ -52,10 +52,10 @@ expected_recovery_5p <- read.csv(here('data/5p/loaded_cells.csv')) |>
   filter(variable == 'target_cells_fraction') |>
   summarize(expected_cells_fraction = mean(value)) |>
   mutate(kit_family = case_when(
-    grepl('Fluent', Kit) ~ 'Fluent',
-    Kit == 'Flex' ~ 'Flex',
+    grepl('Fluent', Kit) ~ 'PIPseq',
+    Kit == 'Flex' ~ 'NextGEM Flex',
     grepl('NextGEM', Kit) ~ 'NextGEM',
-    grepl('GEMX', Kit) ~ 'GEMX',
+    grepl('GEMX', Kit) ~ 'GEM-X',
     Kit == 'Parse_v3' ~ 'Parse_WT',
     Kit == 'Parse_v2' ~ 'Parse_TCR',
     Kit == 'Scale' ~ 'Scale'
@@ -91,7 +91,7 @@ cost_data_per_kit <- cost_data_ref |>
   merge(cell_loading_data, by='kit_family', all=TRUE) |>
   mutate(observed_cost = baseline_cost_per_cell  * cost_ratio) |>
   mutate(kit_family = case_when(grepl('Parse', kit_family) ~ 'Parse', .default = kit_family)) |>
-  mutate(kit_family = factor(kit_family, levels = c('Flex', 'NextGEM', 'GEMX', 'Fluent', 'Parse', 'Scale')),
+  mutate(kit_family = factor(kit_family, levels = c('NextGEM Flex', 'NextGEM', 'GEM-X', 'PIPseq', 'Parse', 'Scale')),
          Assay = factor(Assay, levels = kit_order_all))
 
 ## Models ----
