@@ -1,0 +1,11 @@
+Kit	sample	other	mitochondrial	ribosomal	lncRNA	unidentified	identified_protein_coding
+NextGEM5P	F1A	2.41	1.47	10.12	2.67	1.18	81.48
+NextGEM5P	F2A	2.25	1.47	11.02	2.59	1.19	80.71
+GEMX5P	F1A	2.39	1.47	8.96	2.63	1.1	82.77
+GEMX5P	F2A	2.2	1.46	9.68	2.5	1.11	82.28
+GEMX5P	F4A	2.23	1.34	9.2	2.46	1.07	82.9
+GEMX5P	F5A	2.36	1.44	8.66	2.61	1.06	83.01
+Parse_v2	F1A	1.91	0.27	1.31	2.72	0.78	90.21
+Parse_v2	F2A	1.9	0.27	1.47	2.68	0.78	89.96
+Parse_v2	F4A	1.82	0.25	1.68	2.49	0.76	90.22
+Parse_v2	F5A	1.99	0.28	1.5	2.8	0.78	89.59

@@ -3,21 +3,21 @@ source(here('figure_scripts/utils.R'))
 library(readxl)
 
 # Load data ----
-data <- read.csv(here('data/3p/sequencing_efficiency_3.txt'), sep='\t') 
+data <- read.csv(here('figure_data/3p/seq_eff_count.txt'), sep='\t') 
 # Prepare plotdata ----
 plotdata <- data |>
   as.data.table() |>
-  melt() |>
+  # melt() |>
   mutate(variable = factor(variable, levels = c('reads_in_fastqs', 'reads_mapped_transcriptome', 'reads_in_matrix'))) |>
   group_by(Sample) |>
-  arrange(Sample, variable) |> 
+  arrange(Sample, variable) |>
   mutate(value=as.numeric(value),
          next_remaining = lead(value, default = 0),  # Next step's remaining count (or 0 for the last step)
          difference = value - next_remaining         # Difference from the next entry
-  ) |> 
+  ) |>
   mutate(prop = difference / sum(difference)) |>
-  merge(metadata_3p, by='Sample') |>
-  mutate(Kit = factor(Kit, levels=kit_order_3p)) 
+  # merge(metadata_3p, by='Sample') |>
+  mutate(Kit = factor(Kit, levels=kit_order_3p))
 
 # Plot ----
 plotdata |>
@@ -36,5 +36,5 @@ figures[['seq_eff_prop']]
 
 my_plot_save(image = figures[['seq_eff_prop']], 
              path = here('figures/3p/sequencing_efficiency/seq_eff_prop.svg'), 
-             width = 10.5, height = 4)
-write_plot_data(plotdata, here('figure_data/3p/seq_eff_count.txt'))
+             width = 12, height = 4)
+# write_plot_data(plotdata, here('figure_data/3p/seq_eff_count.txt'))

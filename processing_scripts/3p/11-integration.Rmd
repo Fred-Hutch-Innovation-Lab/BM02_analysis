@@ -1,0 +1,151 @@
+---
+title: 'SC processing'
+author: "FHIL\nDerrikGratz"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      fig.width = 8, fig.height = 6,
+                      cache=FALSE, cache.lazy = FALSE) 
+
+library(tidyverse)  ## General R logic
+library(here)       ## Easier specification of file locations
+library(yaml)       ## parses config yaml
+library(Seurat)
+library(reshape2)   ## DF manipulation
+library(data.table)
+library(harmony)
+library(patchwork)
+set.seed(33)
+source(here('figure_scripts/utils.R'))
+```
+
+
+```{r}
+my_dimplot <- function(obj,
+                       reduction='UMAP_allgenes',
+                       key='UMAPallgenes_', 
+                       dims=c(1,2),
+                       group.by, 
+                       colors = color_palette$cell_colors,
+                       color_label='Cell type', 
+                       alpha=1,
+                       drop=TRUE,
+                       shuffle=TRUE, 
+                       rasterize=FALSE,
+                       big=FALSE){
+  dimdata <- obj@reductions[[reduction]]@cell.embeddings[,dims]
+  dimdata[,1] <- scale(dimdata[,1])
+  dimdata[,2] <- scale(dimdata[,2])
+  plotdata <- merge(dimdata, obj@meta.data, by='row.names')
+  plotdata[[group.by]] <- factor(plotdata[[group.by]], levels=names(colors))
+  if (shuffle) {
+    plotdata <- plotdata[sample(x = 1:nrow(x = plotdata)), ]
+  }
+  ggplot(plotdata, aes(x=.data[[paste0(key, dims[1])]],
+                       y=.data[[paste0(key, dims[2])]],
+                       color=.data[[group.by]])) +
+    scale_color_manual(values = colors, breaks = names(colors), drop=drop) +
+    (if (rasterize) {
+      rasterize(geom_point(size=0.1, alpha=alpha, show.legend = TRUE), dpi=300)
+    } else {
+      geom_point(size=0.1, alpha=alpha, show.legend = TRUE)
+    }) +
+    labs(x=paste0(reduction, '_', dims[1]), y=paste0(reduction, '_', dims[2]), color=color_label) +
+    theme_classic() +
+    theme(text = element_text(size=16, hjust = 0),
+          axis.text = element_blank(), 
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          plot.title = element_text(size = 30, face = "bold")) +
+    guides(colour = guide_legend(override.aes = list(size=ifelse(big, 10, 3)))) +
+    (if (big) {theme(legend.title = element_text(size = 30), 
+              legend.text  = element_text(size = 24),
+              legend.key.size = unit(0.5, "in"))} else NULL)
+}
+```
+
+# Load data
+
+```{r}
+objs <- readRDS(here('rds/3p/07_post_module_scoring.rds'))
+metadata <- read.csv(here('config/3p/metadata.csv'))
+figures <- list()
+```
+
+## Merge
+
+```{r}
+objs <- lapply(objs, DietSeurat, assays='RNA')
+objs.merged <- merge(objs[[1]], y = objs[2:length(objs)], project = "PBMC12K")
+objs.merged[["RNA"]] <- JoinLayers(objs.merged[['RNA']])
+objs.merged
+```
+
+## Preprocess
+
+```{r}
+objs.merged@meta.data <- objs.merged@meta.data |>
+  merge(select(metadata, c(Sample, Kit, Individual, Replicate)), by.x='orig.ident', by.y='Sample')
+rownames(objs.merged@meta.data) <- Cells(objs.merged)
+```
+
+# Merged UMAP
+
+```{r}
+objs.merged <- objs.merged |>
+  FindVariableFeatures() |>
+  RunPCA(npcs = 30)
+```
+
+```{r}
+objs.merged <- FindNeighbors(objs.merged, reduction = 'pca', dims = 1:20)
+objs.merged <- RunUMAP(objs.merged, dims=1:30)
+```
+
+```{r, fig.height=5, fig.width=20}
+p1 <- my_dimplot(objs.merged, reduction='umap', key='umap_', group.by=c('Kit.x'), colors = color_palette$kits) 
+p2 <- my_dimplot(objs.merged, reduction='umap', key='umap_', group.by=c('cell_labels.fine'), colors = color_palette$cell_colors)
+p3 <- my_dimplot(objs.merged, reduction='umap', key='umap_', group.by=c('Individual.x'), colors = list(F1='darkgreen', F5='lightblue'))
+
+p1 + p2 + p3 + plot_layout(ncol=3) 
+#, 'Individual.y', 'cell_labels.fine'
+```
+
+```{r, fig.width=32, height=6}
+DimPlot(objs.merged, reduction='umap', group.by=c('Kit.x', 'Individual.y', 'cell_labels.fine'))
+```
+
+
+
+# Run harmony
+
+```{r}
+objs.merged <- RunHarmony(objs.merged, group.by.vars = c('Kit.x', 'Individual.x'))
+objs.merged <- objs.merged |>
+    FindNeighbors(reduction = "harmony", graph.name = 'harmony') |>
+    RunUMAP(reduction='harmony', dims = 1:20, reduction.name = 'harmony_UMAP', reduction.key='harmony_UMAP')
+    # FindClusters(resolution = 0.5) 
+# seuratObj <- RunUMAP(seuratObj, reduction = "harmony")
+```
+
+```{r, fig.width=30, height=9}
+DimPlot(objs.merged, reduction='umap', group.by=c('Kit.x', 'Individual.y', 'cell_labels.fine'), shuffle = TRUE, raster = FALSE) #
+```
+
+
+```{r, fig.height=5, fig.width=12}
+p1 <- my_dimplot(objs.merged, reduction='umap', key='umap_', group.by=c('Kit.x'), colors = color_palette$kits) 
+p2 <- my_dimplot(objs.merged, reduction='umap', key='umap_', group.by=c('cell_labels.fine'), colors = color_palette$cell_colors) 
+
+p1 + p2 + 
+plot_layout(ncol=2) 
+#, 'Individual.y', 'cell_labels.fine'
+```
+
+```{r}
+saveRDS(objs.merged@reductions$umap, file = here('rds/3p/harmony_umap_loadings.rds'))
+```
+

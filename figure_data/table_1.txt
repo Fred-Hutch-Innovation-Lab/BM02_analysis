@@ -1,0 +1,11 @@
+Protocol 	Kit Abbreviation	Assay Type	Sample Type	Sample Process	Detection Method	Read 1	Index 1	Index 2	Read 2	Cell Target Per Sample	Recommended Cell Loading	Instrument cost	Kit cost	Kit Cost per sample (n=4)	Kit cost per cell
+"10x Genomics Chromium Fixed RNA Profiling Kit, Multiplex 4 x 4"	NextGEM Flex	Emulsion 	PBMCs	Formalin Fixed	Probe Hybridization	28	10	10	90	"10,000"	"17,000"	"$75,000 "	"$15,240.00 "	$952.50 	$0.10 
+10x Genomics Chromium NextGEM 3' v3.1 4rxn	NextGEM 3'	Emulsion 	PBMCs	Not fixed	Reverse Transcription 3' end	28	10	10	90	"10,000"	"17,000"	"$65,000 "	"$7,840.00 "	"$1,960.00 "	$0.20 
+10x Genomics Chromium GEM-X 3' v4 4rxn	GEMX 3'	Emulsion 	PBMCs	Not fixed	Reverse Transcription 3' end	28	10	10	90	"20,000"	"29,000"	"$75,000 "	"$6,811.00 "	"$1,702.63 "	$0.10 
+Fluent Biosciences PIPSeq T-20 v.4 	PIPseq v4	Emulsion 	PBMCs	DSP/Methanol Fix	Reverse Transcription 3' end	54	8	8	67	"20,000"	"40,000"	"$3,000 "	"$3,600.00 "	$900.00 	$0.05 
+Fluent Biosciences PIPSeq T-20 V 	PIPseq V	Emulsion 	PBMCs	Not fixed	Reverse Transcription 3' end	45	10	10	72	"20,000"	"40,000"	"$3,000 "	"$3,600.00 "	$900.00 	$0.05 
+Parse Evercode v.3	Parse v3	Combinatorial Indexing	PBMCs	Fixed Permeabilized	Reverse Transcription 3' end	64	8	8	58	"25,000"	"350,000"	Optional liquid hander	"$10,780.00 "	"$2,695.00 "	$0.11 
+Scale Biosciences 	Scale	Combinatorial Indexing	PBMCs	DSP/Methanol Fix	Reverse Transcription full	34	10	10	76	"31,250"	"960,000"	NA	"$8,500.00 "	"$2,125.00 "	$0.07 
+10x Genomics Chromium NextGEM 5' v.2	NextGEM 5'	Emulsion 	T-cells	Not fixed	Reverse Transcription 5' end	26	10	10	90	"10,000"	"17,000"	"$75,000 "	"$7,840.00 "	"$1,960.00 "	$0.20 
+10x Genomics Chromium GEM-X 5' v.3	GEMX 5'	Emulsion 	T-cells	Not fixed	Reverse Transcription 5' end	28	10	10	90	"20,000"	"29,000"	"$65,000 "	"$6,811.00 "	"$1,702.63 "	$0.10 
+Parse Evercode TCR	Parse TCR	Combinatorial Indexing	T-cells	Fixed Permeabilized	Reverse Transcription full	WT: 66; TCR: 216	8	8	WT: 86; TCR: 86	"25,000"	"350,000"	Optional liquid hander	"$12,500.00 "	"$3,125.00 "	$0.13 

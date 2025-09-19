@@ -1,0 +1,120 @@
+gene_symbol	aliases	expression_level	celltype	relative_to	tissue	species	condition	assay	confidence	date_added	references	notes
+MS4A1		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/16/24	https://doi.org/10.3390/ijms25073828; https://doi.org/10.3389/fimmu.2023.1223471; https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CD19		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.1002/eji.201747168; https://doi.org/10.1038/s41587-020-0465-8; https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+CD79A		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471; https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CD79B		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471; https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+AFF3		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	
+BANK1		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	
+BLK		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	
+BTLA		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	
+IGHM		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	
+IGHG3		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	
+IL7R		Increased	CD4+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	9/9/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CD4		Increased	CD4+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/16/24	https://doi.org/10.3390/ijms25073828	cellxgene
+CD27		Increased	CD4+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+IL7R		Increased	CD4+ T	CD8+ T	PBMC	Homo sapiens	NA	GEX	med	11/1/24	cellxgene	cellxgene
+CD8A		Increased	CD8+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/16/24	https://doi.org/10.3390/ijms25073828	cellxgene
+GZMA		Increased	CD8+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/23/24	https://www.sc-best-practices.org/cellular_structure/annotation.html	cellxgene
+GZMB		Increased	CD8+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/23/24	https://www.sc-best-practices.org/cellular_structure/annotation.html	cellxgene
+GZMH		Increased	CD8+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/23/24	https://www.sc-best-practices.org/cellular_structure/annotation.html	cellxgene
+CD8A		Increased	CD8+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CD8B		Increased	CD8+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CCL5		Increased	CD8+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+NKG7		Increased	CD8+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CD14		Increased	Classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.3390/ijms25073828; https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+VCAN		Increased	Classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+S100A8		Increased	Classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+S100A9		Increased	Classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CSF3R		Increased	Classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+LYZ		Increased	Classical monocyte	Non-classical monocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+S100A12		Increased	Classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+HLA-DRB5		Increased	Classical monocyte	Myeloid	PBMC	Homo sapiens	NA	GEX	med	11/1/24	cellxgene	cellxgene
+FCER1A		Increased	Dendritic	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	9/9/24	https://scanpy.readthedocs.io/en/stable/tutorials/basics/clustering-2017.html#finding-marker-genes	cellxgene
+CD1C		Increased	Dendritic	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+HLA-DRB1		Increased	Dendritic	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+HLA-DQB1		Increased	Dendritic	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+HLA-DRB5		Increased	Dendritic	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+FCER1A		Increased	Dendritic	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+HLA-DPB1		Increased	Dendritic	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8; https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+HLA-DPA1		Increased	Dendritic	Myeloid	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8; https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+HLA-DQA1		Increased	Dendritic	Myeloid	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8; https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+CD1C		Increased	Dendritic	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+FCER1A		Increased	Dendritic	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CLEC10A		Increased	Dendritic	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+HLA-DRA		Increased	Dendritic	Myeloid	PBMC	Homo sapiens	NA	GEX	med	11/1/24	cellxgene	cellxgene
+PF4		Increased	Megakaryocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+PPBP		Increased	Megakaryocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+GP5		Increased	Megakaryocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+NRGN		Increased	Megakaryocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+TUBB1		Increased	Megakaryocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+SPARC		Increased	Megakaryocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+RGS18		Increased	Megakaryocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+MYL9		Increased	Megakaryocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+GNG11		Increased	Megakaryocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+AIF1		Increased	Monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+NKG7		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/16/24	https://doi.org/10.3390/ijms25073828	cellxgene
+GNLY		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+FGFBP2		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+KLRF1		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+GZMH		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+PRF1		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+KLRD1		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+GZMB		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+SPON2		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+CD247		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/23/24	https://www.sc-best-practices.org/cellular_structure/annotation.html	cellxgene
+KLRB1		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+KLRD1		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+KLRF1		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+GZMA		Increased	NK	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	cellxgene	cellxgene
+CDKN1C		Increased	Non-classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471;https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+LRRC25		Increased	Non-classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+TCF7L2		Increased	Non-classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+LYN		Increased	Non-classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+IF130		Increased	Non-classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+FCGR3A		Increased	Non-classical monocyte	Classical monocyte	PBMC	Homo sapiens	NA	GEX	high	10/16/24	https://doi.org/10.3390/ijms25073828	cellxgene
+FCGR3A		Increased	Non-classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+MS4A7		Increased	Non-classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+IL3RA		Increased	pDC	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+TCF4		Increased	pDC	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/23/24	https://www.sc-best-practices.org/cellular_structure/annotation.html	cellxgene
+IL3RA		Increased	pDC	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+GZMB		Increased	pDC	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+JCHAIN		Increased	pDC	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+IRF7		Increased	pDC	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+TCF4		Increased	pDC	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+LILRA4		Increased	pDC	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CLEC4C		Increased	pDC	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8; https://doi.org/10.3390/ijms25073828	cellxgene
+TRBC2		Increased	T	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	cellxgene	cellxgene
+CD3D		Increased	T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471; https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CD3G		Increased	T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471; https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CD3E		Increased	T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471; https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+IL7R		Increased	T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+TRAC		Increased	T	Leukocyte	PBMC	Homo sapiens	NA	GEX	high	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471; https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+DFNB31		Increased	T	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+EOMES		Increased	CD8+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+TIM3		Increased	T	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	10/22/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+TCF7		Increased	T	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/1/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+CD21		Increased	B memory	B naive	PBMC	Homo sapiens	NA	GEX	med	11/4/24	https://pmc.ncbi.nlm.nih.gov/articles/PMC6851823/	cellxgene
+IGHD		Increased	B naive	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/4/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+FCRL1		Increased	B naive	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/4/24	https://www.sc-best-practices.org/cellular_structure/annotation.html	cellxgene
+IGHM		Increased	B naive	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/4/24	https://doi.org/10.1038/s41587-020-0465-8	cellxgene
+IL4R		Increased	B naive	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/4/24	https://www.sc-best-practices.org/cellular_structure/annotation.html	cellxgene
+PAX5		Increased	B	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	11/4/24	https://www.sc-best-practices.org/cellular_structure/annotation.html	cellxgene
+CD82		Increased	B memory	B naive	PBMC	Homo sapiens	NA	GEX	med	11/4/24	https://doi.org/10.1002/jcla.20001	cellxgene
+IGHA1		Increased	B memory	B naive	PBMC	Homo sapiens	NA	GEX	med	11/4/24	https://doi.org/10.1002/jcla.20001	
+IGHG1		Increased	B memory	B naive	PBMC	Homo sapiens	NA	GEX	med	11/4/24	https://doi.org/10.1002/jcla.20001	
+SARAF		Increased	CD4+ T	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/2/24		cellxgene
+LTB		Increased	CD4+ T	CD8+ T	PBMC	Homo sapiens	NA	GEX	med	12/2/24		cellxgene
+LDHB		Increased	CD4+ T	CD8+ T	PBMC	Homo sapiens	NA	GEX	med	12/2/24		cellxgene
+MAL		Increased	CD4+ T	CD8+ T	PBMC	Homo sapiens	NA	GEX	med	12/2/24		cellxgene
+HES4		Increased	Non-classical monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/2/24		cellxgene
+FCN1		Increased	Monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/2/24		cellxgene
+HBB		Increased	Erythrocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/5/24	cellxgene	cellxgene
+SLC25A37		Increased	Erythrocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/5/24	cellxgene	cellxgene
+BLVRB		Increased	Erythrocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/5/24	cellxgene	cellxgene
+CTSS		Increased	Monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/9/24	https://doi.org/10.3389/fimmu.2023.1223471	cellxgene
+FTL		Increased	Monocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/9/24	cellxgene	cellxgene
+CLC		Increased	Granulocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/12/24	cellxgene	cellxgene
+CPA3		Increased	Granulocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/12/24	cellxgene	cellxgene
+GATA2		Increased	Granulocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/12/24	cellxgene	cellxgene
+HDC		Increased	Granulocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/12/24	cellxgene	cellxgene
+HPGDS		Increased	Granulocyte	Leukocyte	PBMC	Homo sapiens	NA	GEX	med	12/12/24	cellxgene	cellxgene
