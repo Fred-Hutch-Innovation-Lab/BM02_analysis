@@ -234,7 +234,7 @@ plotdata[c('NextGEM Flex', "NextGEM 3'", "GEM-X 3'", 'PIPseq v4', 'PIPseq V', 'P
     informative_gene_proportion
   )) |>
   tab_spanner("Replicability",columns = c(
-    emd_low, percent_residual_variance_in_gene_expression,
+    emd_low, percent_residual_variance_in_gene_expression,successfully_detected_enriched_pathways
   )) |> 
   tab_style(
     style = cell_borders(sides = "left", color = "black", weight = px(8), style = "solid"),
